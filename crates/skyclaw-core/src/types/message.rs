@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use crate::types::file::ReceivedFile;
 
 /// Normalized inbound message from any channel
 #[derive(Debug, Clone, Serialize, Deserialize)]

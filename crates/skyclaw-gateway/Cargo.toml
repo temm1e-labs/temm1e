@@ -8,6 +8,7 @@ description = "HTTP/WebSocket gateway for SkyClaw"
 
 [dependencies]
 skyclaw-core.workspace = true
+skyclaw-agent.workspace = true
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
@@ -15,3 +16,6 @@ tokio.workspace = true
 rustls.workspace = true
 tokio-rustls.workspace = true
 tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true

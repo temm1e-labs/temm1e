@@ -4071,11 +4071,13 @@ dependencies = [
 name = "skyclaw-agent"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "futures",
  "serde_json",
  "skyclaw-core",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -4092,7 +4094,9 @@ dependencies = [
 name = "skyclaw-channels"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "bytes",
+ "chrono",
  "futures",
  "poise",
  "reqwest",
@@ -4103,6 +4107,8 @@ dependencies = [
  "teloxide",
  "tokio",
  "tracing",
+ "url",
+ "uuid",
 ]
 
 [[package]]
@@ -4143,7 +4149,11 @@ name = "skyclaw-gateway"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "chrono",
  "rustls 0.23.37",
+ "serde",
+ "serde_json",
+ "skyclaw-agent",
  "skyclaw-core",
  "tokio",
  "tokio-rustls 0.26.4",
@@ -4156,13 +4166,16 @@ dependencies = [
 name = "skyclaw-memory"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
+ "regex",
  "serde",
  "serde_json",
  "skyclaw-core",
  "sqlx",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -4181,6 +4194,7 @@ dependencies = [
 name = "skyclaw-providers"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "futures",
  "reqwest",
  "serde",
@@ -4217,13 +4231,17 @@ dependencies = [
 name = "skyclaw-vault"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "base64",
  "chacha20poly1305",
+ "chrono",
  "dirs",
  "rand 0.8.5",
+ "regex",
  "serde",
  "serde_json",
  "skyclaw-core",
+ "tempfile",
  "tokio",
  "tracing",
 ]

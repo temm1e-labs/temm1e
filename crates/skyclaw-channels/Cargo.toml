@@ -7,7 +7,7 @@ rust-version.workspace = true
 description = "Messaging channel integrations for SkyClaw"
 
 [features]
-telegram = ["dep:teloxide"]
+telegram = ["dep:teloxide", "dep:reqwest"]
 discord = ["dep:serenity", "dep:poise"]
 slack = ["dep:reqwest"]
 whatsapp = ["dep:reqwest"]
@@ -20,6 +20,10 @@ tracing.workspace = true
 bytes.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+url.workspace = true
 
 # Optional: Telegram
 teloxide = { workspace = true, optional = true }
@@ -28,5 +32,5 @@ teloxide = { workspace = true, optional = true }
 serenity = { workspace = true, optional = true }
 poise = { workspace = true, optional = true }
 
-# Optional: Slack & WhatsApp
+# Optional: Slack & WhatsApp (also used by Telegram for file downloads)
 reqwest = { workspace = true, optional = true }
