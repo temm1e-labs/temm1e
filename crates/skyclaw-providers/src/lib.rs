@@ -44,6 +44,15 @@ pub fn create_provider(
             }
             Ok(Box::new(provider))
         }
+        "gemini" => {
+            // Google Gemini via their OpenAI-compatible endpoint
+            let base_url = config.base_url.clone().unwrap_or_else(|| {
+                "https://generativelanguage.googleapis.com/v1beta/openai".to_string()
+            });
+            let provider = OpenAICompatProvider::new(api_key)
+                .with_base_url(base_url);
+            Ok(Box::new(provider))
+        }
         _ => {
             // Treat everything else as OpenAI-compatible
             let mut provider = OpenAICompatProvider::new(api_key);

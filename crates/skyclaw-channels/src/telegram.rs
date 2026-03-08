@@ -1,5 +1,7 @@
 //! Telegram channel — uses teloxide for the Telegram Bot API.
 
+use std::sync::{Arc, RwLock};
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
@@ -24,9 +26,8 @@ pub struct TelegramChannel {
     bot: Option<Bot>,
     /// Bot token.
     token: String,
-    /// Allowlist of user IDs / usernames that may interact with the bot.
-    /// Empty means everyone is allowed.
-    allowlist: Vec<String>,
+    /// Allowlist of user IDs. Empty at startup = auto-whitelist first user.
+    allowlist: Arc<RwLock<Vec<String>>>,
     /// Sender used to forward inbound messages to the gateway.
     tx: mpsc::Sender<InboundMessage>,
     /// Receiver the gateway drains. Taken once via `take_receiver()`.
@@ -50,7 +51,7 @@ impl TelegramChannel {
         Ok(Self {
             bot: None,
             token,
-            allowlist: config.allowlist.clone(),
+            allowlist: Arc::new(RwLock::new(config.allowlist.clone())),
             tx,
             rx: Some(rx),
             dispatcher_handle: None,
@@ -67,13 +68,14 @@ impl TelegramChannel {
     ///
     /// Only numeric user IDs are matched. Usernames are ignored because
     /// they can be changed, enabling allowlist bypass (CA-04).
-    /// An empty allowlist allows all users (open access).
-    /// A non-empty allowlist restricts to listed user IDs only.
+    /// An empty allowlist means no one is whitelisted yet (auto-whitelist
+    /// happens in `handle_telegram_message` when the first user writes).
     fn check_allowed(&self, user_id: &str, _username: Option<&str>) -> bool {
-        if self.allowlist.is_empty() {
-            return true;
+        let list = self.allowlist.read().unwrap();
+        if list.is_empty() {
+            return false; // No one whitelisted yet
         }
-        self.allowlist.iter().any(|a| a == user_id)
+        list.iter().any(|a| a == user_id)
     }
 }
 
@@ -85,6 +87,15 @@ impl Channel for TelegramChannel {
 
     async fn start(&mut self) -> Result<(), SkyclawError> {
         let bot = Bot::new(&self.token);
+
+        // Validate token by calling getMe before starting the dispatcher.
+        // teloxide panics on invalid tokens during dispatch — catch it here.
+        bot.get_me().await.map_err(|e| {
+            SkyclawError::Channel(format!(
+                "Invalid Telegram bot token — getMe failed: {e}"
+            ))
+        })?;
+
         self.bot = Some(bot.clone());
 
         let tx = self.tx.clone();
@@ -96,7 +107,7 @@ impl Channel for TelegramChannel {
                 let tx = tx.clone();
                 let allowlist = allowlist.clone();
                 async move {
-                    if let Err(e) = handle_telegram_message(&bot, msg, &tx, &allowlist).await {
+                    if let Err(e) = handle_telegram_message(&bot, msg, &tx, allowlist).await {
                         tracing::error!(error = %e, "Failed to handle Telegram message");
                     }
                     respond(())
@@ -267,7 +278,7 @@ async fn handle_telegram_message(
     _bot: &Bot,
     msg: teloxide::types::Message,
     tx: &mpsc::Sender<InboundMessage>,
-    allowlist: &[String],
+    allowlist: Arc<RwLock<Vec<String>>>,
 ) -> Result<(), SkyclawError> {
     let user = msg.from.as_ref();
 
@@ -277,15 +288,16 @@ async fn handle_telegram_message(
 
     let username = user.and_then(|u| u.username.clone());
 
-    // Allowlist check: only match on numeric user ID (CA-04).
-    // Empty allowlist = open access. Non-empty = restricted.
+    // Auto-whitelist: if allowlist is empty, the first user to message
+    // gets added. After that, only whitelisted users can interact.
     {
-        let allowed = if allowlist.is_empty() {
-            true
-        } else {
-            allowlist.iter().any(|a| a == &user_id)
-        };
-        if !allowed {
+        let mut list = allowlist.write().unwrap();
+        if list.is_empty() {
+            list.push(user_id.clone());
+            tracing::info!(user_id = %user_id, username = ?username, "Auto-whitelisted first user");
+        }
+        if !list.iter().any(|a| a == &user_id) {
+            drop(list);
             tracing::warn!(user_id = %user_id, username = ?username, "Rejected message from non-allowlisted user");
             return Ok(());
         }

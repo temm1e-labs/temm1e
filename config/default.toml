@@ -1,5 +1,5 @@
 # SkyClaw Default Configuration
-# Cloud-native Rust AI agent runtime
+# Cloud-native Rust AI agent runtime — Telegram-native
 
 [skyclaw]
 mode = "auto"  # "cloud" | "local" | "auto"
@@ -10,14 +10,15 @@ host = "127.0.0.1"
 port = 8080
 tls = false
 
+# Provider is auto-configured via Telegram onboarding.
+# Or set manually here to skip onboarding:
 [provider]
-name = "anthropic"
-api_key = "${ANTHROPIC_API_KEY}"
-model = "claude-sonnet-4-6"
+# name = "anthropic"
+# api_key = "your-api-key-here"
+# model = "claude-sonnet-4-6"
 
 [memory]
 backend = "sqlite"
-# path = "~/.skyclaw/memory.db"
 
 [memory.search]
 vector_weight = 0.7
@@ -25,11 +26,9 @@ keyword_weight = 0.3
 
 [vault]
 backend = "local-chacha20"
-# key_file = "~/.skyclaw/vault.key"
 
 [filestore]
 backend = "local"
-# path = "~/.skyclaw/files"
 
 [security]
 sandbox = "mandatory"
@@ -38,11 +37,9 @@ skill_signing = "required"
 audit_log = true
 
 [heartbeat]
-enabled = false      # Enable autonomous heartbeat loop
-interval = "30m"     # How often to check (s/m/h/d)
-checklist = "HEARTBEAT.md"  # Task checklist file in workspace
-# report_to = ""    # Chat ID to send heartbeat reports to
-# active_hours = "08:00-22:00"  # Only fire heartbeats within this window (local time)
+enabled = false
+interval = "30m"
+checklist = "HEARTBEAT.md"
 
 [cron]
 storage = "sqlite"
@@ -59,22 +56,9 @@ http = true
 log_level = "info"
 otel_enabled = false
 
-# Channel examples (uncomment and configure):
-#
-# [channel.telegram]
-# enabled = true
-# token = "${TELEGRAM_BOT_TOKEN}"
-# allowlist = []
-# file_transfer = true
-#
-# [channel.discord]
-# enabled = true
-# token = "${DISCORD_BOT_TOKEN}"
-# allowlist = []
-# file_transfer = true
-#
-# [channel.slack]
-# enabled = true
-# token = "${SLACK_BOT_TOKEN}"
-# allowlist = []
-# file_transfer = true
+# Telegram channel — set your bot token here or via TELEGRAM_BOT_TOKEN env var
+[channel.telegram]
+enabled = true
+token = "${TELEGRAM_BOT_TOKEN}"
+allowlist = []
+file_transfer = true

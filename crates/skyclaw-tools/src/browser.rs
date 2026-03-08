@@ -19,18 +19,17 @@ use tokio::sync::Mutex;
 const IDLE_TIMEOUT_SECS: i64 = 120;
 
 /// Manages a shared browser instance with one active page.
+/// Always runs headless — GUI mode deferred to a future patch.
 pub struct BrowserTool {
     browser: Arc<Mutex<Option<Browser>>>,
     page: Arc<Mutex<Option<Page>>>,
-    headless: bool,
     /// Unix timestamp of last browser action — used for idle auto-close.
     last_used: Arc<AtomicI64>,
 }
 
 impl BrowserTool {
-    /// Create a new browser tool.
-    /// - `headless`: if false, shows the browser window (GUI mode).
-    pub fn new(headless: bool) -> Self {
+    /// Create a new browser tool (always headless).
+    pub fn new() -> Self {
         let browser = Arc::new(Mutex::new(None));
         let page = Arc::new(Mutex::new(None));
         let last_used = Arc::new(AtomicI64::new(0));
@@ -65,7 +64,6 @@ impl BrowserTool {
         Self {
             browser,
             page,
-            headless,
             last_used,
         }
     }
@@ -103,10 +101,8 @@ impl BrowserTool {
         }
 
         let mut config = BrowserConfig::builder();
-        if self.headless {
-            config = config.arg("--headless=new");
-        }
         config = config
+            .arg("--headless=new")
             .arg("--disable-gpu")
             .arg("--no-sandbox")
             .arg("--disable-dev-shm-usage")
@@ -154,7 +150,7 @@ impl BrowserTool {
         *page_guard = Some(page.clone());
         self.last_used.store(chrono::Utc::now().timestamp(), Ordering::Relaxed);
 
-        tracing::info!(headless = self.headless, "Browser launched");
+        tracing::info!("Browser launched (headless)");
         Ok(page)
     }
 }

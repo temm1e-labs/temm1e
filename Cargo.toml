@@ -20,7 +20,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/skyclaw/skyclaw"
+repository = "https://github.com/nagisanzenin/skyclaw"
 rust-version = "1.82"
 
 [workspace.dependencies]
@@ -143,7 +143,7 @@ serde.workspace = true
 toml.workspace = true
 
 [features]
-default = ["telegram", "discord", "slack", "whatsapp", "browser", "postgres"]
+default = ["telegram", "browser"]
 telegram = ["skyclaw-channels/telegram"]
 discord = ["skyclaw-channels/discord"]
 slack = ["skyclaw-channels/slack"]

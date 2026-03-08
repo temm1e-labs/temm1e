@@ -23,14 +23,12 @@ use skyclaw_core::{Channel, Tool};
 use skyclaw_core::types::config::ToolsConfig;
 
 /// Create tools based on the configuration flags.
-/// Pass an optional channel for file transfer tools, an optional
-/// pending-message queue for the check_messages tool, and a gui flag
-/// to control whether the browser launches headless or visible.
+/// Pass an optional channel for file transfer tools and an optional
+/// pending-message queue for the check_messages tool.
 pub fn create_tools(
     config: &ToolsConfig,
     channel: Option<Arc<dyn Channel>>,
     pending_messages: Option<PendingMessages>,
-    #[allow(unused_variables)] gui: bool,
 ) -> Vec<Arc<dyn Tool>> {
     let mut tools: Vec<Arc<dyn Tool>> = Vec::new();
 
@@ -64,11 +62,10 @@ pub fn create_tools(
         tools.push(Arc::new(CheckMessagesTool::new(pending)));
     }
 
-    // browser: headless Chrome automation (headed if --gui)
+    // browser: headless Chrome automation
     #[cfg(feature = "browser")]
     if config.browser {
-        let headless = !gui;
-        tools.push(Arc::new(BrowserTool::new(headless)));
+        tools.push(Arc::new(BrowserTool::new()));
     }
 
     tracing::info!(count = tools.len(), "Tools registered");
