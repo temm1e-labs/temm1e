@@ -8,12 +8,14 @@ use skyclaw_core::types::message::{
     StreamChunk, ToolDefinition, Usage,
 };
 use skyclaw_core::Provider;
-use tracing::{debug, error};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tracing::{debug, error, info};
 
-/// Anthropic Messages API provider.
+/// Anthropic Messages API provider with key rotation.
 pub struct AnthropicProvider {
     client: Client,
-    api_key: String,
+    keys: Vec<String>,
+    key_index: AtomicUsize,
     base_url: String,
 }
 
@@ -21,14 +23,37 @@ impl AnthropicProvider {
     pub fn new(api_key: String) -> Self {
         Self {
             client: Client::new(),
-            api_key,
+            keys: vec![api_key],
+            key_index: AtomicUsize::new(0),
             base_url: "https://api.anthropic.com".to_string(),
         }
+    }
+
+    pub fn with_keys(mut self, keys: Vec<String>) -> Self {
+        if !keys.is_empty() {
+            self.keys = keys;
+        }
+        self
     }
 
     pub fn with_base_url(mut self, base_url: String) -> Self {
         self.base_url = base_url;
         self
+    }
+
+    /// Get the current API key via round-robin rotation.
+    fn current_key(&self) -> &str {
+        let idx = self.key_index.load(Ordering::Relaxed) % self.keys.len();
+        &self.keys[idx]
+    }
+
+    /// Advance to the next key (called on rate limit).
+    fn rotate_key(&self) {
+        let old = self.key_index.fetch_add(1, Ordering::Relaxed);
+        let new_idx = (old + 1) % self.keys.len();
+        if self.keys.len() > 1 {
+            info!(new_index = new_idx, total_keys = self.keys.len(), "Rotated API key");
+        }
     }
 
     /// Build the JSON body for the Anthropic Messages API.
@@ -257,10 +282,11 @@ impl Provider for AnthropicProvider {
 
         debug!(provider = "anthropic", model = %request.model, "Sending completion request");
 
+        let api_key = self.current_key().to_string();
         let response = self
             .client
             .post(format!("{}/v1/messages", self.base_url))
-            .header("x-api-key", &self.api_key)
+            .header("x-api-key", &api_key)
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
             .json(&body)
@@ -276,9 +302,11 @@ impl Provider for AnthropicProvider {
                 .unwrap_or_else(|_| "unknown error".into());
             error!(provider = "anthropic", %status, "API error: {}", error_body);
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                self.rotate_key();
                 return Err(SkyclawError::RateLimited(error_body));
             }
             if status == reqwest::StatusCode::UNAUTHORIZED {
+                self.rotate_key();
                 return Err(SkyclawError::Auth(error_body));
             }
             return Err(SkyclawError::Provider(format!(
@@ -315,10 +343,11 @@ impl Provider for AnthropicProvider {
 
         debug!(provider = "anthropic", model = %request.model, "Sending streaming request");
 
+        let api_key = self.current_key().to_string();
         let response = self
             .client
             .post(format!("{}/v1/messages", self.base_url))
-            .header("x-api-key", &self.api_key)
+            .header("x-api-key", &api_key)
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
             .json(&body)
@@ -333,9 +362,11 @@ impl Provider for AnthropicProvider {
                 .await
                 .unwrap_or_else(|_| "unknown error".into());
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                self.rotate_key();
                 return Err(SkyclawError::RateLimited(error_body));
             }
             if status == reqwest::StatusCode::UNAUTHORIZED {
+                self.rotate_key();
                 return Err(SkyclawError::Auth(error_body));
             }
             return Err(SkyclawError::Provider(format!(
@@ -389,7 +420,7 @@ impl Provider for AnthropicProvider {
         let resp = self
             .client
             .head(format!("{}/v1/messages", self.base_url))
-            .header("x-api-key", &self.api_key)
+            .header("x-api-key", self.current_key())
             .header("anthropic-version", "2023-06-01")
             .send()
             .await

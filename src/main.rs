@@ -66,48 +66,245 @@ enum ConfigCommands {
 
 // ── Onboarding helpers ─────────────────────────────────────
 
-/// Detect API provider from key pattern.
-fn detect_api_key(text: &str) -> Option<(&'static str, String)> {
+/// Result of credential detection from user input.
+struct DetectedCredential {
+    provider: &'static str,
+    api_key: String,
+    base_url: Option<String>,
+}
+
+/// Reject obviously fake / placeholder API keys before they reach any provider.
+/// This prevents bricking the agent by saving a dummy key to credentials.toml.
+fn is_placeholder_key(key: &str) -> bool {
+    let k = key.trim().to_lowercase();
+    // Too short to be any real API key
+    if k.len() < 10 {
+        return true;
+    }
+    // Common placeholders users might paste from docs/examples/READMEs
+    let placeholders = [
+        "paste_your", "your_key", "your_api", "your-key", "your-api",
+        "insert_your", "insert-your", "put_your", "put-your",
+        "replace_with", "replace-with", "enter_your", "enter-your",
+        "placeholder", "xxxxxxxx", "your_token", "your-token",
+        "_here",  // catches PASTE_YOUR_KEY_HERE, PUT_KEY_HERE, etc.
+    ];
+    for p in &placeholders {
+        if k.contains(p) {
+            return true;
+        }
+    }
+    // All same character (e.g. "aaaaaaaaaa")
+    if k.len() >= 10 && k.chars().all(|c| c == k.chars().next().unwrap_or('a')) {
+        return true;
+    }
+    false
+}
+
+/// Validate a provider key by making a minimal API call.
+/// Returns Ok(provider_arc) if the key works, Err(message) if not.
+async fn validate_provider_key(
+    config: &skyclaw_core::types::config::ProviderConfig,
+) -> Result<Arc<dyn skyclaw_core::Provider>, String> {
+    let provider = skyclaw_providers::create_provider(config)
+        .map_err(|e| format!("Failed to create provider: {}", e))?;
+    let provider_arc: Arc<dyn skyclaw_core::Provider> = Arc::from(provider);
+
+    let test_req = skyclaw_core::types::message::CompletionRequest {
+        model: config.model.clone().unwrap_or_default(),
+        messages: vec![skyclaw_core::types::message::ChatMessage {
+            role: skyclaw_core::types::message::Role::User,
+            content: skyclaw_core::types::message::MessageContent::Text("Hi".to_string()),
+        }],
+        tools: Vec::new(),
+        max_tokens: Some(1),
+        temperature: Some(0.0),
+        system: None,
+    };
+
+    match provider_arc.complete(test_req).await {
+        Ok(_) => Ok(provider_arc),
+        Err(e) => {
+            let err_str = format!("{}", e);
+            let err_lower = err_str.to_lowercase();
+            // Auth errors mean the key is invalid — reject
+            if err_lower.contains("401")
+                || err_lower.contains("403")
+                || err_lower.contains("unauthorized")
+                || err_lower.contains("invalid api key")
+                || err_lower.contains("invalid x-api-key")
+                || err_lower.contains("authentication")
+                || err_lower.contains("permission")
+            {
+                Err(err_str)
+            } else {
+                // Non-auth errors (400 max_tokens, 429 rate limit, etc.) mean
+                // the key IS valid — the API accepted the auth, just rejected
+                // the request params. This is fine for validation.
+                tracing::debug!(error = %err_str, "Key validation got non-auth error — key is valid");
+                Ok(provider_arc)
+            }
+        }
+    }
+}
+
+/// Detect API provider from user input. Supports multiple formats:
+///
+/// 1. Raw key (auto-detect): `sk-ant-xxx`
+/// 2. Explicit provider:key: `minimax:eyJhbG...`
+/// 3. Proxy config (key:value pairs on one or multiple lines):
+///    `proxy provider:openai base_url:https://my-proxy/v1 key:sk-xxx`
+///    or `proxy openai https://my-proxy/v1 sk-xxx` (positional shorthand)
+fn detect_api_key(text: &str) -> Option<DetectedCredential> {
     let trimmed = text.trim();
 
-    // Explicit format: "provider:api_key" (e.g. "minimax:eyJhbG...")
-    // Supports any provider name — essential for keys without a unique prefix.
-    if let Some((provider, key)) = trimmed.split_once(':') {
-        let p = provider.to_lowercase();
-        match p.as_str() {
-            "anthropic" | "openai" | "gemini" | "grok" | "xai" | "openrouter" | "minimax" => {
-                if key.len() >= 8 {
-                    return Some((
-                        match p.as_str() {
-                            "anthropic" => "anthropic",
-                            "openai" => "openai",
-                            "gemini" => "gemini",
-                            "grok" | "xai" => "grok",
-                            "openrouter" => "openrouter",
-                            "minimax" => "minimax",
-                            _ => unreachable!(),
-                        },
-                        key.to_string(),
-                    ));
-                }
+    // ── Format 3: Proxy config ──────────────────────────────
+    // Detect "proxy" keyword (case-insensitive)
+    let lower = trimmed.to_lowercase();
+    if lower.starts_with("proxy") {
+        let result = parse_proxy_config(trimmed);
+        // Validate proxy key isn't a placeholder
+        if let Some(ref cred) = result {
+            if is_placeholder_key(&cred.api_key) {
+                return None;
             }
-            _ => {}
+        }
+        return result;
+    }
+
+    // ── Format 2: Explicit provider:key ─────────────────────
+    if let Some((provider, key)) = trimmed.split_once(':') {
+        // Don't match "http:" or "https:" as provider:key
+        let p = provider.to_lowercase();
+        if p != "http" && p != "https" {
+            match p.as_str() {
+                "anthropic" | "openai" | "gemini" | "grok" | "xai" | "openrouter" | "minimax" => {
+                    if key.len() >= 8 && !is_placeholder_key(key) {
+                        return Some(DetectedCredential {
+                            provider: match p.as_str() {
+                                "anthropic" => "anthropic",
+                                "openai" => "openai",
+                                "gemini" => "gemini",
+                                "grok" | "xai" => "grok",
+                                "openrouter" => "openrouter",
+                                "minimax" => "minimax",
+                                _ => unreachable!(),
+                            },
+                            api_key: key.to_string(),
+                            base_url: None,
+                        });
+                    }
+                }
+                _ => {}
+            }
         }
     }
 
-    // Auto-detect from key prefix
+    // ── Format 1: Auto-detect from key prefix ───────────────
+    // Reject placeholders before accepting
+    if is_placeholder_key(trimmed) {
+        return None;
+    }
     if trimmed.starts_with("sk-ant-") {
-        Some(("anthropic", trimmed.to_string()))
+        Some(DetectedCredential { provider: "anthropic", api_key: trimmed.to_string(), base_url: None })
     } else if trimmed.starts_with("sk-or-") {
-        Some(("openrouter", trimmed.to_string()))
+        Some(DetectedCredential { provider: "openrouter", api_key: trimmed.to_string(), base_url: None })
     } else if trimmed.starts_with("xai-") {
-        Some(("grok", trimmed.to_string()))
+        Some(DetectedCredential { provider: "grok", api_key: trimmed.to_string(), base_url: None })
     } else if trimmed.starts_with("sk-") {
-        Some(("openai", trimmed.to_string()))
+        Some(DetectedCredential { provider: "openai", api_key: trimmed.to_string(), base_url: None })
     } else if trimmed.starts_with("AIzaSy") {
-        Some(("gemini", trimmed.to_string()))
+        Some(DetectedCredential { provider: "gemini", api_key: trimmed.to_string(), base_url: None })
     } else {
         None
+    }
+}
+
+/// Parse proxy configuration from user input.
+///
+/// Supports flexible formats:
+///   `proxy provider:openai base_url:https://... key:sk-xxx`
+///   `proxy provider:openai url:https://... key:sk-xxx`
+///   `proxy openai https://my-proxy.com/v1 sk-xxx`  (positional shorthand)
+///
+/// Also handles multi-line input (Telegram sends line breaks).
+fn parse_proxy_config(text: &str) -> Option<DetectedCredential> {
+    // Normalize: join all lines, split by whitespace
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    if tokens.len() < 3 {
+        return None; // Need at least "proxy <provider> <key>"
+    }
+
+    let mut provider: Option<&'static str> = None;
+    let mut base_url: Option<String> = None;
+    let mut api_key: Option<String> = None;
+
+    // Skip the "proxy" token
+    let mut i = 1;
+    while i < tokens.len() {
+        let token = tokens[i];
+        let lower = token.to_lowercase();
+
+        // Key:value format
+        if let Some((k, v)) = token.split_once(':') {
+            let k_lower = k.to_lowercase();
+            match k_lower.as_str() {
+                "provider" | "type" => {
+                    provider = normalize_provider_name(v);
+                }
+                "base_url" | "url" | "endpoint" | "host" => {
+                    base_url = Some(v.to_string());
+                }
+                "key" | "api_key" | "apikey" | "token" => {
+                    api_key = Some(v.to_string());
+                }
+                // Could be a provider:key or url with port
+                _ => {
+                    if v.starts_with("//") || v.starts_with("http") {
+                        // It's a URL like "https://..."
+                        base_url = Some(token.to_string());
+                    } else if normalize_provider_name(&lower).is_some() {
+                        // e.g. "openai:sk-xxx" — treat as provider + key
+                        provider = normalize_provider_name(k);
+                        api_key = Some(v.to_string());
+                    }
+                }
+            }
+        } else if token.starts_with("http://") || token.starts_with("https://") {
+            // Positional: bare URL
+            base_url = Some(token.to_string());
+        } else if normalize_provider_name(&lower).is_some() && provider.is_none() {
+            // Positional: provider name
+            provider = normalize_provider_name(&lower);
+        } else if token.len() >= 8 && api_key.is_none() {
+            // Positional: assume it's the API key (long enough token)
+            api_key = Some(token.to_string());
+        }
+
+        i += 1;
+    }
+
+    // Provider defaults to "openai" for proxies (most common use case)
+    let provider = provider.unwrap_or("openai");
+    let api_key = api_key?;
+
+    Some(DetectedCredential {
+        provider,
+        api_key,
+        base_url,
+    })
+}
+
+/// Normalize provider name string to a static str.
+fn normalize_provider_name(name: &str) -> Option<&'static str> {
+    match name.to_lowercase().as_str() {
+        "anthropic" | "claude" => Some("anthropic"),
+        "openai" | "gpt" => Some("openai"),
+        "gemini" | "google" => Some("gemini"),
+        "grok" | "xai" => Some("grok"),
+        "openrouter" => Some("openrouter"),
+        "minimax" => Some("minimax"),
+        _ => None,
     }
 }
 
@@ -124,26 +321,56 @@ fn default_model(provider_name: &str) -> &'static str {
     }
 }
 
-/// Save credentials to ~/.skyclaw/credentials.toml
-async fn save_credentials(provider_name: &str, api_key: &str, model: &str) -> Result<()> {
-    let dir = dirs::home_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join(".skyclaw");
-    tokio::fs::create_dir_all(&dir).await?;
-    let path = dir.join("credentials.toml");
-    let content = format!(
-        "[provider]\nname = \"{}\"\napi_key = \"{}\"\nmodel = \"{}\"\n",
-        provider_name, api_key, model
-    );
-    tokio::fs::write(&path, content).await?;
-    tracing::info!(path = %path.display(), "Credentials saved");
-    Ok(())
+/// Credentials file layout (multi-provider, multi-key).
+///
+/// ```toml
+/// active = "anthropic"
+///
+/// [[providers]]
+/// name = "anthropic"
+/// keys = ["sk-ant-key1", "sk-ant-key2"]
+/// model = "claude-sonnet-4-6"
+/// ```
+#[derive(serde::Serialize, serde::Deserialize, Default, Clone)]
+struct CredentialsFile {
+    /// Name of the currently active provider.
+    #[serde(default)]
+    active: String,
+    /// All configured providers.
+    #[serde(default)]
+    providers: Vec<CredentialsProvider>,
 }
 
-/// Load saved credentials from ~/.skyclaw/credentials.toml
-fn load_saved_credentials() -> Option<(String, String, String)> {
-    let path = dirs::home_dir()?.join(".skyclaw").join("credentials.toml");
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct CredentialsProvider {
+    name: String,
+    #[serde(default)]
+    keys: Vec<String>,
+    model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    base_url: Option<String>,
+}
+
+fn credentials_path() -> std::path::PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(".skyclaw")
+        .join("credentials.toml")
+}
+
+/// Load the full credentials file. Falls back to legacy single-provider format.
+fn load_credentials_file() -> Option<CredentialsFile> {
+    let path = credentials_path();
     let content = std::fs::read_to_string(&path).ok()?;
+
+    // Try new format first
+    if let Ok(creds) = toml::from_str::<CredentialsFile>(&content) {
+        if !creds.providers.is_empty() {
+            return Some(creds);
+        }
+    }
+
+    // Fallback: legacy single-provider format
     let table: toml::Table = content.parse().ok()?;
     let provider = table.get("provider")?.as_table()?;
     let name = provider.get("name")?.as_str()?.to_string();
@@ -152,23 +379,134 @@ fn load_saved_credentials() -> Option<(String, String, String)> {
     if name.is_empty() || key.is_empty() {
         return None;
     }
-    Some((name, key, model))
+    Some(CredentialsFile {
+        active: name.clone(),
+        providers: vec![CredentialsProvider {
+            name,
+            keys: vec![key],
+            model,
+            base_url: None,
+        }],
+    })
+}
+
+/// Save credentials — appends key to existing provider or creates new entry.
+/// If `custom_base_url` is provided, it creates a separate proxy entry.
+async fn save_credentials(
+    provider_name: &str,
+    api_key: &str,
+    model: &str,
+    custom_base_url: Option<&str>,
+) -> Result<()> {
+    let dir = dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(".skyclaw");
+    tokio::fs::create_dir_all(&dir).await?;
+    let path = dir.join("credentials.toml");
+
+    let mut creds = load_credentials_file().unwrap_or_default();
+
+    // For proxy providers with custom base_url, match on name + base_url
+    // to keep them separate from the default endpoint entry.
+    let match_fn = |p: &CredentialsProvider| -> bool {
+        p.name == provider_name && p.base_url == custom_base_url.map(|s| s.to_string())
+    };
+
+    if let Some(existing) = creds.providers.iter_mut().find(|p| match_fn(p)) {
+        if !existing.keys.contains(&api_key.to_string()) {
+            existing.keys.push(api_key.to_string());
+            tracing::info!(
+                provider = %provider_name,
+                total_keys = existing.keys.len(),
+                "Added new key to existing provider"
+            );
+        }
+        existing.model = model.to_string();
+    } else {
+        creds.providers.push(CredentialsProvider {
+            name: provider_name.to_string(),
+            keys: vec![api_key.to_string()],
+            model: model.to_string(),
+            base_url: custom_base_url.map(|s| s.to_string()),
+        });
+    }
+
+    // Set this provider as active
+    creds.active = provider_name.to_string();
+
+    let content = toml::to_string_pretty(&creds)?;
+    tokio::fs::write(&path, content).await?;
+    tracing::info!(path = %path.display(), provider = %provider_name, "Credentials saved");
+    Ok(())
+}
+
+/// Load the active provider's credentials (backwards-compatible return type).
+/// Filters out placeholder/dummy keys — returns None if no valid key exists.
+fn load_saved_credentials() -> Option<(String, String, String)> {
+    let creds = load_credentials_file()?;
+    // Find active provider
+    let provider = creds
+        .providers
+        .iter()
+        .find(|p| p.name == creds.active)
+        .or_else(|| creds.providers.first())?;
+    // Find the first non-placeholder key
+    let first_valid_key = provider.keys.iter().find(|k| !is_placeholder_key(k))?.clone();
+    if provider.name.is_empty() || first_valid_key.is_empty() {
+        return None;
+    }
+    Some((provider.name.clone(), first_valid_key, provider.model.clone()))
+}
+
+/// Load all keys for the active provider.
+/// Filters out placeholder/dummy keys — returns None if no valid keys remain.
+fn load_active_provider_keys() -> Option<(String, Vec<String>, String, Option<String>)> {
+    let creds = load_credentials_file()?;
+    let provider = creds
+        .providers
+        .iter()
+        .find(|p| p.name == creds.active)
+        .or_else(|| creds.providers.first())?;
+    // Filter out placeholders
+    let valid_keys: Vec<String> = provider.keys.iter()
+        .filter(|k| !is_placeholder_key(k))
+        .cloned()
+        .collect();
+    if provider.name.is_empty() || valid_keys.is_empty() {
+        return None;
+    }
+    Some((
+        provider.name.clone(),
+        valid_keys,
+        provider.model.clone(),
+        provider.base_url.clone(),
+    ))
 }
 
 const ONBOARDING_MESSAGE: &str = "\
 Welcome to SkyClaw!\n\n\
-To get started, paste your API key from any of these providers:\n\n\
-- Anthropic (starts with sk-ant-)\n\
-- OpenAI (starts with sk-)\n\
-- Google Gemini (starts with AIzaSy)\n\
-- xAI Grok (starts with xai-)\n\
-- OpenRouter (starts with sk-or-)\n\
-- MiniMax: paste as minimax:YOUR_KEY\n\n\
-For any provider, you can also use the format provider:key\n\
-(e.g. openrouter:sk-or-xxx or minimax:eyJhbG...)\n\n\
-Just paste the key here and I'll handle the rest.";
+To get started, paste your API key below. I'll auto-detect the provider and get you online.\n\n\
+You can add more keys later, switch providers mid-conversation, or use a custom proxy endpoint.\n\n\
+Paste your key to begin.";
 
-const SYSTEM_PROMPT: &str = "\
+const ONBOARDING_REFERENCE: &str = "\
+Supported formats:\n\n\
+1\u{fe0f}\u{20e3} Auto-detect (just paste the key):\n\
+sk-ant-...     \u{2192} Anthropic\n\
+sk-...         \u{2192} OpenAI\n\
+AIzaSy...      \u{2192} Gemini\n\
+xai-...        \u{2192} Grok\n\
+sk-or-...      \u{2192} OpenRouter\n\n\
+2\u{fe0f}\u{20e3} Explicit (for keys without unique prefix):\n\
+minimax:YOUR_KEY\n\
+openrouter:YOUR_KEY\n\n\
+3\u{fe0f}\u{20e3} Proxy / custom endpoint:\n\
+proxy <provider> <base_url> <api_key>\n\n\
+Example:\n\
+proxy openai https://my-proxy.com/v1 sk-xxx\n\
+proxy anthropic https://gateway.ai/v1/anthropic sk-ant-xxx";
+
+const SYSTEM_PROMPT_BASE: &str = "\
 You are SkyClaw, a cloud-native AI agent running on a remote server. \
 You have full access to these tools:\n\
 - shell: run any command\n\
@@ -192,13 +530,56 @@ KEY RULES:\n\
 - Be concise. No emoji unless the user uses them.\n\
 - NEVER give up on a task by explaining limitations. You have a multi-round \
   tool loop — keep calling tools until the task is done or you hit a real \
-  error. Do not stop early to explain what you 'cannot' do.\n\n\
+  error. Do not stop early to explain what you 'cannot' do.";
+
+/// Build the full system prompt with dynamic provider/model context.
+/// This ensures the bot always knows what's actually configured.
+fn build_system_prompt() -> String {
+    let mut prompt = SYSTEM_PROMPT_BASE.to_string();
+
+    // ── Provider/model context ────────────────────────────────
+    prompt.push_str("\n\nSUPPORTED PROVIDERS & DEFAULT MODELS:\n");
+    prompt.push_str("- anthropic: claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-6\n");
+    prompt.push_str("- openai: gpt-5.2, gpt-4.1, gpt-4.1-mini, o4-mini\n");
+    prompt.push_str("- gemini: gemini-2.5-flash, gemini-2.5-pro\n");
+    prompt.push_str("- grok (xai): grok-4-1-fast-non-reasoning, grok-3\n");
+    prompt.push_str("- openrouter: any model via anthropic/claude-sonnet-4-6, openai/gpt-5.2, etc.\n");
+    prompt.push_str("- minimax: MiniMax-M2.5\n");
+
+    // ── Current configuration ─────────────────────────────────
+    if let Some(creds) = load_credentials_file() {
+        prompt.push_str("\nCURRENT CONFIGURATION:\n");
+        prompt.push_str(&format!("Active provider: {}\n", creds.active));
+        for p in &creds.providers {
+            let key_count = p.keys.iter().filter(|k| !is_placeholder_key(k)).count();
+            let base_note = if let Some(ref url) = p.base_url {
+                format!(" (via {})", url)
+            } else {
+                String::new()
+            };
+            prompt.push_str(&format!(
+                "- {}: model={}, {} key(s){}\n",
+                p.name, p.model, key_count, base_note
+            ));
+        }
+    }
+
+    // ── Self-configuration rules ──────────────────────────────
+    prompt.push_str("\n\
 SELF-CONFIGURATION:\n\
-Your config lives at ~/.skyclaw/credentials.toml (provider, api_key, model). \
-You can read and edit this file to change your own settings. For example, \
-if the user says 'change model to claude-opus-4-6', edit credentials.toml \
-and confirm. Changes take effect immediately — SkyClaw auto-reloads after \
-each response. Tell the user they can configure you through natural language.";
+Your config lives at ~/.skyclaw/credentials.toml.\n\
+To change the active provider or model, edit ONLY the 'active' field or 'model' \
+field in credentials.toml. NEVER modify or add API keys directly — keys are \
+managed by the onboarding system. If the user wants to add a key, tell them to \
+paste it in chat.\n\
+Changes take effect immediately — SkyClaw validates the key and auto-reloads \
+after each response. If a key is invalid, the switch is rejected and the \
+current provider stays active.\n\
+Users can add keys anytime by pasting them in chat. SkyClaw auto-detects the \
+provider and validates before saving.");
+
+    prompt
+}
 
 // ── Stop-command detection ─────────────────────────────────
 fn is_stop_command(text: &str) -> bool {
@@ -453,18 +834,32 @@ async fn main() -> Result<()> {
             );
             tracing::info!(count = tools.len(), "Tools initialized");
 
-            let system_prompt = Some(SYSTEM_PROMPT.to_string());
+            let system_prompt = Some(build_system_prompt());
 
             // ── Agent state (None during onboarding) ───────────
             let agent_state: Arc<tokio::sync::RwLock<Option<Arc<skyclaw_agent::AgentRuntime>>>> =
                 Arc::new(tokio::sync::RwLock::new(None));
 
             if let Some((ref pname, ref key, ref model)) = credentials {
+                // Filter out placeholder/invalid keys at startup
+                if is_placeholder_key(key) {
+                    tracing::warn!(provider = %pname, "Primary API key is a placeholder — starting in onboarding mode");
+                    // Fall through to onboarding
+                } else {
+                // Load all keys and saved base_url for this provider
+                let (all_keys, saved_base_url) = load_active_provider_keys()
+                    .map(|(_, keys, _, burl)| {
+                        let valid: Vec<String> = keys.into_iter().filter(|k| !is_placeholder_key(k)).collect();
+                        (valid, burl)
+                    })
+                    .unwrap_or_else(|| (vec![key.clone()], None));
+                let effective_base_url = saved_base_url.or_else(|| config.provider.base_url.clone());
                 let provider_config = skyclaw_core::types::config::ProviderConfig {
                     name: Some(pname.clone()),
                     api_key: Some(key.clone()),
+                    keys: all_keys,
                     model: Some(model.clone()),
-                    base_url: config.provider.base_url.clone(),
+                    base_url: effective_base_url,
                     extra_headers: config.provider.extra_headers.clone(),
                 };
                 let provider: Arc<dyn skyclaw_core::Provider> =
@@ -482,6 +877,7 @@ async fn main() -> Result<()> {
                 ));
                 *agent_state.write().await = Some(agent);
                 tracing::info!(provider = %pname, model = %model, "Agent initialized");
+                }
             } else {
                 tracing::info!("No API key — starting in onboarding mode");
             }
@@ -545,7 +941,6 @@ async fn main() -> Result<()> {
                 let agent_state_clone = agent_state.clone();
                 let memory_clone = memory.clone();
                 let tools_clone = tools.clone();
-                let system_prompt_clone = system_prompt.clone();
                 let agent_max_turns = config.agent.max_turns;
                 let agent_max_context_tokens = config.agent.max_context_tokens;
                 let agent_max_tool_rounds = config.agent.max_tool_rounds;
@@ -624,7 +1019,6 @@ async fn main() -> Result<()> {
                             let agent_state = agent_state_clone.clone();
                             let memory = memory_clone.clone();
                             let tools_template = tools_clone.clone();
-                            let sys_prompt = system_prompt_clone.clone();
                             let max_turns = agent_max_turns;
                             let max_ctx = agent_max_context_tokens;
                             let max_rounds = agent_max_tool_rounds;
@@ -652,6 +1046,100 @@ async fn main() -> Result<()> {
                                     };
 
                                     if let Some(agent) = agent {
+                                        // ── Detect new API key mid-conversation ────
+                                        let msg_text_peek = msg.text.as_deref().unwrap_or("");
+                                        if let Some(cred) = detect_api_key(msg_text_peek) {
+                                            let model = default_model(cred.provider).to_string();
+                                            let effective_base_url = cred.base_url.clone().or_else(|| base_url.clone());
+
+                                            // Validate the key BEFORE saving — don't brick the agent
+                                            let test_config = skyclaw_core::types::config::ProviderConfig {
+                                                name: Some(cred.provider.to_string()),
+                                                api_key: Some(cred.api_key.clone()),
+                                                keys: vec![cred.api_key.clone()],
+                                                model: Some(model.clone()),
+                                                base_url: effective_base_url,
+                                                extra_headers: std::collections::HashMap::new(),
+                                            };
+
+                                            match validate_provider_key(&test_config).await {
+                                                Ok(_validated_provider) => {
+                                                    // Key is valid — now save and reload with all keys
+                                                    if let Err(e) = save_credentials(cred.provider, &cred.api_key, &model, cred.base_url.as_deref()).await {
+                                                        tracing::error!(error = %e, "Failed to save new key");
+                                                    } else if let Some((name, keys, mdl, saved_base_url)) = load_active_provider_keys() {
+                                                        let reload_base_url = saved_base_url.or_else(|| base_url.clone());
+                                                        let reload_config = skyclaw_core::types::config::ProviderConfig {
+                                                            name: Some(name.clone()),
+                                                            api_key: keys.first().cloned(),
+                                                            keys: keys.clone(),
+                                                            model: Some(mdl.clone()),
+                                                            base_url: reload_base_url,
+                                                            extra_headers: std::collections::HashMap::new(),
+                                                        };
+                                                        if let Ok(new_provider) = skyclaw_providers::create_provider(&reload_config) {
+                                                            let new_agent = Arc::new(skyclaw_agent::AgentRuntime::with_limits(
+                                                                Arc::from(new_provider),
+                                                                memory.clone(),
+                                                                tools_template.clone(),
+                                                                mdl.clone(),
+                                                                Some(build_system_prompt()),
+                                                                max_turns,
+                                                                max_ctx,
+                                                                max_rounds,
+                                                                max_task_duration,
+                                                            ));
+                                                            *agent_state.write().await = Some(new_agent);
+                                                            let key_count = keys.len();
+                                                            let reply = skyclaw_core::types::message::OutboundMessage {
+                                                                chat_id: msg.chat_id.clone(),
+                                                                text: format!(
+                                                                    "Key verified and added for {}! Now using {} key{} with model {}.",
+                                                                    name, key_count,
+                                                                    if key_count > 1 { "s (rotation on error)" } else { "" },
+                                                                    mdl
+                                                                ),
+                                                                reply_to: Some(msg.id.clone()),
+                                                                parse_mode: None,
+                                                            };
+                                                            let _ = sender.send_message(reply).await;
+                                                            tracing::info!(
+                                                                provider = %name,
+                                                                key_count = key_count,
+                                                                "Mid-conversation key validated and added — agent reloaded"
+                                                            );
+                                                        }
+                                                    }
+                                                }
+                                                Err(err) => {
+                                                    // Key is invalid — DO NOT save, DO NOT switch
+                                                    let reply = skyclaw_core::types::message::OutboundMessage {
+                                                        chat_id: msg.chat_id.clone(),
+                                                        text: format!(
+                                                            "Invalid API key — {} returned an error:\n{}\n\nThe current provider is still active. Check the key and try again.",
+                                                            cred.provider, err
+                                                        ),
+                                                        reply_to: Some(msg.id.clone()),
+                                                        parse_mode: None,
+                                                    };
+                                                    let _ = sender.send_message(reply).await;
+                                                    tracing::warn!(
+                                                        provider = %cred.provider,
+                                                        error = %err,
+                                                        "Mid-conversation key rejected — validation failed"
+                                                    );
+                                                }
+                                            }
+
+                                            // Skip processing the key message as a normal prompt
+                                            is_heartbeat_clone.store(false, Ordering::Relaxed);
+                                            interrupt_clone.store(false, Ordering::Relaxed);
+                                            if let Ok(mut pq) = pending_for_worker.lock() {
+                                                pq.remove(&worker_chat_id);
+                                            }
+                                            continue;
+                                        }
+
                                         // ── Normal mode: process with agent ────
 
                                         // Download attachments
@@ -713,78 +1201,103 @@ async fn main() -> Result<()> {
                                         }
 
                                         // ── Hot-reload: check if credentials changed ────
-                                        if let Some((new_name, new_key, new_model)) = load_saved_credentials() {
+                                        if let Some((new_name, new_keys, new_model, saved_base_url)) = load_active_provider_keys() {
                                             let current_model = agent.model().to_string();
-                                            if new_model != current_model {
-                                                tracing::info!(
-                                                    old_model = %current_model,
-                                                    new_model = %new_model,
-                                                    "Credentials changed — hot-reloading agent"
-                                                );
-                                                let reload_config = skyclaw_core::types::config::ProviderConfig {
-                                                    name: Some(new_name.clone()),
-                                                    api_key: Some(new_key),
-                                                    model: Some(new_model.clone()),
-                                                    base_url: base_url.clone(),
-                                                    extra_headers: std::collections::HashMap::new(),
-                                                };
-                                                if let Ok(new_provider) = skyclaw_providers::create_provider(&reload_config) {
-                                                    let new_agent = Arc::new(skyclaw_agent::AgentRuntime::with_limits(
-                                                        Arc::from(new_provider),
-                                                        memory.clone(),
-                                                        tools_template.clone(),
-                                                        new_model.clone(),
-                                                        sys_prompt.clone(),
-                                                        max_turns,
-                                                        max_ctx,
-                                                        max_rounds,
-                                                        max_task_duration,
-                                                    ));
-                                                    *agent_state.write().await = Some(new_agent);
-                                                    tracing::info!(provider = %new_name, model = %new_model, "Agent hot-reloaded");
+                                            if new_model != current_model || new_keys.len() > 1 {
+                                                // Filter out placeholder keys before reloading
+                                                let valid_keys: Vec<String> = new_keys.into_iter()
+                                                    .filter(|k| !is_placeholder_key(k))
+                                                    .collect();
+                                                if valid_keys.is_empty() {
+                                                    tracing::warn!(
+                                                        provider = %new_name,
+                                                        "Hot-reload skipped — all keys are placeholders"
+                                                    );
+                                                } else {
+                                                    tracing::info!(
+                                                        old_model = %current_model,
+                                                        new_model = %new_model,
+                                                        key_count = valid_keys.len(),
+                                                        "Credentials changed — validating before hot-reload"
+                                                    );
+                                                    let effective_base_url = saved_base_url.or_else(|| base_url.clone());
+                                                    let reload_config = skyclaw_core::types::config::ProviderConfig {
+                                                        name: Some(new_name.clone()),
+                                                        api_key: valid_keys.first().cloned(),
+                                                        keys: valid_keys,
+                                                        model: Some(new_model.clone()),
+                                                        base_url: effective_base_url,
+                                                        extra_headers: std::collections::HashMap::new(),
+                                                    };
+                                                    match validate_provider_key(&reload_config).await {
+                                                        Ok(validated_provider) => {
+                                                            let new_agent = Arc::new(skyclaw_agent::AgentRuntime::with_limits(
+                                                                validated_provider,
+                                                                memory.clone(),
+                                                                tools_template.clone(),
+                                                                new_model.clone(),
+                                                                Some(build_system_prompt()),
+                                                                max_turns,
+                                                                max_ctx,
+                                                                max_rounds,
+                                                                max_task_duration,
+                                                            ));
+                                                            *agent_state.write().await = Some(new_agent);
+                                                            tracing::info!(provider = %new_name, model = %new_model, "Agent hot-reloaded (key validated)");
+                                                        }
+                                                        Err(err) => {
+                                                            tracing::warn!(
+                                                                provider = %new_name,
+                                                                error = %err,
+                                                                "Hot-reload aborted — new key failed validation, keeping current agent"
+                                                            );
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     } else {
-                                        // ── Onboarding mode: detect API key ────
+                                        // ── Onboarding / add-key mode: detect API key ────
                                         let msg_text = msg.text.as_deref().unwrap_or("");
 
-                                        if let Some((provider_name, api_key)) = detect_api_key(msg_text) {
+                                        if let Some(cred) = detect_api_key(msg_text) {
+                                            let provider_name = cred.provider;
+                                            let api_key = cred.api_key;
+                                            let custom_base_url = cred.base_url;
                                             let model = default_model(provider_name).to_string();
+                                            // Load existing keys for this provider (if any)
+                                            let mut all_keys = vec![api_key.clone()];
+                                            if let Some(creds) = load_credentials_file() {
+                                                if let Some(existing) = creds.providers.iter().find(|p| p.name == provider_name) {
+                                                    for k in &existing.keys {
+                                                        if !all_keys.contains(k) {
+                                                            all_keys.push(k.clone());
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            let effective_base_url = custom_base_url.clone().or_else(|| base_url.clone());
                                             let provider_config = skyclaw_core::types::config::ProviderConfig {
                                                 name: Some(provider_name.to_string()),
                                                 api_key: Some(api_key.clone()),
+                                                keys: all_keys,
                                                 model: Some(model.clone()),
-                                                base_url: base_url.clone(),
+                                                base_url: effective_base_url,
                                                 extra_headers: std::collections::HashMap::new(),
                                             };
 
                                             match skyclaw_providers::create_provider(&provider_config) {
-                                                Ok(provider) => {
-                                                    // Validate the key by making a small test request
-                                                    let test_req = skyclaw_core::types::message::CompletionRequest {
-                                                        model: model.clone(),
-                                                        messages: vec![skyclaw_core::types::message::ChatMessage {
-                                                            role: skyclaw_core::types::message::Role::User,
-                                                            content: skyclaw_core::types::message::MessageContent::Text("Hi".to_string()),
-                                                        }],
-                                                        tools: Vec::new(),
-                                                        max_tokens: Some(1),
-                                                        temperature: Some(0.0),
-                                                        system: None,
-                                                    };
-
-                                                    let provider_arc: Arc<dyn skyclaw_core::Provider> = Arc::from(provider);
-
-                                                    match provider_arc.complete(test_req).await {
-                                                        Ok(_) => {
+                                                Ok(_provider) => {
+                                                    // Use shared validation (handles auth vs non-auth errors)
+                                                    match validate_provider_key(&provider_config).await {
+                                                        Ok(validated_provider) => {
                                                             // Key is valid — create agent and go online
                                                             let new_agent = Arc::new(skyclaw_agent::AgentRuntime::with_limits(
-                                                                provider_arc,
+                                                                validated_provider,
                                                                 memory.clone(),
                                                                 tools_template.clone(),
                                                                 model.clone(),
-                                                                sys_prompt.clone(),
+                                                                Some(build_system_prompt()),
                                                                 max_turns,
                                                                 max_ctx,
                                                                 max_rounds,
@@ -792,15 +1305,20 @@ async fn main() -> Result<()> {
                                                             ));
                                                             *agent_state.write().await = Some(new_agent);
 
-                                                            if let Err(e) = save_credentials(provider_name, &api_key, &model).await {
+                                                            if let Err(e) = save_credentials(provider_name, &api_key, &model, custom_base_url.as_deref()).await {
                                                                 tracing::error!(error = %e, "Failed to save credentials");
                                                             }
 
+                                                            let proxy_note = if custom_base_url.is_some() {
+                                                                " (via proxy)"
+                                                            } else {
+                                                                ""
+                                                            };
                                                             let reply = skyclaw_core::types::message::OutboundMessage {
                                                                 chat_id: msg.chat_id.clone(),
                                                                 text: format!(
-                                                                    "API key verified! Configured {} with model {}.\n\nSkyClaw is online! You can change settings anytime — just tell me in plain language (e.g. \"change model to claude-opus-4-6\").\n\nHow can I help?",
-                                                                    provider_name, model
+                                                                    "API key verified! Configured {}{} with model {}.\n\nSkyClaw is online! You can:\n- Add more keys anytime (just paste them)\n- Use a proxy: \"proxy openai https://your-proxy/v1 your-key\"\n- Change settings in natural language\n\nHow can I help?",
+                                                                    provider_name, proxy_note, model
                                                                 ),
                                                                 reply_to: Some(msg.id.clone()),
                                                                 parse_mode: None,
@@ -809,7 +1327,7 @@ async fn main() -> Result<()> {
                                                             tracing::info!(provider = %provider_name, model = %model, "API key validated — agent online");
                                                         }
                                                         Err(e) => {
-                                                            // Key failed validation
+                                                            // Key failed auth validation
                                                             let reply = skyclaw_core::types::message::OutboundMessage {
                                                                 chat_id: msg.chat_id.clone(),
                                                                 text: format!(
@@ -843,6 +1361,15 @@ async fn main() -> Result<()> {
                                                 parse_mode: None,
                                             };
                                             let _ = sender.send_message(reply).await;
+
+                                            // Send format reference as separate message for easy copy-paste
+                                            let ref_msg = skyclaw_core::types::message::OutboundMessage {
+                                                chat_id: msg.chat_id.clone(),
+                                                text: ONBOARDING_REFERENCE.to_string(),
+                                                reply_to: None,
+                                                parse_mode: None,
+                                            };
+                                            let _ = sender.send_message(ref_msg).await;
                                         }
                                     }
 
@@ -959,31 +1486,31 @@ mod tests {
     #[test]
     fn detect_anthropic_key() {
         let result = detect_api_key("sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAA");
-        assert_eq!(result.unwrap().0, "anthropic");
+        assert_eq!(result.unwrap().provider, "anthropic");
     }
 
     #[test]
     fn detect_openai_key() {
         let result = detect_api_key("sk-proj-abcdefghijklmnopqrstuv");
-        assert_eq!(result.unwrap().0, "openai");
+        assert_eq!(result.unwrap().provider, "openai");
     }
 
     #[test]
     fn detect_openrouter_key() {
         let result = detect_api_key("sk-or-v1-abcdefghijklmnopqrstuv");
-        assert_eq!(result.unwrap().0, "openrouter");
+        assert_eq!(result.unwrap().provider, "openrouter");
     }
 
     #[test]
     fn detect_grok_key() {
         let result = detect_api_key("xai-abcdefghijklmnopqrstuvwxyz");
-        assert_eq!(result.unwrap().0, "grok");
+        assert_eq!(result.unwrap().provider, "grok");
     }
 
     #[test]
     fn detect_gemini_key() {
         let result = detect_api_key("AIzaSyA-abcdefghijklmnopqrstu");
-        assert_eq!(result.unwrap().0, "gemini");
+        assert_eq!(result.unwrap().provider, "gemini");
     }
 
     #[test]
@@ -995,43 +1522,38 @@ mod tests {
 
     #[test]
     fn explicit_minimax_key() {
-        let result = detect_api_key("minimax:eyJhbGciOiJSUzI1NiIsInR5cCI6");
-        let (provider, key) = result.unwrap();
-        assert_eq!(provider, "minimax");
-        assert_eq!(key, "eyJhbGciOiJSUzI1NiIsInR5cCI6");
+        let result = detect_api_key("minimax:eyJhbGciOiJSUzI1NiIsInR5cCI6").unwrap();
+        assert_eq!(result.provider, "minimax");
+        assert_eq!(result.api_key, "eyJhbGciOiJSUzI1NiIsInR5cCI6");
     }
 
     #[test]
     fn explicit_openrouter_key() {
-        let result = detect_api_key("openrouter:sk-or-v1-abcdefghijklm");
-        let (provider, key) = result.unwrap();
-        assert_eq!(provider, "openrouter");
-        assert_eq!(key, "sk-or-v1-abcdefghijklm");
+        let result = detect_api_key("openrouter:sk-or-v1-abcdefghijklm").unwrap();
+        assert_eq!(result.provider, "openrouter");
+        assert_eq!(result.api_key, "sk-or-v1-abcdefghijklm");
     }
 
     #[test]
     fn explicit_grok_with_xai_alias() {
-        let result = detect_api_key("xai:some-long-api-key-value");
-        let (provider, key) = result.unwrap();
-        assert_eq!(provider, "grok");
-        assert_eq!(key, "some-long-api-key-value");
+        let result = detect_api_key("xai:some-long-api-key-value").unwrap();
+        assert_eq!(result.provider, "grok");
+        assert_eq!(result.api_key, "some-long-api-key-value");
     }
 
     #[test]
     fn explicit_format_case_insensitive() {
         let result = detect_api_key("MiniMax:eyJhbGciOiJSUzI1NiIsInR5cCI6");
-        assert_eq!(result.unwrap().0, "minimax");
+        assert_eq!(result.unwrap().provider, "minimax");
     }
 
     #[test]
     fn explicit_format_short_key_rejected() {
-        // Key must be at least 8 chars
         assert!(detect_api_key("minimax:short").is_none());
     }
 
     #[test]
     fn explicit_unknown_provider_falls_through() {
-        // Unknown provider name falls through to prefix detection
         assert!(detect_api_key("fakeprovider:some-key-value").is_none());
     }
 
@@ -1040,13 +1562,50 @@ mod tests {
     #[test]
     fn openrouter_not_misdetected_as_openai() {
         let result = detect_api_key("sk-or-v1-abcdefghijklmnopqrstuv");
-        assert_eq!(result.unwrap().0, "openrouter");
+        assert_eq!(result.unwrap().provider, "openrouter");
     }
 
     #[test]
     fn anthropic_not_misdetected_as_openai() {
         let result = detect_api_key("sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAA");
-        assert_eq!(result.unwrap().0, "anthropic");
+        assert_eq!(result.unwrap().provider, "anthropic");
+    }
+
+    // ── detect_api_key: proxy format ────────────────────────────────
+
+    #[test]
+    fn proxy_with_key_value_format() {
+        let result = detect_api_key("proxy provider:openai base_url:https://my-proxy.com/v1 key:sk-test-key-12345678").unwrap();
+        assert_eq!(result.provider, "openai");
+        assert_eq!(result.api_key, "sk-test-key-12345678");
+        assert_eq!(result.base_url.unwrap(), "https://my-proxy.com/v1");
+    }
+
+    #[test]
+    fn proxy_with_positional_format() {
+        let result = detect_api_key("proxy openai https://my-proxy.com/v1 sk-test-key-12345678").unwrap();
+        assert_eq!(result.provider, "openai");
+        assert_eq!(result.api_key, "sk-test-key-12345678");
+        assert_eq!(result.base_url.unwrap(), "https://my-proxy.com/v1");
+    }
+
+    #[test]
+    fn proxy_with_url_alias() {
+        let result = detect_api_key("proxy provider:anthropic url:https://claude-proxy.com/v1 key:sk-ant-test1234").unwrap();
+        assert_eq!(result.provider, "anthropic");
+        assert_eq!(result.base_url.unwrap(), "https://claude-proxy.com/v1");
+    }
+
+    #[test]
+    fn proxy_defaults_to_openai() {
+        let result = detect_api_key("proxy https://my-proxy.com/v1 sk-test-key-12345678").unwrap();
+        assert_eq!(result.provider, "openai");
+        assert_eq!(result.base_url.unwrap(), "https://my-proxy.com/v1");
+    }
+
+    #[test]
+    fn proxy_too_few_tokens_returns_none() {
+        assert!(detect_api_key("proxy openai").is_none());
     }
 
     // ── default_model ────────────────────────────────────────────────
@@ -1065,5 +1624,50 @@ mod tests {
     #[test]
     fn default_model_unknown_falls_back() {
         assert_eq!(default_model("unknown"), "claude-sonnet-4-6");
+    }
+
+    // ── is_placeholder_key ────────────────────────────────────────────
+
+    #[test]
+    fn placeholder_key_rejects_common_fakes() {
+        assert!(is_placeholder_key("PASTE_YOUR_KEY_HERE"));
+        assert!(is_placeholder_key("your_api_key"));
+        assert!(is_placeholder_key("your-key-goes-here"));
+        assert!(is_placeholder_key("insert_your_key_here"));
+        assert!(is_placeholder_key("replace_with_your_key"));
+        assert!(is_placeholder_key("placeholder_key_value"));
+        assert!(is_placeholder_key("enter_your_api_key_here"));
+        assert!(is_placeholder_key("xxxxxxxxxx"));
+        assert!(is_placeholder_key("your_token_goes_here"));
+    }
+
+    #[test]
+    fn placeholder_key_rejects_too_short() {
+        assert!(is_placeholder_key("sk-abc"));
+        assert!(is_placeholder_key("short"));
+        assert!(is_placeholder_key(""));
+    }
+
+    #[test]
+    fn placeholder_key_rejects_all_same_char() {
+        assert!(is_placeholder_key("aaaaaaaaaa"));
+        assert!(is_placeholder_key("0000000000"));
+    }
+
+    #[test]
+    fn placeholder_key_accepts_real_keys() {
+        assert!(!is_placeholder_key("sk-ant-api03-abc123def456ghi789jkl012mno345pqr678stu"));
+        assert!(!is_placeholder_key("sk-proj-abcdefghijklmnopqrstuv"));
+        assert!(!is_placeholder_key("sk-or-v1-abcdefghijklmnopqrstuv"));
+        assert!(!is_placeholder_key("xai-abcdefghijklmnopqrstuvwxyz"));
+        assert!(!is_placeholder_key("AIzaSyA-abcdefghijklmnopqrstu"));
+        assert!(!is_placeholder_key("sk-test-key-12345678"));  // valid test fixture format
+    }
+
+    #[test]
+    fn detect_rejects_placeholder_auto_format() {
+        // These match sk- prefix but are obvious placeholders
+        assert!(detect_api_key("sk-your_key_here_12345").is_none());
+        assert!(detect_api_key("sk-ant-paste_your_key_here").is_none());
     }
 }

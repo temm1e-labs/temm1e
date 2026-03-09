@@ -94,6 +94,10 @@ pub struct ProviderConfig {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
+    /// Multiple API keys for the same provider. Used for key rotation on rate-limit/auth errors.
+    /// Takes precedence over `api_key` when non-empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keys: Vec<String>,
     pub model: Option<String>,
     pub base_url: Option<String>,
     /// Extra HTTP headers sent with every provider request (e.g. OpenRouter attribution).
@@ -101,19 +105,35 @@ pub struct ProviderConfig {
     pub extra_headers: HashMap<String, String>,
 }
 
+impl ProviderConfig {
+    /// Returns all API keys — merges `keys` and `api_key` into a single list.
+    /// If `keys` is non-empty, returns `keys`. Otherwise falls back to `api_key`.
+    pub fn all_keys(&self) -> Vec<String> {
+        if !self.keys.is_empty() {
+            self.keys.clone()
+        } else if let Some(ref key) = self.api_key {
+            vec![key.clone()]
+        } else {
+            vec![]
+        }
+    }
+}
+
 impl std::fmt::Debug for ProviderConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let redact = |k: &str| -> String {
+            if k.len() > 8 {
+                format!("{}...{}", &k[..4], &k[k.len() - 4..])
+            } else {
+                "***".to_string()
+            }
+        };
         f.debug_struct("ProviderConfig")
             .field("name", &self.name)
+            .field("api_key", &self.api_key.as_ref().map(|k| redact(k)))
             .field(
-                "api_key",
-                &self.api_key.as_ref().map(|k| {
-                    if k.len() > 8 {
-                        format!("{}...{}", &k[..4], &k[k.len() - 4..])
-                    } else {
-                        "***".to_string()
-                    }
-                }),
+                "keys",
+                &self.keys.iter().map(|k| redact(k)).collect::<Vec<_>>(),
             )
             .field("model", &self.model)
             .field("base_url", &self.base_url)
@@ -614,6 +634,7 @@ mod tests {
             provider: ProviderConfig {
                 name: Some("anthropic".to_string()),
                 api_key: Some("sk-test".to_string()),
+                keys: vec![],
                 model: Some("claude-sonnet-4-6".to_string()),
                 base_url: None,
                 extra_headers: HashMap::new(),

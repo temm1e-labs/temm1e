@@ -34,14 +34,16 @@ use skyclaw_core::Provider;
 pub fn create_provider(config: &ProviderConfig) -> Result<Box<dyn Provider>, SkyclawError> {
     let name = config.name.as_deref().unwrap_or("openai-compatible");
 
-    let api_key = config
-        .api_key
-        .clone()
+    let all_keys = config.all_keys();
+    let api_key = all_keys
+        .first()
+        .cloned()
+        .or_else(|| config.api_key.clone())
         .ok_or_else(|| SkyclawError::Config("Provider api_key is required".into()))?;
 
     match name {
         "anthropic" => {
-            let mut provider = AnthropicProvider::new(api_key);
+            let mut provider = AnthropicProvider::new(api_key).with_keys(all_keys);
             if let Some(ref base_url) = config.base_url {
                 provider = provider.with_base_url(base_url.clone());
             }
@@ -52,6 +54,7 @@ pub fn create_provider(config: &ProviderConfig) -> Result<Box<dyn Provider>, Sky
                 "https://generativelanguage.googleapis.com/v1beta/openai".to_string()
             });
             let provider = OpenAICompatProvider::new(api_key)
+                .with_keys(all_keys)
                 .with_base_url(base_url)
                 .with_extra_headers(config.extra_headers.clone());
             Ok(Box::new(provider))
@@ -62,6 +65,7 @@ pub fn create_provider(config: &ProviderConfig) -> Result<Box<dyn Provider>, Sky
                 .clone()
                 .unwrap_or_else(|| "https://api.x.ai/v1".to_string());
             let provider = OpenAICompatProvider::new(api_key)
+                .with_keys(all_keys)
                 .with_base_url(base_url)
                 .with_extra_headers(config.extra_headers.clone());
             Ok(Box::new(provider))
@@ -72,6 +76,7 @@ pub fn create_provider(config: &ProviderConfig) -> Result<Box<dyn Provider>, Sky
                 .clone()
                 .unwrap_or_else(|| "https://openrouter.ai/api/v1".to_string());
             let provider = OpenAICompatProvider::new(api_key)
+                .with_keys(all_keys)
                 .with_base_url(base_url)
                 .with_extra_headers(config.extra_headers.clone());
             Ok(Box::new(provider))
@@ -82,13 +87,15 @@ pub fn create_provider(config: &ProviderConfig) -> Result<Box<dyn Provider>, Sky
                 .clone()
                 .unwrap_or_else(|| "https://api.minimax.io/v1".to_string());
             let provider = OpenAICompatProvider::new(api_key)
+                .with_keys(all_keys)
                 .with_base_url(base_url)
                 .with_extra_headers(config.extra_headers.clone());
             Ok(Box::new(provider))
         }
         _ => {
-            let mut provider =
-                OpenAICompatProvider::new(api_key).with_extra_headers(config.extra_headers.clone());
+            let mut provider = OpenAICompatProvider::new(api_key)
+                .with_keys(all_keys)
+                .with_extra_headers(config.extra_headers.clone());
             if let Some(ref base_url) = config.base_url {
                 provider = provider.with_base_url(base_url.clone());
             }
@@ -106,6 +113,7 @@ mod tests {
         ProviderConfig {
             name: Some(name.to_string()),
             api_key: Some("test-key".to_string()),
+            keys: vec![],
             model: None,
             base_url: None,
             extra_headers: HashMap::new(),
@@ -153,6 +161,7 @@ mod tests {
         let config = ProviderConfig {
             name: None,
             api_key: Some("test-key".to_string()),
+            keys: vec![],
             model: None,
             base_url: None,
             extra_headers: HashMap::new(),
@@ -166,6 +175,7 @@ mod tests {
         let config = ProviderConfig {
             name: Some("anthropic".to_string()),
             api_key: None,
+            keys: vec![],
             model: None,
             base_url: None,
             extra_headers: HashMap::new(),

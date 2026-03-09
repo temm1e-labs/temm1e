@@ -10,16 +10,18 @@ use skyclaw_core::types::message::{
 };
 use skyclaw_core::Provider;
 use std::collections::HashMap;
-use tracing::{debug, error};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tracing::{debug, error, info};
 
-/// OpenAI-compatible provider.
+/// OpenAI-compatible provider with key rotation.
 ///
 /// Works with OpenAI, Ollama, vLLM, LM Studio, Groq, Mistral, xAI Grok,
 /// OpenRouter, MiniMax, and any other service that implements the OpenAI
 /// Chat Completions API.
 pub struct OpenAICompatProvider {
     client: Client,
-    api_key: String,
+    keys: Vec<String>,
+    key_index: AtomicUsize,
     base_url: String,
     extra_headers: HashMap<String, String>,
 }
@@ -28,10 +30,18 @@ impl OpenAICompatProvider {
     pub fn new(api_key: String) -> Self {
         Self {
             client: Client::new(),
-            api_key,
+            keys: vec![api_key],
+            key_index: AtomicUsize::new(0),
             base_url: "https://api.openai.com/v1".to_string(),
             extra_headers: HashMap::new(),
         }
+    }
+
+    pub fn with_keys(mut self, keys: Vec<String>) -> Self {
+        if !keys.is_empty() {
+            self.keys = keys;
+        }
+        self
     }
 
     pub fn with_base_url(mut self, base_url: String) -> Self {
@@ -42,6 +52,21 @@ impl OpenAICompatProvider {
     pub fn with_extra_headers(mut self, headers: HashMap<String, String>) -> Self {
         self.extra_headers = headers;
         self
+    }
+
+    /// Get the current API key via round-robin rotation.
+    fn current_key(&self) -> &str {
+        let idx = self.key_index.load(Ordering::Relaxed) % self.keys.len();
+        &self.keys[idx]
+    }
+
+    /// Advance to the next key (called on rate limit).
+    fn rotate_key(&self) {
+        let old = self.key_index.fetch_add(1, Ordering::Relaxed);
+        let new_idx = (old + 1) % self.keys.len();
+        if self.keys.len() > 1 {
+            info!(new_index = new_idx, total_keys = self.keys.len(), "Rotated API key");
+        }
     }
 
     /// Build the JSON body for the OpenAI Chat Completions API.
@@ -384,7 +409,7 @@ impl Provider for OpenAICompatProvider {
         let mut req = self
             .client
             .post(format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.current_key()))
             .header("Content-Type", "application/json");
         for (k, v) in &self.extra_headers {
             req = req.header(k.as_str(), v.as_str());
@@ -402,9 +427,11 @@ impl Provider for OpenAICompatProvider {
                 .unwrap_or_else(|_| "unknown error".into());
             error!(provider = "openai-compat", %status, "API error: {}", error_body);
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                self.rotate_key();
                 return Err(SkyclawError::RateLimited(error_body));
             }
             if status == reqwest::StatusCode::UNAUTHORIZED {
+                self.rotate_key();
                 return Err(SkyclawError::Auth(error_body));
             }
             return Err(SkyclawError::Provider(format!(
@@ -469,7 +496,7 @@ impl Provider for OpenAICompatProvider {
         let mut req = self
             .client
             .post(format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.current_key()))
             .header("Content-Type", "application/json");
         for (k, v) in &self.extra_headers {
             req = req.header(k.as_str(), v.as_str());
@@ -485,9 +512,11 @@ impl Provider for OpenAICompatProvider {
                 .await
                 .unwrap_or_else(|_| "unknown error".into());
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                self.rotate_key();
                 return Err(SkyclawError::RateLimited(error_body));
             }
             if status == reqwest::StatusCode::UNAUTHORIZED {
+                self.rotate_key();
                 return Err(SkyclawError::Auth(error_body));
             }
             return Err(SkyclawError::Provider(format!(
@@ -542,7 +571,7 @@ impl Provider for OpenAICompatProvider {
         let mut req = self
             .client
             .get(format!("{}/models", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key));
+            .header("Authorization", format!("Bearer {}", self.current_key()));
         for (k, v) in &self.extra_headers {
             req = req.header(k.as_str(), v.as_str());
         }
@@ -558,7 +587,7 @@ impl Provider for OpenAICompatProvider {
         let mut req = self
             .client
             .get(format!("{}/models", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key));
+            .header("Authorization", format!("Bearer {}", self.current_key()));
         for (k, v) in &self.extra_headers {
             req = req.header(k.as_str(), v.as_str());
         }
