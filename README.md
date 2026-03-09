@@ -39,7 +39,6 @@ No web dashboards. No config files to edit. Deploy, paste your API key in Telegr
 | **AI providers** | 6 (Anthropic, OpenAI, Gemini, Grok, OpenRouter, MiniMax) |
 | **Messaging channels** | 4 ([Telegram](docs/channels/telegram.md), [Discord](docs/channels/discord.md), [Slack](docs/channels/slack.md), [CLI](docs/channels/cli.md)) |
 | **Agent tools** | 8 (shell, browser, file ops, web fetch, git, messaging, file transfer, memory manage) |
-| **Budget tracking** | Per-session cost enforcement with configurable limits |
 | **Encryption** | ChaCha20-Poly1305 + Ed25519 |
 | **Memory backends** | 3 (SQLite, Markdown, failover) |
 | **File storage** | 2 (local, S3/R2) |
