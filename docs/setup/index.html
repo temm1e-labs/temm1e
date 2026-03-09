@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkyClaw Secure Key Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:32px;max-width:480px;width:100%}
+h1{font-size:20px;margin-bottom:8px;color:#f0f6fc}
+.sub{font-size:13px;color:#8b949e;margin-bottom:24px}
+label{display:block;font-size:14px;color:#c9d1d9;margin-bottom:6px}
+input,textarea{width:100%;padding:10px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:14px;font-family:monospace}
+input:focus,textarea:focus{outline:none;border-color:#58a6ff}
+textarea{height:80px;resize:none}
+button{width:100%;padding:10px;background:#238636;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;margin-top:16px}
+button:hover{background:#2ea043}
+button:disabled{opacity:0.5;cursor:not-allowed}
+.result{margin-top:20px;display:none}
+.blob{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;font-family:monospace;font-size:12px;word-break:break-all;color:#7ee787;margin:8px 0}
+.copied{color:#7ee787;font-size:13px;text-align:center;margin-top:8px;display:none}
+.error{color:#f85149;font-size:13px;margin-top:12px;display:none}
+.security{font-size:11px;color:#8b949e;margin-top:16px;padding-top:16px;border-top:1px solid #30363d}
+.security span{color:#3fb950}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>SkyClaw Secure Key Setup</h1>
+  <p class="sub">Your API key is encrypted in your browser. Only the encrypted blob leaves this page.</p>
+
+  <div id="form-section">
+    <label for="key-input">API Key</label>
+    <input type="password" id="key-input" placeholder="sk-ant-... or sk-... or AIzaSy..." autocomplete="off" spellcheck="false">
+    <button id="encrypt-btn" onclick="encryptKey()">Encrypt</button>
+  </div>
+
+  <div id="result" class="result">
+    <label>Encrypted blob (paste this in chat):</label>
+    <div class="blob" id="blob-output"></div>
+    <button onclick="copyBlob()">Copy to Clipboard</button>
+    <div class="copied" id="copied-msg">Copied!</div>
+  </div>
+
+  <div class="error" id="error-msg"></div>
+
+  <div class="security">
+    <span>Encrypted client-side</span> — your key never leaves your device in plaintext.
+    The encryption seed was delivered via URL fragment (#) which is never sent to any server.
+  </div>
+</div>
+
+<script>
+(function() {
+  const frag = window.location.hash.substring(1);
+  // Save OTK to sessionStorage before clearing the URL fragment
+  if (frag && frag.length >= 64) {
+    sessionStorage.setItem('_otk', frag);
+  }
+  if (!frag || frag.length < 64) {
+    document.getElementById('error-msg').textContent =
+      'Invalid or missing setup link. Please use the link from /addkey in your chat.';
+    document.getElementById('error-msg').style.display = 'block';
+    document.getElementById('encrypt-btn').disabled = true;
+  }
+  // Clear fragment from address bar (privacy measure)
+  if (window.history.replaceState) {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+})();
+
+async function encryptKey() {
+  const errEl = document.getElementById('error-msg');
+  errEl.style.display = 'none';
+
+  const frag = window.location.hash.substring(1) || sessionStorage.getItem('_otk');
+  if (!frag || frag.length < 64) {
+    errEl.textContent = 'Setup link expired or invalid. Run /addkey again.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const apiKey = document.getElementById('key-input').value.trim();
+  if (!apiKey || apiKey.length < 8) {
+    errEl.textContent = 'Please enter a valid API key.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    // Decode hex OTK to bytes
+    const otkBytes = new Uint8Array(frag.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+    if (otkBytes.length !== 32) {
+      throw new Error('Invalid OTK length');
+    }
+
+    // Import as AES-256-GCM key
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw', otkBytes, { name: 'AES-GCM' }, false, ['encrypt']
+    );
+
+    // Generate random 12-byte IV
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+
+    // Encrypt
+    const encoded = new TextEncoder().encode(apiKey);
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: iv }, cryptoKey, encoded
+    );
+
+    // Concatenate IV + ciphertext (includes 16-byte auth tag)
+    const blob = new Uint8Array(iv.length + ciphertext.byteLength);
+    blob.set(iv);
+    blob.set(new Uint8Array(ciphertext), iv.length);
+
+    // Base64 encode
+    const b64 = btoa(String.fromCharCode(...blob));
+    const result = 'enc:v1:' + b64;
+
+    // Show result
+    document.getElementById('blob-output').textContent = result;
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('form-section').style.display = 'none';
+
+    // Store OTK temporarily in case page was refreshed
+    sessionStorage.removeItem('_otk');
+  } catch (e) {
+    errEl.textContent = 'Encryption failed: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function copyBlob() {
+  const text = document.getElementById('blob-output').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    const msg = document.getElementById('copied-msg');
+    msg.style.display = 'block';
+    setTimeout(function() { msg.style.display = 'none'; }, 2000);
+  });
+}
+</script>
+</body>
+</html>
