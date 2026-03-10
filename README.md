@@ -10,14 +10,14 @@
   <a href="https://github.com/nagisanzenin/skyclaw/stargazers"><img src="https://img.shields.io/github/stars/nagisanzenin/skyclaw?style=flat&color=gold&logo=github" alt="GitHub Stars"></a>
   <a href="https://discord.gg/3ux2c5xz"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License">
-  <img src="https://img.shields.io/badge/version-1.7.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/tests-1141-green.svg" alt="1141 tests">
   <img src="https://img.shields.io/badge/providers-7-red.svg" alt="7 providers">
 </p>
 
 # SkyClaw
 
-Hyper-performance Rust agent runtime with extreme resilience and continuous self-learning. Deploys once, stays up forever. Learns from every task, remembers across sessions, self-heals through failures. 46K lines, 1141 tests, zero warnings, zero panic paths.
+Hyper-performance Rust agent runtime with extreme resilience and continuous self-learning. Deploys once, stays up forever. Learns from every task, remembers across sessions, self-heals through failures. **v2.0: smart complexity classification — 12% cheaper on compound tasks, 14% fewer tool calls, zero quality loss.** 46K lines, 1141 tests, zero warnings, zero panic paths.
 
 ## What It Does
 
@@ -25,9 +25,33 @@ SkyClaw is an autonomous AI agent that lives on your server and talks to you thr
 
 No web dashboards. No config files to edit. Deploy, paste your API key in Telegram, and go.
 
-## AGENTIC CORE
+## AGENTIC CORE v2
 
-SkyClaw's intelligence layer — 20 modules driving an autonomous execution cycle:
+SkyClaw's intelligence layer — 20 modules driving an autonomous execution cycle, now with **smart complexity classification** that understands what kind of task you're asking before it starts working.
+
+### v2.0: Complexity-Aware Execution
+
+Every inbound message is classified **instantly** (rule-based, zero LLM cost) before entering the agent loop:
+
+```
+Message arrives
+    ↓
+[CLASSIFY] ─→ Trivial ──→ skip tool loop, minimal prompt ──→ respond
+             → Simple  ──→ basic prompt, 2 iterations max ──→ respond
+             → Standard ─→ full prompt, 5 iterations ──────→ agent loop
+             → Complex ──→ full prompt, 10 iterations ─────→ agent loop
+```
+
+| What you say | Classification | What V2 does differently |
+|-------------|---------------|--------------------------|
+| "Thanks" / "Ok" | Trivial | Skips entire tool pipeline |
+| "Capital of France?" | Simple | Lighter prompt, capped iterations |
+| "Create these files and verify" | Standard | Full pipeline, optimized rounds |
+| "Debug this codebase" | Complex | Extended iterations, full context |
+
+**Benchmarked result (GPT-5.2, 20 turns):** 12% cheaper on compound tasks, 14% fewer tool calls, 36% cheaper on best-case multi-step tasks. Zero quality regression. [Full benchmark](docs/AGENTIC_CORE_V2_BENCHMARK_TOOLS.md) | [Release notes](docs/AGENTIC_CORE_V2_RELEASE.md)
+
+### Agent Loop
 
 ```
 ORDER ─→ THINK ─→ ACTION ─→ VERIFY ─┐
@@ -49,9 +73,9 @@ ORDER ─→ THINK ─→ ACTION ─→ VERIFY ─┐
 | Category | Modules |
 |----------|---------|
 | **Resilience** | Zero panic paths in production code, circuit breaker with exponential backoff, per-message panic recovery, dead worker respawn with message re-dispatch, send retry (3 attempts), channel reconnection, 5s DB timeout, graceful SIGTERM drain, lock poison recovery, conversation persistence |
-| **Intelligence** | Task decomposition, self-correction, DONE criteria, cross-task learning |
+| **Intelligence** | Task decomposition, self-correction, DONE criteria, cross-task learning, **complexity classification (v2)**, **prompt stratification (v2)** |
 | **Self-Healing** | Watchdog, state recovery, health-aware heartbeat, memory failover |
-| **Efficiency** | Output compression, system prompt optimization, tiered model routing, history pruning |
+| **Efficiency** | Output compression, system prompt optimization, tiered model routing, history pruning, **complexity-aware tool loop (v2)**, **execution profiles (v2)** |
 | **Autonomy** | Parallel tool execution, agent-to-agent delegation, proactive task initiation, adaptive system prompt |
 | **Multimodal** | Vision / image understanding (JPEG, PNG, GIF, WebP) |
 
@@ -64,7 +88,7 @@ ORDER ─→ THINK ─→ ACTION ─→ VERIFY ─┐
 | **Clippy warnings** | 0 (CI gate: `-D warnings`) |
 | **Workspace crates** | 13 + 1 binary |
 | **Implemented features** | 52 across 10 phases |
-| **AGENTIC CORE modules** | 20 |
+| **AGENTIC CORE modules** | 20 + 4 v2 modules |
 | **Traits (core)** | 14 shared trait definitions |
 | **AI providers** | 7 (Anthropic, OpenAI, Gemini, Grok, OpenRouter, Z.ai, MiniMax) |
 | **Messaging channels** | 4 ([Telegram](docs/channels/telegram.md), [Discord](docs/channels/discord.md), [Slack](docs/channels/slack.md), [CLI](docs/channels/cli.md)) |
@@ -256,6 +280,8 @@ cargo build --release                                      # Release build
 ## Release Timeline
 
 ```
+2026-03-10  v2.0.0  ●━━━ AGENTIC CORE V2 — smart complexity classification (Trivial/Simple/Standard/Complex), prompt stratification (4 tiers), complexity-aware tool loop, execution profiles, structured failure types, 12% cheaper on compound tasks, 14% fewer tool calls, zero quality regression. Benchmarked: 20-turn A/B on GPT-5.2, 100% classification accuracy, 100% reliability. 1141 tests
+                    │
 2026-03-10  v1.7.0  ●━━━ Vision fallback & /model command — graceful image stripping for text-only models, /model mechanical switching with instant reload, model validation, hot-reload auto-revert, proxy provider flexibility, 1141 tests
                     │
 2026-03-10  v1.6.0  ●━━━ Extreme resilience — zero panic paths, 26-finding hardening audit (22 fixed), send retry (3 attempts), dead worker respawn with message re-dispatch, SQLite 5s timeout, full catch_unwind coverage, lock poison recovery across all crates, graceful SIGTERM drain, 1130 tests
