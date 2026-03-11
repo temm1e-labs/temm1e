@@ -20,9 +20,9 @@
 Hyper-performance Rust agent runtime with extreme resilience and continuous self-learning.
 Deploys once, stays up forever. Learns from every task, remembers across sessions, self-heals through failures.
 
-**v2.1: MCP self-extension** — the agent discovers and installs new tools at runtime via Model Context Protocol.
+**v2.2: Custom tool authoring** — the agent writes its own bash/python/node tools at runtime, persisted across sessions. Plus daemon mode.
 
-55K lines | 1,266 tests | zero warnings | zero panic paths | 15 MB idle RAM | 31ms cold start | [Benchmark report](docs/benchmarks/BENCHMARK_REPORT.md)
+56K lines | 1,278 tests | zero warnings | zero panic paths | 15 MB idle RAM | 31ms cold start | [Benchmark report](docs/benchmarks/BENCHMARK_REPORT.md)
 
 ## What It Does
 
@@ -100,7 +100,7 @@ ORDER ─→ THINK ─→ ACTION ─→ VERIFY ─┐
 | **Traits (core)** | 14 shared trait definitions |
 | **AI providers** | 7 (Anthropic, OpenAI, Gemini, Grok, OpenRouter, Z.ai, MiniMax) |
 | **Messaging channels** | 4 ([Telegram](docs/channels/telegram.md), [Discord](docs/channels/discord.md), [Slack](docs/channels/slack.md), [CLI](docs/channels/cli.md)) |
-| **Agent tools** | 12 (shell, browser, file ops, web fetch, git, messaging, file transfer, memory manage, key manage, mcp_manage, self_extend_tool, self_add_mcp) |
+| **Agent tools** | 13 (shell, browser, file ops, web fetch, git, messaging, file transfer, memory manage, key manage, self_create_tool, mcp_manage, self_extend_tool, self_add_mcp) + custom script tools |
 | **MCP support** | stdio + HTTP transports, 14 built-in server registry, hot-loading, auto-restart |
 | **Encryption** | ChaCha20-Poly1305 + Ed25519 + AES-256-GCM (OTK) |
 | **Memory backends** | 3 (SQLite, Markdown, failover) |
@@ -215,6 +215,28 @@ Paste any of these API keys in Telegram — SkyClaw detects the provider automat
 | **MCP manage** | Add, remove, restart, and list MCP servers at runtime |
 | **Self-extend** | Discover MCP servers by capability — built-in registry of 14 servers with keyword search |
 | **Self-add MCP** | Install an MCP server to gain new tools — the agent extends its own capabilities on demand |
+| **Self-create tool** | Author custom bash/python/node tools at runtime — persisted to `~/.skyclaw/custom-tools/` across sessions |
+
+## Custom Tool Authoring
+
+The agent can write its own tools at runtime. When it encounters a repeatable task, it creates a script tool that persists across sessions.
+
+```
+User: "I keep asking you to check my server status. Can you make a tool for that?"
+         ↓
+Agent calls self_create_tool(action="create", name="check_status", language="bash",
+    script="#!/bin/bash\ncurl -s http://myserver:8080/health | jq .", ...)
+         ↓
+Tool 'check_status' saved to ~/.skyclaw/custom-tools/
+         ↓
+Available immediately — no restart needed
+```
+
+- **Languages:** bash, python, node
+- **I/O:** Script receives JSON input via stdin, writes output to stdout
+- **Timeout:** 30 seconds per execution
+- **Hot-reload:** New tools are available on the next message cycle
+- **Management:** `self_create_tool(action="list")` and `self_create_tool(action="delete", name="...")`
 
 ## MCP — Self-Extending Tool System
 
@@ -401,6 +423,8 @@ cargo build --release                                      # Release build
 ## Release Timeline
 
 ```
+2026-03-11  v2.2.0  ●━━━ Custom tool authoring + daemon mode — self_create_tool lets the agent write bash/python/node tools at runtime (persisted to ~/.skyclaw/custom-tools/), ScriptToolAdapter + CustomToolRegistry with hot-reload, skyclaw start --daemon / skyclaw stop for background operation, 1278 tests
+                    │
 2026-03-11  v2.1.0  ●━━━ MCP self-extension — Model Context Protocol client (skyclaw-mcp crate), self_extend_tool discovers servers by capability, self_add_mcp installs them at runtime, 14 built-in server registry, stdio + HTTP transports, hot-loading, auto-restart, tool name sanitization, /mcp commands, mcp_manage agent tool, performance benchmark report (15 MB idle, 31ms startup, 80x less RAM than OpenClaw), 1266 tests
                     │
 2026-03-11  v2.0.1  ●━━━ LLM chat/order classification — single LLM call classifies AND responds (chat = 1 call, order = instant ack + pipeline), abolished artificial tool iteration caps (budget + time are the guardrails), skyclaw update command, 1217 tests
