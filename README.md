@@ -10,9 +10,9 @@
   <a href="https://github.com/nagisanzenin/skyclaw/stargazers"><img src="https://img.shields.io/github/stars/nagisanzenin/skyclaw?style=flat&color=gold&logo=github" alt="GitHub Stars"></a>
   <a href="https://discord.gg/3ux2c5xz"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License">
-  <img src="https://img.shields.io/badge/version-2.1.0-blue.svg" alt="Version">
-  <img src="https://img.shields.io/badge/tests-1266-green.svg" alt="1266 tests">
-  <img src="https://img.shields.io/badge/providers-7-red.svg" alt="7 providers">
+  <img src="https://img.shields.io/badge/version-2.2.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/tests-1297-green.svg" alt="1297 tests">
+  <img src="https://img.shields.io/badge/providers-8-red.svg" alt="8 providers">
 </p>
 
 # SkyClaw
@@ -20,9 +20,9 @@
 Hyper-performance Rust agent runtime with extreme resilience and continuous self-learning.
 Deploys once, stays up forever. Learns from every task, remembers across sessions, self-heals through failures.
 
-**v2.2: Custom tool authoring** — the agent writes its own bash/python/node tools at runtime, persisted across sessions. Plus daemon mode.
+**v2.3: Codex OAuth** — use your ChatGPT Plus/Pro subscription as an AI provider. OAuth PKCE login, Responses API streaming, auto-refresh tokens.
 
-56K lines | 1,278 tests | zero warnings | zero panic paths | 15 MB idle RAM | 31ms cold start | [Benchmark report](docs/benchmarks/BENCHMARK_REPORT.md)
+58K lines | 1,297 tests | zero warnings | zero panic paths | 15 MB idle RAM | 31ms cold start | [Benchmark report](docs/benchmarks/BENCHMARK_REPORT.md)
 
 ## What It Does
 
@@ -91,10 +91,10 @@ ORDER ─→ THINK ─→ ACTION ─→ VERIFY ─┐
 
 | Metric | Value |
 |--------|-------|
-| **Lines of Rust** | 55,376 across 118 source files |
-| **Tests** | 1,266 passing, 0 failures |
+| **Lines of Rust** | 58,381 across 124 source files |
+| **Tests** | 1,297 passing, 0 failures |
 | **Clippy warnings** | 0 (CI gate: `-D warnings`) |
-| **Workspace crates** | 14 + 1 binary |
+| **Workspace crates** | 15 + 1 binary |
 | **Implemented features** | 52 across 10 phases |
 | **AGENTIC CORE modules** | 20 + 5 v2 modules |
 | **Traits (core)** | 14 shared trait definitions |
@@ -351,7 +351,7 @@ Supports Anthropic and OpenAI vision formats natively.
 
 ## Architecture
 
-14-crate Cargo workspace:
+15-crate Cargo workspace:
 
 ```
 skyclaw (binary)
@@ -359,6 +359,7 @@ skyclaw (binary)
 ├── skyclaw-gateway      HTTP server, health, dashboard, OAuth identity
 ├── skyclaw-agent        AGENTIC CORE (20 modules)
 ├── skyclaw-providers    Anthropic, OpenAI-compatible
+├── skyclaw-codex-oauth  Codex OAuth — ChatGPT Plus/Pro via PKCE
 ├── skyclaw-channels     Telegram, Discord, Slack, CLI
 ├── skyclaw-memory       SQLite + Markdown with failover
 ├── skyclaw-vault        ChaCha20-Poly1305 encrypted secrets
@@ -405,6 +406,10 @@ skyclaw start              Start the gateway daemon
 skyclaw chat               Interactive CLI chat
 skyclaw status             Show running state
 skyclaw update             Check for updates and rebuild
+skyclaw auth login         Authenticate via OpenAI Codex OAuth (PKCE)
+skyclaw auth login --headless  Headless OAuth (paste redirect URL)
+skyclaw auth status        Show OAuth token status
+skyclaw auth logout        Clear stored OAuth tokens
 skyclaw config validate    Validate configuration
 skyclaw config show        Print resolved config
 skyclaw version            Show version info
@@ -440,7 +445,7 @@ Handles dirty working trees automatically (stash → pull → build → pop). If
 ```bash
 cargo check --workspace                                    # Quick compilation check
 cargo build --workspace                                    # Debug build
-cargo test --workspace                                     # Run all 1266 tests
+cargo test --workspace                                     # Run all 1297 tests
 cargo clippy --workspace --all-targets --all-features -- -D warnings  # Lint (0 warnings)
 cargo fmt --all                                            # Format
 cargo build --release                                      # Release build
@@ -455,6 +460,8 @@ cargo build --release                                      # Release build
 ## Release Timeline
 
 ```
+2026-03-11  v2.3.0  ●━━━ Codex OAuth — use ChatGPT Plus/Pro subscription as AI provider via OAuth PKCE, skyclaw-codex-oauth crate (Responses API streaming, item_id/call_id accumulator, strict:false tool format), skyclaw auth login/status/logout commands, headless + browser flows, auto-refresh tokens, gpt-5.4 recommended for full agent functionality, 1297 tests
+                    │
 2026-03-11  v2.2.0  ●━━━ Custom tool authoring + daemon mode — self_create_tool lets the agent write bash/python/node tools at runtime (persisted to ~/.skyclaw/custom-tools/), ScriptToolAdapter + CustomToolRegistry with hot-reload, skyclaw start --daemon / skyclaw stop for background operation, 1278 tests
                     │
 2026-03-11  v2.1.0  ●━━━ MCP self-extension — Model Context Protocol client (skyclaw-mcp crate), self_extend_tool discovers servers by capability, self_add_mcp installs them at runtime, 14 built-in server registry, stdio + HTTP transports, hot-loading, auto-restart, tool name sanitization, /mcp commands, mcp_manage agent tool, performance benchmark report (15 MB idle, 31ms startup, 80x less RAM than OpenClaw), 1266 tests
