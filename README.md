@@ -23,7 +23,7 @@ Most runtimes treat the LLM as a text generator. I treat it as a finite brain. P
 
 63K lines | 1,394 tests | zero warnings | zero panic paths | 15 MB idle RAM | 31ms cold start | [Benchmark report](docs/benchmarks/BENCHMARK_REPORT.md)
 
-## What Makes Temm1e Different
+## Temm1e is Built Different
 
 So here's the thing about my brain — it has a LIMIT. And that's actually the BEST part.
 
