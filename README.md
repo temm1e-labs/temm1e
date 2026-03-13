@@ -10,8 +10,8 @@
   <a href="https://github.com/nagisanzenin/skyclaw/stargazers"><img src="https://img.shields.io/github/stars/nagisanzenin/skyclaw?style=flat&color=gold&logo=github" alt="GitHub Stars"></a>
   <a href="https://discord.gg/3ux2c5xz"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License">
-  <img src="https://img.shields.io/badge/version-2.4.1-blue.svg" alt="Version">
-  <img src="https://img.shields.io/badge/tests-1378-green.svg" alt="1378 tests">
+  <img src="https://img.shields.io/badge/version-2.5.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/tests-1394-green.svg" alt="1394 tests">
   <img src="https://img.shields.io/badge/providers-8-red.svg" alt="8 providers">
 </p>
 
@@ -21,7 +21,7 @@ Autonomous AI agent runtime in Rust. Treats the LLM as a finite brain — not a 
 
 Deploys once, stays up forever. Learns from every task, remembers across sessions, self-heals through failures.
 
-57K lines | 1,378 tests | zero warnings | zero panic paths | 15 MB idle RAM | 31ms cold start | [Benchmark report](docs/benchmarks/BENCHMARK_REPORT.md)
+63K lines | 1,394 tests | zero warnings | zero panic paths | 15 MB idle RAM | 31ms cold start | [Benchmark report](docs/benchmarks/BENCHMARK_REPORT.md)
 
 ## What Makes SkyClaw Different
 
@@ -206,7 +206,7 @@ Plus Z.ai and MiniMax via config. 50+ models in the registry with per-model cont
 skyclaw (binary)
 ├── skyclaw-core         Shared traits (13), types, config, errors
 ├── skyclaw-gateway      HTTP server, health, dashboard, OAuth identity
-├── skyclaw-agent        AGENTIC CORE — 25 modules including blueprint system
+├── skyclaw-agent        AGENTIC CORE — 25 modules including blueprint system + executable DAG
 ├── skyclaw-providers    Anthropic + OpenAI-compatible (7 providers via one adapter)
 ├── skyclaw-codex-oauth  ChatGPT Plus/Pro via OAuth PKCE
 ├── skyclaw-channels     Telegram, Discord, Slack, CLI
@@ -244,13 +244,14 @@ skyclaw auth status           Check token validity and expiry
 skyclaw auth logout           Clear stored OAuth tokens
 skyclaw config validate       Validate skyclaw.toml
 skyclaw config show           Print resolved config
+skyclaw reset --confirm       Factory reset with backup (wipes config, keeps backup)
 ```
 
 ## Development
 
 ```bash
 cargo check --workspace                                              # Quick check
-cargo test --workspace                                               # 1,378 tests
+cargo test --workspace                                               # 1,394 tests
 cargo clippy --workspace --all-targets --all-features -- -D warnings # 0 warnings
 cargo fmt --all                                                      # Format
 cargo build --release                                                # Release binary
@@ -261,7 +262,7 @@ Requires Rust 1.82+ and Chrome/Chromium (for the browser tool).
 ## Release Timeline
 
 ```
-2026-03-12  v2.5.0  ●━━━ Blueprint System — procedural memory for the agent (the Finite Brain Model), zero-extra-LLM-call matching via classifier hint + grounded vocabularies, resource budget dashboard injected into every context rebuild, 3-tier graceful degradation (full body → outline → catalog), self-healing blueprints via CRUD refinement loop, COGNITIVE_ARCHITECTURE.md design doc, 1378 tests
+2026-03-13  v2.5.0  ●━━━ Executable DAG + Blueprint System — blueprint phase parallelism via FuturesUnordered (independent phases run concurrently, up to 3x speedup, zero extra LLM calls), phase parser + TaskGraph bridge, sequential-by-default dependency model, parallel_phases on by default, /reload /reset messaging commands, admin-gated /restart, skyclaw reset --confirm CLI factory reset with backup, MCP HTTP Accept header fix (#12), 1394 tests
                     │
 2026-03-11  v2.4.1  ●━━━ Codex OAuth polish — OAuth auto-detect at startup (no config change needed), /model + /keys Codex-aware, live model switching for Codex OAuth (agent hot-rebuild), callback port race condition fix, LLM classifier stop category, Codex Responses API probe validation, 1343 tests
                     │
