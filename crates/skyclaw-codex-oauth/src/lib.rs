@@ -270,9 +270,12 @@ fn decode_id_token(id_token: &str) -> (String, String) {
         .to_string();
 
     // Try multiple fields for account/org ID
+    // Priority: account_id > org_id > organization_id > https://api.openai.com/account_id > sub
     let account_id = claims
-        .get("org_id")
+        .get("account_id")
+        .or_else(|| claims.get("org_id"))
         .or_else(|| claims.get("organization_id"))
+        .or_else(|| claims.get("https://api.openai.com/account_id"))
         .or_else(|| claims.get("sub"))
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
@@ -288,21 +291,39 @@ fn open_browser(url: &str) -> Result<(), String> {
         std::process::Command::new("open")
             .arg(url)
             .spawn()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Failed to open browser on macOS: {}", e))?;
     }
     #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open")
             .arg(url)
             .spawn()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Failed to open browser on Linux: {}", e))?;
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/c", "start", url])
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        // Try PowerShell first (more reliable for complex URLs)
+        let powershell_result = std::process::Command::new("powershell")
+            .args(["-Command", &format!("Start-Process '{}'", url)])
+            .spawn();
+            
+        match powershell_result {
+            Ok(_) => {
+                // PowerShell succeeded
+            }
+            Err(_) => {
+                // Fallback to CMD with proper quoting
+                // Use: cmd /c start "" "URL"
+                std::process::Command::new("cmd")
+                    .args(["/c", "start", "", url])
+                    .spawn()
+                    .map_err(|e| format!("Failed to open browser on Windows (both PowerShell and CMD failed): {}", e))?;
+            }
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        return Err("Unsupported operating system for browser opening".to_string());
     }
     Ok(())
 }
@@ -349,12 +370,12 @@ mod tests {
     }
 
     #[test]
-    fn decode_id_token_extracts_email() {
-        // Build a fake JWT with email in payload
+    fn decode_id_token_extracts_email_and_account() {
+        // Build a fake JWT with email and account_id in payload
         let payload = serde_json::json!({
             "email": "test@example.com",
             "sub": "user-123",
-            "org_id": "org-abc"
+            "account_id": "org-abc"
         });
         let payload_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
         let fake_jwt = format!("header.{}.signature", payload_b64);
@@ -362,6 +383,22 @@ mod tests {
         let (email, account_id) = decode_id_token(&fake_jwt);
         assert_eq!(email, "test@example.com");
         assert_eq!(account_id, "org-abc");
+    }
+    
+    #[test]
+    fn decode_id_token_prioritizes_account_id_field() {
+        // Test priority: account_id > org_id > sub
+        let payload = serde_json::json!({
+            "email": "test@example.com",
+            "sub": "user-123",
+            "org_id": "org-456",
+            "account_id": "org-789"
+        });
+        let payload_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
+        let fake_jwt = format!("header.{}.signature", payload_b64);
+
+        let (_, account_id) = decode_id_token(&fake_jwt);
+        assert_eq!(account_id, "org-789"); // account_id has highest priority
     }
 
     #[test]
@@ -378,5 +415,85 @@ mod tests {
             urlencoding("http://example.com"),
             "http%3A%2F%2Fexample.com"
         );
+    }
+    
+    #[test]
+    fn open_browser_handles_complex_urls() {
+        let complex_url = "https://auth.openai.com/oauth/authorize?client_id=test&redirect_uri=http://localhost:1455/callback&response_type=code&scope=openid+profile+email&state=abc123&code_challenge=xyz&code_challenge_method=S256";
+        
+        // This should not panic on any OS
+        // We can't easily test actual browser opening in unit tests,
+        // but we can ensure the function doesn't crash with complex URLs
+        let result = open_browser(complex_url);
+        
+        // On supported OS, it should either succeed or fail gracefully
+        // On unsupported OS, it should return an error message
+        match result {
+            Ok(_) => {
+                // Success - browser command was spawned
+            }
+            Err(msg) => {
+                // Should be a descriptive error message
+                assert!(!msg.is_empty());
+                // On unsupported OS, should mention that
+                if cfg!(not(any(target_os = "windows", target_os = "macos", target_os = "linux"))) {
+                    assert!(msg.contains("Unsupported operating system"));
+                }
+            }
+        }
+    }
+    
+    #[test]
+    fn pkce_and_state_generation_works() {
+        let pkce = pkce::PkceChallenge::generate();
+        let state = pkce::generate_state();
+        
+        // PKCE verifier should be 43 characters (32 bytes base64url)
+        assert_eq!(pkce.verifier.len(), 43);
+        
+        // Challenge should be different from verifier (SHA256 hash)
+        assert_ne!(pkce.verifier, pkce.challenge);
+        
+        // State should be non-empty and unique
+        assert!(!state.is_empty());
+        let state2 = pkce::generate_state();
+        assert_ne!(state, state2);
+    }
+    
+    #[test]
+    fn auth_url_building_cross_platform() {
+        let challenge = "test_challenge_123";
+        let state = "test_state_456";
+        let redirect_uri = "http://localhost:1455/auth/callback";
+        
+        let url = build_auth_url(challenge, state, redirect_uri);
+        
+        // Should contain all required OAuth parameters
+        assert!(url.contains("client_id=app_EMoamEEZ73f0CkXaXp7hrann"));
+        assert!(url.contains("code_challenge=test_challenge_123"));
+        assert!(url.contains("state=test_state_456"));
+        assert!(url.contains("response_type=code"));
+        assert!(url.contains("code_challenge_method=S256"));
+        assert!(url.contains("scope="));
+        assert!(url.contains("openid"));
+        assert!(url.contains("redirect_uri="));
+        
+        // URL should be properly encoded
+        assert!(url.contains("http%3A%2F%2Flocalhost%3A1455"));
+    }
+    
+    #[test]
+    fn find_available_port_works() {
+        // This should work on all OS since it's just TCP binding
+        let port = find_available_port();
+        assert!(port.is_ok());
+        
+        let port_num = port.unwrap();
+        assert!(port_num >= 1455);
+        assert!(port_num < 1555);
+        
+        // Port should actually be available
+        let listener = std::net::TcpListener::bind(format!("127.0.0.1:{}", port_num));
+        assert!(listener.is_ok());
     }
 }

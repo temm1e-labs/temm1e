@@ -259,14 +259,17 @@ impl Provider for CodexResponsesProvider {
         request: CompletionRequest,
     ) -> Result<BoxStream<'_, Result<StreamChunk, SkyclawError>>, SkyclawError> {
         let token = self.token_store.get_access_token().await?;
+        let account_id = self.token_store.account_id().await;
         let body = self.build_request_body(&request, true)?;
 
-        tracing::debug!(model = %request.model, "Codex Responses API request (streaming)");
+        tracing::debug!(model = %request.model, account_id = %account_id, "Codex Responses API request (streaming)");
 
         let resp = self
             .client
             .post(format!("{}/responses", self.base_url))
             .header("Authorization", format!("Bearer {}", token))
+            .header("chatgpt-account-id", account_id)
+            .header("OpenAI-Beta", "responses=experimental")
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
