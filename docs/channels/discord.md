@@ -24,9 +24,9 @@
 4. Copy the generated URL and open it in your browser
 5. Select your server and authorize
 
-## Step 3: Configure SkyClaw
+## Step 3: Configure TEMM1E
 
-Add to your `skyclaw.toml`:
+Add to your `temm1e.toml`:
 
 ```toml
 [channel.discord]
@@ -46,7 +46,7 @@ export DISCORD_BOT_TOKEN="your-bot-token-here"
 
 ```bash
 cargo build --release --features discord
-./target/release/skyclaw start
+./target/release/temm1e start
 ```
 
 ## Step 5: Connect
@@ -68,7 +68,7 @@ Admin commands (send as DM or @mention):
 | `/revoke <user_id>` | Remove a user from the whitelist |
 | `/users` | List all whitelisted users |
 
-The allowlist persists at `~/.skyclaw/discord_allowlist.toml`.
+The allowlist persists at `~/.temm1e/discord_allowlist.toml`.
 
 To find a user's Discord ID: enable Developer Mode in Discord settings, then right-click a user and select **Copy User ID**.
 
@@ -80,7 +80,7 @@ To find a user's Discord ID: enable Developer Mode in Discord settings, then rig
 
 ## Message Splitting
 
-Discord has a 2000-character message limit. SkyClaw automatically splits long responses at natural boundaries (newlines, then spaces).
+Discord has a 2000-character message limit. TEMM1E automatically splits long responses at natural boundaries (newlines, then spaces).
 
 ## Security Notes
 

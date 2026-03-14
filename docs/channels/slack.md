@@ -28,9 +28,9 @@ In Slack, go to the channel where you want the bot and type:
 /invite @YourBotName
 ```
 
-## Step 3: Configure SkyClaw
+## Step 3: Configure TEMM1E
 
-Add to your `skyclaw.toml`:
+Add to your `temm1e.toml`:
 
 ```toml
 [channel.slack]
@@ -50,12 +50,12 @@ export SLACK_BOT_TOKEN="xoxb-your-bot-token-here"
 
 ```bash
 cargo build --release --features slack
-./target/release/skyclaw start
+./target/release/temm1e start
 ```
 
 ## Step 5: Connect
 
-SkyClaw polls Slack for new messages (no webhook server needed). Send a message in any channel the bot is invited to, and it will respond.
+TEMM1E polls Slack for new messages (no webhook server needed). Send a message in any channel the bot is invited to, and it will respond.
 
 The first user to interact is auto-whitelisted as admin.
 
@@ -69,7 +69,7 @@ Admin commands (send in any channel the bot is in):
 | `/revoke <user_id>` | Remove a user from the whitelist |
 | `/users` | List all whitelisted users |
 
-The allowlist persists at `~/.skyclaw/slack_allowlist.toml`.
+The allowlist persists at `~/.temm1e/slack_allowlist.toml`.
 
 To find a user's Slack ID: click their profile picture, then click the `...` menu and select **Copy member ID** (format: `U12345678`).
 
@@ -82,11 +82,11 @@ To find a user's Slack ID: click their profile picture, then click the `...` men
 
 ## Message Splitting
 
-Slack has a 4000-character message limit. SkyClaw automatically splits long responses at natural boundaries (newlines, then spaces).
+Slack has a 4000-character message limit. TEMM1E automatically splits long responses at natural boundaries (newlines, then spaces).
 
 ## How It Works
 
-SkyClaw uses **polling** (not Socket Mode or webhooks):
+TEMM1E uses **polling** (not Socket Mode or webhooks):
 
 1. Polls `conversations.list` to discover channels the bot is in
 2. Polls `conversations.history` for new messages in each channel
@@ -122,4 +122,4 @@ This means no public URL or webhook server is needed — the bot works behind fi
 | `auth.test failed` | Check that your token is valid and has the required scopes |
 | Missing messages | Ensure `channels:history` scope is granted |
 | File upload fails | Ensure `files:write` scope is granted |
-| Rate limiting | SkyClaw includes 100ms delays between API calls; Slack free-tier has stricter limits |
+| Rate limiting | TEMM1E includes 100ms delays between API calls; Slack free-tier has stricter limits |

@@ -1,42 +1,42 @@
-# Skill: Add a new messaging channel to SkyClaw
+# Skill: Add a new messaging channel to TEMM1E
 
 ## When to use
 
-Use this skill when the user asks to add a new messaging channel (e.g., Discord, Slack, WhatsApp, Matrix, LINE, Signal) to SkyClaw.
+Use this skill when the user asks to add a new messaging channel (e.g., Discord, Slack, WhatsApp, Matrix, LINE, Signal) to TEMM1E.
 
 ## Reference implementation
 
 Study the existing Telegram channel as a complete example:
-- `crates/skyclaw-channels/src/telegram.rs` -- full Channel + FileTransfer implementation
-- `crates/skyclaw-channels/src/cli.rs` -- simpler Channel + FileTransfer without external API
-- `crates/skyclaw-core/src/traits/channel.rs` -- the `Channel` and `FileTransfer` trait definitions
+- `crates/temm1e-channels/src/telegram.rs` -- full Channel + FileTransfer implementation
+- `crates/temm1e-channels/src/cli.rs` -- simpler Channel + FileTransfer without external API
+- `crates/temm1e-core/src/traits/channel.rs` -- the `Channel` and `FileTransfer` trait definitions
 
 ## Steps
 
 ### 1. Create the channel source file
 
-Create `crates/skyclaw-channels/src/<channel_name>.rs` using the template below.
+Create `crates/temm1e-channels/src/<channel_name>.rs` using the template below.
 
 ### 2. Add the module to lib.rs
 
-Edit `crates/skyclaw-channels/src/lib.rs`:
+Edit `crates/temm1e-channels/src/lib.rs`:
 - Add `#[cfg(feature = "<channel_name>")] pub mod <channel_name>;` alongside the other channel modules
 - Add `#[cfg(feature = "<channel_name>")] pub use <channel_name>::<ChannelName>Channel;` for re-export
 - Add a match arm in `create_channel()` for the new channel name, including both the `#[cfg(feature)]` and `#[cfg(not(feature))]` variants (see the telegram pattern)
 
 ### 3. Add the feature flag to Cargo.toml files
 
-Edit `crates/skyclaw-channels/Cargo.toml`:
+Edit `crates/temm1e-channels/Cargo.toml`:
 - Add the feature under `[features]`, e.g., `<channel_name> = ["dep:reqwest"]` (add any channel-specific deps)
 - Add any new optional dependencies under `[dependencies]`
 
 Edit the root `Cargo.toml`:
-- Add the feature flag: `<channel_name> = ["skyclaw-channels/<channel_name>"]`
+- Add the feature flag: `<channel_name> = ["temm1e-channels/<channel_name>"]`
 - Add it to the `default` features list if it should be enabled by default
 
 ### 4. Write tests
 
-Add tests in the channel source file or in `crates/skyclaw-channels/src/lib.rs`:
+Add tests in the channel source file or in `crates/temm1e-channels/src/lib.rs`:
 - Test channel creation via `create_channel("<channel_name>", &config, workspace)`
 - Test `name()` returns the correct string
 - Test `is_allowed()` with empty and non-empty allowlists
@@ -45,9 +45,9 @@ Add tests in the channel source file or in `crates/skyclaw-channels/src/lib.rs`:
 ### 5. Verify
 
 ```bash
-cargo check -p skyclaw-channels --features <channel_name>
-cargo test -p skyclaw-channels --features <channel_name>
-cargo clippy -p skyclaw-channels --features <channel_name> -- -D warnings
+cargo check -p temm1e-channels --features <channel_name>
+cargo test -p temm1e-channels --features <channel_name>
+cargo clippy -p temm1e-channels --features <channel_name> -- -D warnings
 ```
 
 ## Template
@@ -60,11 +60,11 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use tokio::sync::mpsc;
 
-use skyclaw_core::types::config::ChannelConfig;
-use skyclaw_core::types::error::SkyclawError;
-use skyclaw_core::types::file::{FileData, FileMetadata, OutboundFile, ReceivedFile};
-use skyclaw_core::types::message::{AttachmentRef, InboundMessage, OutboundMessage, ParseMode};
-use skyclaw_core::{Channel, FileTransfer};
+use temm1e_core::types::config::ChannelConfig;
+use temm1e_core::types::error::Temm1eError;
+use temm1e_core::types::file::{FileData, FileMetadata, OutboundFile, ReceivedFile};
+use temm1e_core::types::message::{AttachmentRef, InboundMessage, OutboundMessage, ParseMode};
+use temm1e_core::{Channel, FileTransfer};
 
 /// Maximum file size supported by <ChannelName> (adjust per platform).
 const UPLOAD_LIMIT: usize = 50 * 1024 * 1024;
@@ -84,11 +84,11 @@ pub struct <ChannelName>Channel {
 
 impl <ChannelName>Channel {
     /// Create a new <ChannelName> channel from a `ChannelConfig`.
-    pub fn new(config: &ChannelConfig) -> Result<Self, SkyclawError> {
+    pub fn new(config: &ChannelConfig) -> Result<Self, Temm1eError> {
         let token = config
             .token
             .clone()
-            .ok_or_else(|| SkyclawError::Config("<ChannelName> channel requires a token".into()))?;
+            .ok_or_else(|| Temm1eError::Config("<ChannelName> channel requires a token".into()))?;
 
         let (tx, rx) = mpsc::channel(256);
 
@@ -112,19 +112,19 @@ impl Channel for <ChannelName>Channel {
         "<channel_name>"
     }
 
-    async fn start(&mut self) -> Result<(), SkyclawError> {
+    async fn start(&mut self) -> Result<(), Temm1eError> {
         // TODO: Connect to platform API, start event listener
         tracing::info!("<ChannelName> channel started");
         Ok(())
     }
 
-    async fn stop(&mut self) -> Result<(), SkyclawError> {
+    async fn stop(&mut self) -> Result<(), Temm1eError> {
         // TODO: Disconnect cleanly
         tracing::info!("<ChannelName> channel stopped");
         Ok(())
     }
 
-    async fn send_message(&self, msg: OutboundMessage) -> Result<(), SkyclawError> {
+    async fn send_message(&self, msg: OutboundMessage) -> Result<(), Temm1eError> {
         // TODO: Send message via platform API
         todo!("Implement send_message for <ChannelName>")
     }
@@ -144,12 +144,12 @@ impl Channel for <ChannelName>Channel {
 
 #[async_trait]
 impl FileTransfer for <ChannelName>Channel {
-    async fn receive_file(&self, msg: &InboundMessage) -> Result<Vec<ReceivedFile>, SkyclawError> {
+    async fn receive_file(&self, msg: &InboundMessage) -> Result<Vec<ReceivedFile>, Temm1eError> {
         // TODO: Download files from platform API using msg.attachments
         todo!("Implement receive_file for <ChannelName>")
     }
 
-    async fn send_file(&self, chat_id: &str, file: OutboundFile) -> Result<(), SkyclawError> {
+    async fn send_file(&self, chat_id: &str, file: OutboundFile) -> Result<(), Temm1eError> {
         // TODO: Upload file via platform API
         todo!("Implement send_file for <ChannelName>")
     }
@@ -159,8 +159,8 @@ impl FileTransfer for <ChannelName>Channel {
         _chat_id: &str,
         _stream: BoxStream<'_, Bytes>,
         metadata: FileMetadata,
-    ) -> Result<(), SkyclawError> {
-        Err(SkyclawError::FileTransfer(
+    ) -> Result<(), Temm1eError> {
+        Err(Temm1eError::FileTransfer(
             format!(
                 "<ChannelName> does not support streaming uploads. \
                  Buffer the file ({}) and use send_file() instead.",
@@ -222,7 +222,7 @@ mod tests {
 ## Key conventions
 
 - **Allowlist security**: Empty allowlist must deny all users (DF-16). Match only on numeric user IDs, not usernames (CA-04).
-- **Error types**: Use `SkyclawError::Channel(...)` for channel errors, `SkyclawError::FileTransfer(...)` for file ops.
+- **Error types**: Use `Temm1eError::Channel(...)` for channel errors, `Temm1eError::FileTransfer(...)` for file ops.
 - **mpsc pattern**: Use `tokio::sync::mpsc` for forwarding inbound messages to the gateway, with a `take_receiver()` method.
 - **Feature gates**: All platform-specific channels must be behind feature flags. Never import platform SDKs unconditionally.
-- **File transfer**: Always implement `FileTransfer` even if the platform has limited support -- return `SkyclawError::FileTransfer(...)` for unsupported operations.
+- **File transfer**: Always implement `FileTransfer` even if the platform has limited support -- return `Temm1eError::FileTransfer(...)` for unsupported operations.

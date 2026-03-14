@@ -30,8 +30,8 @@ ENV CHROME_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/skyclaw ./skyclaw
+COPY --from=builder /app/target/release/temm1e ./temm1e
 
 EXPOSE 8080
 
-ENTRYPOINT ["./skyclaw", "start"]
+ENTRYPOINT ["./temm1e", "start"]

@@ -1,5 +1,5 @@
 # ================================================
-# SkyClaw Terraform Variables
+# TEMM1E Terraform Variables
 # ================================================
 
 # ------------------------------------------------
@@ -78,7 +78,7 @@ variable "allowed_cidrs" {
 variable "docker_image" {
   description = "Docker image name (without tag)"
   type        = string
-  default     = "ghcr.io/skyclaw/skyclaw"
+  default     = "ghcr.io/temm1e/temm1e"
 }
 
 variable "docker_tag" {
@@ -87,13 +87,13 @@ variable "docker_tag" {
   default     = "latest"
 }
 
-variable "skyclaw_mode" {
-  description = "SkyClaw operating mode (auto, cloud, local)"
+variable "temm1e_mode" {
+  description = "TEMM1E operating mode (auto, cloud, local)"
   type        = string
   default     = "auto"
 
   validation {
-    condition     = contains(["auto", "cloud", "local"], var.skyclaw_mode)
+    condition     = contains(["auto", "cloud", "local"], var.temm1e_mode)
     error_message = "Mode must be one of: auto, cloud, local."
   }
 }

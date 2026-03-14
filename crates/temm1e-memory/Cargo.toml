@@ -1,0 +1,26 @@
+[package]
+name = "temm1e-memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Persistent memory and storage for TEMM1E"
+
+[features]
+postgres = ["sqlx/postgres"]
+
+[dependencies]
+temm1e-core.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+regex.workspace = true
+
+[dev-dependencies]
+temm1e-test-utils.workspace = true
+tempfile = "3"

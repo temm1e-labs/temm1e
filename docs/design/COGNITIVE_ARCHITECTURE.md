@@ -6,7 +6,7 @@ An LLM is a thinking brain with a fixed-size skull.
 
 The context window is not a buffer. It is not a queue. It is not a log file you keep appending to until something breaks. It is **working memory** — the total cognitive capacity available to the intelligence at any given moment. Every token consumed is a neuron recruited. Every token wasted is a thought the brain can no longer have.
 
-Most agent frameworks treat context as an implementation detail. They stuff history in until it overflows, then truncate from the front or summarize into mush. SkyClaw treats context as the **primary architectural constraint** — the one that shapes every other decision in the system.
+Most agent frameworks treat context as an implementation detail. They stuff history in until it overflows, then truncate from the front or summarize into mush. TEMM1E treats context as the **primary architectural constraint** — the one that shapes every other decision in the system.
 
 ## The Problem With Fuzzy Summarization
 
@@ -27,7 +27,7 @@ These are exactly the structures that make the difference between an agent that 
 
 ## Blueprints: Concrete Procedural Memory
 
-SkyClaw's answer is the Blueprint system — structured, replayable procedure documents that capture the full execution graph, not a lossy summary of it.
+TEMM1E's answer is the Blueprint system — structured, replayable procedure documents that capture the full execution graph, not a lossy summary of it.
 
 A Blueprint is not a description of what happened. It is a **recipe for what to do**. The distinction matters:
 
@@ -40,7 +40,7 @@ A Blueprint is not a description of what happened. It is a **recipe for what to 
 
 ### The Cognitive Stack
 
-SkyClaw's memory is not one system — it's four layers, each serving a different cognitive function:
+TEMM1E's memory is not one system — it's four layers, each serving a different cognitive function:
 
 ```
 Skills      → what the agent CAN do        (capabilities)
@@ -76,7 +76,7 @@ This is how human expertise works. A surgeon doesn't re-learn appendectomy from 
 
 ### Every Resource Declares Its Cost
 
-In SkyClaw, nothing enters the context window without a price tag. Every Blueprint, every tool definition, every memory entry, every learning — all carry pre-computed token counts stored in their metadata. This is computed once at authoring time, not estimated at injection time.
+In TEMM1E, nothing enters the context window without a price tag. Every Blueprint, every tool definition, every memory entry, every learning — all carry pre-computed token counts stored in their metadata. This is computed once at authoring time, not estimated at injection time.
 
 This is the metabolic cost model. In biology, every organ, every thought, every movement costs energy. The body tracks these costs and allocates resources accordingly. An agent must do the same with tokens.
 
@@ -109,7 +109,7 @@ A brain that doesn't know the size of its own skull will keep trying to think bi
 
 ### Graceful Degradation Over Failure
 
-When a Blueprint is too large for the context budget, SkyClaw doesn't crash. It doesn't silently overflow. It degrades gracefully through a three-tier system:
+When a Blueprint is too large for the context budget, TEMM1E doesn't crash. It doesn't silently overflow. It degrades gracefully through a three-tier system:
 
 | Scenario | Action |
 |----------|--------|
@@ -127,7 +127,7 @@ Every LLM call costs time and money. More importantly, every LLM call is a **lat
 
 The naive approach to Blueprint matching is a dedicated LLM call: "Here are 5 Blueprints. Which one best matches this task?" This adds latency, cost, and another failure point.
 
-SkyClaw's v2 matching architecture eliminates this call entirely by leveraging **upstream information to serve downstream decisions**.
+TEMM1E's v2 matching architecture eliminates this call entirely by leveraging **upstream information to serve downstream decisions**.
 
 ### The Classifier Hint
 
@@ -238,4 +238,4 @@ Token costs are computed at authoring time and stored in metadata. Budget dashbo
 
 ---
 
-*This document describes the architectural philosophy behind SkyClaw's Blueprint system and context management. For implementation details, see `BLUEPRINT_SYSTEM.md` (vision), `BLUEPRINT_IMPLEMENTATION.md` (step-by-step plan), and `BLUEPRINT_MATCHING_V2.md` (matching architecture).*
+*This document describes the architectural philosophy behind TEMM1E's Blueprint system and context management. For implementation details, see `BLUEPRINT_SYSTEM.md` (vision), `BLUEPRINT_IMPLEMENTATION.md` (step-by-step plan), and `BLUEPRINT_MATCHING_V2.md` (matching architecture).*

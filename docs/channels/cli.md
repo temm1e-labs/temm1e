@@ -6,7 +6,7 @@ The CLI channel provides an interactive REPL for local development and testing. 
 
 ```bash
 cargo build --release
-./target/release/skyclaw chat
+./target/release/temm1e chat
 ```
 
 This starts an interactive session in your terminal. Type messages and press Enter to send them to the agent.
@@ -29,7 +29,7 @@ This starts an interactive session in your terminal. Type messages and press Ent
 The CLI channel is always available (no feature flag needed). It uses the default provider and model from your config:
 
 ```toml
-# skyclaw.toml — no channel config needed for CLI
+# temm1e.toml — no channel config needed for CLI
 [provider]
 name = "anthropic"
 api_key = "${ANTHROPIC_API_KEY}"

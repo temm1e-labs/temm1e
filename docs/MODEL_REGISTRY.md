@@ -1,12 +1,12 @@
-# SkyClaw Model Registry
+# TEMM1E Model Registry
 
 **Last verified: 2026-03-11** — All values sourced from official provider documentation and OpenRouter.
 
-This registry defines context window and max output token limits for every known model. SkyClaw uses these values to set `max_context_tokens` and `max_output_tokens` automatically per model, so users get the full capability of their chosen model without manual tuning.
+This registry defines context window and max output token limits for every known model. TEMM1E uses these values to set `max_context_tokens` and `max_output_tokens` automatically per model, so users get the full capability of their chosen model without manual tuning.
 
 ## How It Works
 
-1. When a model is selected, SkyClaw looks up its limits in `model_limits()`
+1. When a model is selected, TEMM1E looks up its limits in `model_limits()`
 2. If found, `max_context_tokens` and `max_output_tokens` are set to the model's actual values
 3. If unknown, conservative defaults apply (128K context / 16K output)
 4. Users can still override via `[agent] max_context_tokens` in config
@@ -81,7 +81,7 @@ Note: `glm-5-code` does not exist as a separate API model. GLM-5 handles code ta
 
 ## Popular Proxy Models (OpenRouter / Third-Party)
 
-These models are commonly used through OpenRouter and other OpenAI-compatible proxies. SkyClaw recognizes them by name regardless of which proxy routes them.
+These models are commonly used through OpenRouter and other OpenAI-compatible proxies. TEMM1E recognizes them by name regardless of which proxy routes them.
 
 ### Meta Llama
 

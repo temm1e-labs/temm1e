@@ -3,7 +3,7 @@
 ## Status: Proposed
 
 ## Context
-OpenClaw and ZeroClaw both require SSH + config file editing for setup. SkyClaw's primary differentiator is that messaging apps ARE the control plane. Users should be able to set up, configure, and operate their agent entirely through chat.
+OpenClaw and ZeroClaw both require SSH + config file editing for setup. TEMM1E's primary differentiator is that messaging apps ARE the control plane. Users should be able to set up, configure, and operate their agent entirely through chat.
 
 ## Decision
 Every Channel implementation must also implement the `FileTransfer` sub-trait:

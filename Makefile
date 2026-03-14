@@ -1,15 +1,15 @@
 # ================================================
-# SkyClaw Makefile
+# TEMM1E Makefile
 # Cloud-native Rust AI agent runtime
 # ================================================
 
 CARGO      := cargo
 DOCKER     := docker
-BINARY     := skyclaw
+BINARY     := temm1e
 VERSION    := $(shell grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
 GIT_SHA    := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 IMAGE_TAG  := $(VERSION)-$(GIT_SHA)
-IMAGE_NAME := skyclaw
+IMAGE_NAME := temm1e
 
 # Cross-compilation targets
 TARGETS := x86_64-unknown-linux-musl \
@@ -88,7 +88,7 @@ docker-build: ## Build Docker image
 docker-run: ## Run Docker container
 	$(DOCKER) run --rm -it \
 		-p 8080:8080 \
-		-e SKYCLAW_MODE=auto \
+		-e TEMM1E_MODE=auto \
 		-e RUST_LOG=info \
 		$(IMAGE_NAME):latest
 
@@ -102,8 +102,8 @@ docker-compose-down: ## Stop docker-compose services
 
 .PHONY: docker-push
 docker-push: docker-build ## Push Docker image to GHCR
-	$(DOCKER) tag $(IMAGE_NAME):$(IMAGE_TAG) ghcr.io/skyclaw/$(IMAGE_NAME):$(IMAGE_TAG)
-	$(DOCKER) push ghcr.io/skyclaw/$(IMAGE_NAME):$(IMAGE_TAG)
+	$(DOCKER) tag $(IMAGE_NAME):$(IMAGE_TAG) ghcr.io/temm1e/$(IMAGE_NAME):$(IMAGE_TAG)
+	$(DOCKER) push ghcr.io/temm1e/$(IMAGE_NAME):$(IMAGE_TAG)
 
 # ------------------------------------------------
 # Cross-compilation / Release

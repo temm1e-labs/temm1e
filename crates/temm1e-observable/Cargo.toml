@@ -1,0 +1,19 @@
+[package]
+name = "temm1e-observable"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Observability and telemetry for TEMM1E"
+
+[dependencies]
+temm1e-core.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+opentelemetry.workspace = true
+tracing-opentelemetry.workspace = true
+serde_json.workspace = true
+async-trait.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

@@ -52,10 +52,10 @@
 
 ```bash
 # Process RSS (Resident Set Size)
-ps -o rss= -p $(pgrep skyclaw) | awk '{print $1/1024 " MB"}'
+ps -o rss= -p $(pgrep temm1e) | awk '{print $1/1024 " MB"}'
 
 # Detailed memory map
-cat /proc/$(pgrep skyclaw)/smaps_rollup
+cat /proc/$(pgrep temm1e)/smaps_rollup
 
 # Prometheus metric
 curl http://localhost:8080/metrics | grep process_resident_memory_bytes
@@ -74,7 +74,7 @@ Check each component's contribution:
 
 ```bash
 # Active sessions
-curl http://localhost:8080/metrics | grep skyclaw_active_sessions
+curl http://localhost:8080/metrics | grep temm1e_active_sessions
 
 # Estimate: each session with 20 messages = ~40-80 KB
 # 50 sessions x 80 KB = ~4 MB
@@ -82,22 +82,22 @@ curl http://localhost:8080/metrics | grep skyclaw_active_sessions
 # 100 sessions x 400 KB (heavy) = ~40 MB
 ```
 
-If `skyclaw_active_sessions` is high (> 50), session history accumulation is likely the cause.
+If `temm1e_active_sessions` is high (> 50), session history accumulation is likely the cause.
 
 #### b) Memory backend (SQLite) usage
 
 ```bash
 # Database file size
-ls -lh ~/.skyclaw/memory.db
+ls -lh ~/.temm1e/memory.db
 
 # Entry count
-sqlite3 ~/.skyclaw/memory.db "SELECT COUNT(*) FROM memories;"
+sqlite3 ~/.temm1e/memory.db "SELECT COUNT(*) FROM memories;"
 
 # SQLite memory usage (page cache)
-sqlite3 ~/.skyclaw/memory.db "PRAGMA page_count; PRAGMA page_size;"
+sqlite3 ~/.temm1e/memory.db "PRAGMA page_count; PRAGMA page_size;"
 
 # Connection pool utilization
-curl http://localhost:8080/metrics | grep skyclaw_memory_pool_active_connections
+curl http://localhost:8080/metrics | grep temm1e_memory_pool_active_connections
 ```
 
 Reference: SQLite page cache typically uses 3-5 MB, but can grow with large databases.
@@ -117,10 +117,10 @@ Browser tool is the single largest memory consumer per the capacity baseline.
 
 ```bash
 # Vault key count (each cached in-memory HashMap)
-curl http://localhost:8080/metrics | grep skyclaw_vault_keys_total
+curl http://localhost:8080/metrics | grep temm1e_vault_keys_total
 
 # Vault file size
-ls -lh ~/.skyclaw/vault.enc
+ls -lh ~/.temm1e/vault.enc
 ```
 
 Vault cache is typically < 100 KB unless storing many large secrets.
@@ -137,7 +137,7 @@ curl http://localhost:8080/metrics | grep provider
 ```bash
 # Track RSS over time (sample every 10s for 2 minutes)
 for i in $(seq 1 12); do
-  echo "$(date +%T) $(ps -o rss= -p $(pgrep skyclaw) | awk '{print $1/1024 " MB"}')"
+  echo "$(date +%T) $(ps -o rss= -p $(pgrep temm1e) | awk '{print $1/1024 " MB"}')"
   sleep 10
 done
 
@@ -155,18 +155,18 @@ swapon --show
 vmstat 1 5
 
 # OOM score
-cat /proc/$(pgrep skyclaw)/oom_score
-cat /proc/$(pgrep skyclaw)/oom_score_adj
+cat /proc/$(pgrep temm1e)/oom_score
+cat /proc/$(pgrep temm1e)/oom_score_adj
 ```
 
 ### Step 5: Check SQLite performance
 
 ```bash
 # Memory operation latencies
-curl http://localhost:8080/metrics | grep skyclaw_memory_operation_duration_seconds
+curl http://localhost:8080/metrics | grep temm1e_memory_operation_duration_seconds
 
 # Entry count (affects search performance)
-curl http://localhost:8080/metrics | grep skyclaw_memory_entries_total
+curl http://localhost:8080/metrics | grep temm1e_memory_entries_total
 
 # Search is O(n) LIKE scan. At 100k entries, p99 approaches 50ms SLO boundary
 ```
@@ -182,12 +182,12 @@ If active session count is high and histories are large:
 1. The `SessionManager` enforces `MAX_HISTORY_PER_SESSION = 200` messages and `MAX_SESSIONS = 1000` with LRU eviction. Verify these limits are active:
    ```bash
    # Check for eviction log messages
-   journalctl -u skyclaw | grep "Evicted LRU session"
+   journalctl -u temm1e | grep "Evicted LRU session"
    ```
 
 2. If sessions are within limits but still consuming too much memory, reduce the history limit:
    ```toml
-   # skyclaw.toml (if configurable)
+   # temm1e.toml (if configurable)
    [sessions]
    max_history = 50  # Reduce from 200
    max_sessions = 100  # Reduce from 1000
@@ -196,7 +196,7 @@ If active session count is high and histories are large:
 3. Force session cleanup:
    ```bash
    # Restart will clear all in-memory sessions
-   systemctl restart skyclaw
+   systemctl restart temm1e
    ```
 
 ### Remediation B: Browser Tool Memory
@@ -220,11 +220,11 @@ If the memory entry count is > 100k:
 1. Archive old entries:
    ```bash
    # Back up first
-   cp ~/.skyclaw/memory.db ~/.skyclaw/memory.db.bak
+   cp ~/.temm1e/memory.db ~/.temm1e/memory.db.bak
 
    # Delete entries older than 90 days
-   sqlite3 ~/.skyclaw/memory.db "DELETE FROM memories WHERE created_at < datetime('now', '-90 days');"
-   sqlite3 ~/.skyclaw/memory.db "VACUUM;"
+   sqlite3 ~/.temm1e/memory.db "DELETE FROM memories WHERE created_at < datetime('now', '-90 days');"
+   sqlite3 ~/.temm1e/memory.db "VACUUM;"
    ```
 
 2. If search latency is degraded (p99 > 50ms), add FTS5 index:
@@ -235,8 +235,8 @@ If the memory entry count is > 100k:
 
 3. If pool saturation is the issue (4-5/5 connections active), investigate long-running queries:
    ```bash
-   sqlite3 ~/.skyclaw/memory.db ".timer on"
-   sqlite3 ~/.skyclaw/memory.db "SELECT * FROM memories WHERE content LIKE '%test%' LIMIT 10;"
+   sqlite3 ~/.temm1e/memory.db ".timer on"
+   sqlite3 ~/.temm1e/memory.db "SELECT * FROM memories WHERE content LIKE '%test%' LIMIT 10;"
    ```
 
 ### Remediation D: Process Memory Leak
@@ -246,10 +246,10 @@ If RSS grows continuously without corresponding session/entry growth:
 1. Collect a heap profile if available:
    ```bash
    # If jemalloc profiling is enabled
-   MALLOC_CONF="prof:true,prof_prefix:/tmp/skyclaw" systemctl restart skyclaw
+   MALLOC_CONF="prof:true,prof_prefix:/tmp/temm1e" systemctl restart temm1e
    # After some time, trigger dump
-   kill -USR2 $(pgrep skyclaw)
-   jeprof /tmp/skyclaw.* --svg > /tmp/heap.svg
+   kill -USR2 $(pgrep temm1e)
+   jeprof /tmp/temm1e.* --svg > /tmp/heap.svg
    ```
 
 2. As immediate mitigation, schedule periodic restarts:
@@ -266,25 +266,25 @@ If the process was OOM killed:
 
 1. Confirm:
    ```bash
-   dmesg | grep -i "oom.*skyclaw\|killed.*skyclaw"
+   dmesg | grep -i "oom.*temm1e\|killed.*temm1e"
    journalctl -k | grep -i oom
    ```
 
 2. Restart immediately:
    ```bash
-   systemctl restart skyclaw
+   systemctl restart temm1e
    ```
 
 3. Increase memory limit to prevent immediate recurrence:
    ```bash
    # Kubernetes
-   kubectl patch deployment skyclaw -p '{"spec":{"template":{"spec":{"containers":[{"name":"skyclaw","resources":{"limits":{"memory":"512Mi"}}}]}}}}'
+   kubectl patch deployment temm1e -p '{"spec":{"template":{"spec":{"containers":[{"name":"temm1e","resources":{"limits":{"memory":"512Mi"}}}]}}}}'
 
    # Docker
-   docker update --memory 512m skyclaw
+   docker update --memory 512m temm1e
 
    # systemd
-   systemctl edit skyclaw
+   systemctl edit temm1e
    # Add: MemoryMax=512M
    ```
 
@@ -296,13 +296,13 @@ If `MemoryPoolSaturation` or `MemoryBackendDown` fired:
 
 1. Check for stuck queries:
    ```bash
-   sqlite3 ~/.skyclaw/memory.db ".timeout 1000"
+   sqlite3 ~/.temm1e/memory.db ".timeout 1000"
    # If this hangs, the database may be locked
    ```
 
 2. Restart the service to reset the connection pool:
    ```bash
-   systemctl restart skyclaw
+   systemctl restart temm1e
    ```
 
 3. For cloud mode, increase pool size:
@@ -320,7 +320,7 @@ If `MemoryPoolSaturation` or `MemoryBackendDown` fired:
 
 1. **Session limits:** The `SessionManager` enforces `MAX_SESSIONS = 1000` and `MAX_HISTORY_PER_SESSION = 200`. For local mode, consider lowering to 100 sessions / 50 messages per session to keep RSS under 50 MB.
 
-2. **Memory retention policy:** Implement automated cleanup of memory entries older than 90 days. Monitor `skyclaw_memory_entries_total` gauge weekly.
+2. **Memory retention policy:** Implement automated cleanup of memory entries older than 90 days. Monitor `temm1e_memory_entries_total` gauge weekly.
 
 3. **Browser tool limits:** Limit concurrent headless browser instances to 2. Implement a tool execution queue with memory-aware admission control.
 

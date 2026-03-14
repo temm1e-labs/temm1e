@@ -1,6 +1,6 @@
-# SkyClaw Alert Rules
+# TEMM1E Alert Rules
 
-> Prometheus-compatible alerting rules for SkyClaw runtime.
+> Prometheus-compatible alerting rules for TEMM1E runtime.
 > Owner: SRE | Last updated: 2026-03-08
 
 ---
@@ -19,30 +19,30 @@
 
 ```yaml
 groups:
-  - name: skyclaw_gateway
+  - name: temm1e_gateway
     rules:
 
       # CRITICAL: Gateway is down
       - alert: GatewayDown
-        expr: up{job="skyclaw"} == 0
+        expr: up{job="temm1e"} == 0
         for: 1m
         labels:
           severity: critical
           service: gateway
         annotations:
-          summary: "SkyClaw gateway is unreachable"
+          summary: "TEMM1E gateway is unreachable"
           description: "The /health endpoint has been unreachable for 1 minute. Process may have crashed or port 8080 is not bound."
           runbook: "Check process status, restart if needed. Verify TcpListener bind on configured host:port."
 
       # CRITICAL: Gateway health endpoint returning non-200
       - alert: GatewayUnhealthy
-        expr: probe_http_status_code{job="skyclaw-health"} != 200
+        expr: probe_http_status_code{job="temm1e-health"} != 200
         for: 2m
         labels:
           severity: critical
           service: gateway
         annotations:
-          summary: "SkyClaw /health returning non-200"
+          summary: "TEMM1E /health returning non-200"
           description: "Health endpoint is responding but returning status {{ $value }}."
           runbook: "Check AppState components. Review HealthResponse.status field."
 
@@ -50,7 +50,7 @@ groups:
       - alert: GatewayHighLatency
         expr: |
           histogram_quantile(0.99,
-            rate(skyclaw_gateway_http_request_duration_seconds_bucket{path="/health"}[5m])
+            rate(temm1e_gateway_http_request_duration_seconds_bucket{path="/health"}[5m])
           ) > 0.010
         for: 5m
         labels:
@@ -64,9 +64,9 @@ groups:
       - alert: GatewayHighErrorRate
         expr: |
           (
-            sum(rate(skyclaw_gateway_http_requests_total{status_code=~"5.."}[5m]))
+            sum(rate(temm1e_gateway_http_requests_total{status_code=~"5.."}[5m]))
             /
-            sum(rate(skyclaw_gateway_http_requests_total[5m]))
+            sum(rate(temm1e_gateway_http_requests_total[5m]))
           ) > 0.01
         for: 5m
         labels:
@@ -78,7 +78,7 @@ groups:
 
       # INFO: Gateway cold start exceeded target
       - alert: GatewayColdStartSlow
-        expr: skyclaw_gateway_cold_start_seconds > 0.050
+        expr: temm1e_gateway_cold_start_seconds > 0.050
         labels:
           severity: info
           service: gateway
@@ -92,12 +92,12 @@ groups:
 ## 2. Provider Error Alerts
 
 ```yaml
-  - name: skyclaw_provider
+  - name: temm1e_provider
     rules:
 
       # CRITICAL: Provider completely failing
       - alert: ProviderDown
-        expr: skyclaw_provider_health_check_success == 0
+        expr: temm1e_provider_health_check_success == 0
         for: 2m
         labels:
           severity: critical
@@ -111,9 +111,9 @@ groups:
       - alert: ProviderHighErrorRate
         expr: |
           (
-            sum by (provider) (rate(skyclaw_provider_request_total{status="error"}[5m]))
+            sum by (provider) (rate(temm1e_provider_request_total{status="error"}[5m]))
             /
-            sum by (provider) (rate(skyclaw_provider_request_total[5m]))
+            sum by (provider) (rate(temm1e_provider_request_total[5m]))
           ) > 0.05
         for: 5m
         labels:
@@ -127,7 +127,7 @@ groups:
       - alert: ProviderHighLatency
         expr: |
           histogram_quantile(0.99,
-            sum by (provider, le) (rate(skyclaw_provider_request_duration_seconds_bucket[5m]))
+            sum by (provider, le) (rate(temm1e_provider_request_duration_seconds_bucket[5m]))
           ) > 30
         for: 5m
         labels:
@@ -141,9 +141,9 @@ groups:
       - alert: ProviderTimeouts
         expr: |
           (
-            sum by (provider) (rate(skyclaw_provider_request_total{status="timeout"}[10m]))
+            sum by (provider) (rate(temm1e_provider_request_total{status="timeout"}[10m]))
             /
-            sum by (provider) (rate(skyclaw_provider_request_total[10m]))
+            sum by (provider) (rate(temm1e_provider_request_total[10m]))
           ) > 0.02
         for: 5m
         labels:
@@ -156,7 +156,7 @@ groups:
       # INFO: Provider rate limiting detected
       - alert: ProviderRateLimited
         expr: |
-          sum by (provider) (rate(skyclaw_provider_request_total{status="rate_limited"}[5m])) > 0
+          sum by (provider) (rate(temm1e_provider_request_total{status="rate_limited"}[5m])) > 0
         for: 2m
         labels:
           severity: info
@@ -171,15 +171,15 @@ groups:
 ## 3. Message Processing / Latency Spike Alerts
 
 ```yaml
-  - name: skyclaw_message_processing
+  - name: temm1e_message_processing
     rules:
 
       # CRITICAL: Message processing completely stalled
       - alert: MessageProcessingStalled
         expr: |
-          rate(skyclaw_message_processing_duration_seconds_count[5m]) == 0
+          rate(temm1e_message_processing_duration_seconds_count[5m]) == 0
           and
-          sum(rate(skyclaw_gateway_http_requests_total{path="/status"}[5m])) > 0
+          sum(rate(temm1e_gateway_http_requests_total{path="/status"}[5m])) > 0
         for: 10m
         labels:
           severity: critical
@@ -192,9 +192,9 @@ groups:
       - alert: MessageProcessingHighErrors
         expr: |
           (
-            sum by (channel) (rate(skyclaw_message_processing_duration_seconds_count{status="error"}[5m]))
+            sum by (channel) (rate(temm1e_message_processing_duration_seconds_count{status="error"}[5m]))
             /
-            sum by (channel) (rate(skyclaw_message_processing_duration_seconds_count[5m]))
+            sum by (channel) (rate(temm1e_message_processing_duration_seconds_count[5m]))
           ) > 0.02
         for: 5m
         labels:
@@ -208,7 +208,7 @@ groups:
       - alert: MessageProcessingLatencyHigh
         expr: |
           histogram_quantile(0.99,
-            sum by (channel, le) (rate(skyclaw_message_processing_duration_seconds_bucket[5m]))
+            sum by (channel, le) (rate(temm1e_message_processing_duration_seconds_bucket[5m]))
           ) > 0.100
         for: 5m
         labels:
@@ -222,7 +222,7 @@ groups:
       - alert: ExcessiveToolRounds
         expr: |
           histogram_quantile(0.95,
-            sum by (le) (rate(skyclaw_tool_rounds_per_message_bucket[15m]))
+            sum by (le) (rate(temm1e_tool_rounds_per_message_bucket[15m]))
           ) > 8
         for: 10m
         labels:
@@ -236,9 +236,9 @@ groups:
       - alert: ChannelErrorsElevated
         expr: |
           (
-            sum by (channel) (rate(skyclaw_message_processing_duration_seconds_count{status="error"}[30m]))
+            sum by (channel) (rate(temm1e_message_processing_duration_seconds_count{status="error"}[30m]))
             /
-            sum by (channel) (rate(skyclaw_message_processing_duration_seconds_count[30m]))
+            sum by (channel) (rate(temm1e_message_processing_duration_seconds_count[30m]))
           ) > 0.005
         for: 15m
         labels:
@@ -254,16 +254,16 @@ groups:
 ## 4. Memory Limits Alerts
 
 ```yaml
-  - name: skyclaw_memory
+  - name: temm1e_memory
     rules:
 
       # CRITICAL: Memory backend unreachable
       - alert: MemoryBackendDown
         expr: |
           (
-            sum(rate(skyclaw_memory_operation_total{status="error"}[5m]))
+            sum(rate(temm1e_memory_operation_total{status="error"}[5m]))
             /
-            sum(rate(skyclaw_memory_operation_total[5m]))
+            sum(rate(temm1e_memory_operation_total[5m]))
           ) > 0.10
         for: 2m
         labels:
@@ -278,7 +278,7 @@ groups:
       - alert: MemorySearchSlow
         expr: |
           histogram_quantile(0.99,
-            sum by (backend, le) (rate(skyclaw_memory_operation_duration_seconds_bucket{operation="search"}[5m]))
+            sum by (backend, le) (rate(temm1e_memory_operation_duration_seconds_bucket{operation="search"}[5m]))
           ) > 0.050
         for: 5m
         labels:
@@ -292,7 +292,7 @@ groups:
       - alert: MemoryStoreSlow
         expr: |
           histogram_quantile(0.99,
-            sum by (backend, le) (rate(skyclaw_memory_operation_duration_seconds_bucket{operation="store"}[5m]))
+            sum by (backend, le) (rate(temm1e_memory_operation_duration_seconds_bucket{operation="store"}[5m]))
           ) > 0.020
         for: 5m
         labels:
@@ -304,7 +304,7 @@ groups:
 
       # WARNING: Memory entry count growing large
       - alert: MemoryEntriesHigh
-        expr: skyclaw_memory_entries_total > 100000
+        expr: temm1e_memory_entries_total > 100000
         for: 1h
         labels:
           severity: warning
@@ -315,7 +315,7 @@ groups:
 
       # INFO: SQLite connection pool saturation
       - alert: MemoryPoolSaturation
-        expr: skyclaw_memory_pool_active_connections >= 4
+        expr: temm1e_memory_pool_active_connections >= 4
         for: 5m
         labels:
           severity: info
@@ -352,12 +352,12 @@ groups:
 ## 5. Vault Failure Alerts
 
 ```yaml
-  - name: skyclaw_vault
+  - name: temm1e_vault
     rules:
 
       # CRITICAL: Vault decryption failures (potential key corruption)
       - alert: VaultDecryptionFailure
-        expr: increase(skyclaw_vault_decryption_failures_total[5m]) > 0
+        expr: increase(temm1e_vault_decryption_failures_total[5m]) > 0
         labels:
           severity: critical
           service: vault
@@ -370,9 +370,9 @@ groups:
       - alert: VaultHighErrorRate
         expr: |
           (
-            sum(rate(skyclaw_vault_operation_total{status="error"}[5m]))
+            sum(rate(temm1e_vault_operation_total{status="error"}[5m]))
             /
-            sum(rate(skyclaw_vault_operation_total[5m]))
+            sum(rate(temm1e_vault_operation_total[5m]))
           ) > 0.001
         for: 2m
         labels:
@@ -386,7 +386,7 @@ groups:
       - alert: VaultLatencyHigh
         expr: |
           histogram_quantile(0.99,
-            sum by (le) (rate(skyclaw_vault_operation_duration_seconds_bucket[5m]))
+            sum by (le) (rate(temm1e_vault_operation_duration_seconds_bucket[5m]))
           ) > 0.010
         for: 5m
         labels:
@@ -398,7 +398,7 @@ groups:
 
       # WARNING: Vault key file permission drift
       - alert: VaultKeyPermissionDrift
-        expr: skyclaw_vault_key_permissions != 384
+        expr: temm1e_vault_key_permissions != 384
         for: 1m
         labels:
           severity: warning
@@ -406,11 +406,11 @@ groups:
         annotations:
           summary: "Vault key file permissions are not 0600"
           description: "vault.key file permissions have drifted. Current mode: {{ $value }} (expected 384 = 0o600)."
-          runbook: "Run: chmod 600 ~/.skyclaw/vault.key"
+          runbook: "Run: chmod 600 ~/.temm1e/vault.key"
 
       # INFO: Large number of vault keys stored
       - alert: VaultKeyCountHigh
-        expr: skyclaw_vault_keys_total > 500
+        expr: temm1e_vault_keys_total > 500
         for: 1h
         labels:
           severity: info
@@ -425,12 +425,12 @@ groups:
 ## 6. Tool Execution Alerts
 
 ```yaml
-  - name: skyclaw_tools
+  - name: temm1e_tools
     rules:
 
       # WARNING: Sandbox violations detected
       - alert: SandboxViolations
-        expr: increase(skyclaw_tool_execution_total{status="sandbox_violation"}[15m]) > 0
+        expr: increase(temm1e_tool_execution_total{status="sandbox_violation"}[15m]) > 0
         labels:
           severity: warning
           service: tools
@@ -443,9 +443,9 @@ groups:
       - alert: ToolHighFailureRate
         expr: |
           (
-            sum by (tool_name) (rate(skyclaw_tool_execution_total{status="error"}[15m]))
+            sum by (tool_name) (rate(temm1e_tool_execution_total{status="error"}[15m]))
             /
-            sum by (tool_name) (rate(skyclaw_tool_execution_total[15m]))
+            sum by (tool_name) (rate(temm1e_tool_execution_total[15m]))
           ) > 0.05
         for: 10m
         labels:
@@ -459,7 +459,7 @@ groups:
       - alert: ToolExecutionSlow
         expr: |
           histogram_quantile(0.99,
-            sum by (tool_name, le) (rate(skyclaw_tool_execution_duration_seconds_bucket[15m]))
+            sum by (tool_name, le) (rate(temm1e_tool_execution_duration_seconds_bucket[15m]))
           ) > 30
         for: 10m
         labels:
@@ -475,16 +475,16 @@ groups:
 ## 7. File Transfer Alerts
 
 ```yaml
-  - name: skyclaw_file_transfer
+  - name: temm1e_file_transfer
     rules:
 
       # WARNING: File transfer failure rate
       - alert: FileTransferHighErrors
         expr: |
           (
-            sum by (channel) (rate(skyclaw_file_transfer_total{status="error"}[15m]))
+            sum by (channel) (rate(temm1e_file_transfer_total{status="error"}[15m]))
             /
-            sum by (channel) (rate(skyclaw_file_transfer_total[15m]))
+            sum by (channel) (rate(temm1e_file_transfer_total[15m]))
           ) > 0.05
         for: 10m
         labels:
@@ -498,7 +498,7 @@ groups:
       - alert: LargeFileTransfer
         expr: |
           histogram_quantile(0.99,
-            sum by (channel, le) (rate(skyclaw_file_transfer_size_bytes_bucket[1h]))
+            sum by (channel, le) (rate(temm1e_file_transfer_size_bytes_bucket[1h]))
           ) > 52428800
         labels:
           severity: info
@@ -513,12 +513,12 @@ groups:
 ## 8. Session Alerts
 
 ```yaml
-  - name: skyclaw_sessions
+  - name: temm1e_sessions
     rules:
 
       # WARNING: Session count approaching capacity
       - alert: SessionCountHigh
-        expr: skyclaw_active_sessions > 50
+        expr: temm1e_active_sessions > 50
         for: 5m
         labels:
           severity: warning
@@ -529,7 +529,7 @@ groups:
 
       # INFO: Session count growing
       - alert: SessionCountGrowing
-        expr: delta(skyclaw_active_sessions[1h]) > 20
+        expr: delta(temm1e_active_sessions[1h]) > 20
         labels:
           severity: info
           service: sessions

@@ -3,10 +3,10 @@
 ## Status: Proposed
 
 ## Context
-SkyClaw is cloud-native first, but must also run on developers' local machines. Same binary, different defaults.
+TEMM1E is cloud-native first, but must also run on developers' local machines. Same binary, different defaults.
 
 ## Decision
-Support three runtime modes configured via `skyclaw.mode` in config or `--mode` CLI flag:
+Support three runtime modes configured via `temm1e.mode` in config or `--mode` CLI flag:
 
 | Mode | Bind | TLS | Memory Default | Vault Default | Browser |
 |------|------|-----|---------------|---------------|---------|

@@ -6,7 +6,7 @@
 ZeroClaw proved that trait-based architecture in Rust works well for agent runtimes. OpenClaw's plugin system has security issues (41.7% of ClawHub skills vulnerable). We need extensibility without supply chain risk.
 
 ## Decision
-Define 12 core traits in `skyclaw-core`. Every subsystem is a trait implementation. Trait objects (`Box<dyn Trait>`) are used for runtime polymorphism where config determines the implementation.
+Define 12 core traits in `temm1e-core`. Every subsystem is a trait implementation. Trait objects (`Box<dyn Trait>`) are used for runtime polymorphism where config determines the implementation.
 
 ```rust
 // Core traits (all async + Send + Sync)

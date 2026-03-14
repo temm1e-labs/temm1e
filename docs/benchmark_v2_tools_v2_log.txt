@@ -1,22 +1,22 @@
-{"timestamp":"2026-03-10T11:47:43.952672Z","level":"INFO","fields":{"message":"SkyClaw starting","mode":"auto"},"target":"skyclaw"}
-SkyClaw interactive chat
+{"timestamp":"2026-03-10T11:47:43.952672Z","level":"INFO","fields":{"message":"TEMM1E starting","mode":"auto"},"target":"temm1e"}
+TEMM1E interactive chat
 Type '/quit' or '/exit' to quit.
 
-{"timestamp":"2026-03-10T11:47:43.954724Z","level":"INFO","fields":{"message":"SQLite memory backend initialised"},"target":"skyclaw_memory::sqlite"}
-{"timestamp":"2026-03-10T11:47:43.954744Z","level":"INFO","fields":{"message":"CLI channel started"},"target":"skyclaw_channels::cli"}
-skyclaw> {"timestamp":"2026-03-10T11:47:43.959088Z","level":"INFO","fields":{"message":"SQLite usage store initialised"},"target":"skyclaw_memory::sqlite_usage"}
-{"timestamp":"2026-03-10T11:47:43.959131Z","level":"INFO","fields":{"message":"Tools registered","count":13},"target":"skyclaw_tools"}
+{"timestamp":"2026-03-10T11:47:43.954724Z","level":"INFO","fields":{"message":"SQLite memory backend initialised"},"target":"temm1e_memory::sqlite"}
+{"timestamp":"2026-03-10T11:47:43.954744Z","level":"INFO","fields":{"message":"CLI channel started"},"target":"temm1e_channels::cli"}
+temm1e> {"timestamp":"2026-03-10T11:47:43.959088Z","level":"INFO","fields":{"message":"SQLite usage store initialised"},"target":"temm1e_memory::sqlite_usage"}
+{"timestamp":"2026-03-10T11:47:43.959131Z","level":"INFO","fields":{"message":"Tools registered","count":13},"target":"temm1e_tools"}
 Connected to openai (model: gpt-5.2)
 Budget: $5.00 per session
 ---
 
-{"timestamp":"2026-03-10T11:47:43.959334Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:47:43.961148Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Trivial","prompt_tier":"Minimal","skip_tool_loop":true,"max_iterations":1},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:47:45.516784Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.005626","total_spend_usd":"0.005626","budget_usd":"5.00","input_tokens":3111,"output_tokens":13},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:47:43.959334Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:47:43.961148Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Trivial","prompt_tier":"Minimal","skip_tool_loop":true,"max_iterations":1},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:47:45.516784Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.005626","total_spend_usd":"0.005626","budget_usd":"5.00","input_tokens":3111,"output_tokens":13},"target":"temm1e_agent::budget"}
 
 Hi! What can I help you with today?
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 1
 Input Tokens: 3,111
@@ -24,13 +24,13 @@ Output Tokens: 13
 Tools Used: 0
 Combined Tokens: 3,124
 Total Cost: $0.0056
-{"timestamp":"2026-03-10T11:48:03.956023Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:48:03.956143Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Trivial","prompt_tier":"Minimal","skip_tool_loop":true,"max_iterations":1},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:48:05.346371Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006052","total_spend_usd":"0.011678","budget_usd":"5.00","input_tokens":3218,"output_tokens":30},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:48:03.956023Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:48:03.956143Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Trivial","prompt_tier":"Minimal","skip_tool_loop":true,"max_iterations":1},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:48:05.346371Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006052","total_spend_usd":"0.011678","budget_usd":"5.00","input_tokens":3218,"output_tokens":30},"target":"temm1e_agent::budget"}
 
 You’re welcome. If you want, tell me what you’re working on and what outcome you want—I’ll help you get there.
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 1
 Input Tokens: 3,218
@@ -38,9 +38,9 @@ Output Tokens: 30
 Tools Used: 0
 Combined Tokens: 3,248
 Total Cost: $0.0061
-{"timestamp":"2026-03-10T11:48:23.976482Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:48:23.976527Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Trivial","prompt_tier":"Minimal","skip_tool_loop":true,"max_iterations":1},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:48:26.333725Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006711","total_spend_usd":"0.018389","budget_usd":"5.00","input_tokens":3291,"output_tokens":68},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:48:23.976482Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:48:23.976527Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Trivial","prompt_tier":"Minimal","skip_tool_loop":true,"max_iterations":1},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:48:26.333725Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006711","total_spend_usd":"0.018389","budget_usd":"5.00","input_tokens":3291,"output_tokens":68},"target":"temm1e_agent::budget"}
 
 What are you working on right now—and what would “done” look like?
 
@@ -50,7 +50,7 @@ If you tell me:
 3) any constraints (deadline, tools, budget),
 I’ll suggest a clear next step and help you execute it.
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 1
 Input Tokens: 3,291
@@ -58,13 +58,13 @@ Output Tokens: 68
 Tools Used: 0
 Combined Tokens: 3,359
 Total Cost: $0.0067
-{"timestamp":"2026-03-10T11:48:43.982633Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:48:43.982727Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Simple","prompt_tier":"Basic","skip_tool_loop":false,"max_iterations":2},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:48:44.981273Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006079","total_spend_usd":"0.024469","budget_usd":"5.00","input_tokens":3434,"output_tokens":5},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:48:43.982633Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:48:43.982727Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Simple","prompt_tier":"Basic","skip_tool_loop":false,"max_iterations":2},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:48:44.981273Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006079","total_spend_usd":"0.024469","budget_usd":"5.00","input_tokens":3434,"output_tokens":5},"target":"temm1e_agent::budget"}
 
 Paris.
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 1
 Input Tokens: 3,434
@@ -72,9 +72,9 @@ Output Tokens: 5
 Tools Used: 0
 Combined Tokens: 3,439
 Total Cost: $0.0061
-{"timestamp":"2026-03-10T11:49:03.994049Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:49:03.994121Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Simple","prompt_tier":"Basic","skip_tool_loop":false,"max_iterations":2},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:49:05.966002Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.007360","total_spend_usd":"0.031829","budget_usd":"5.00","input_tokens":3470,"output_tokens":92},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:49:03.994049Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:49:03.994121Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Simple","prompt_tier":"Basic","skip_tool_loop":false,"max_iterations":2},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:49:05.966002Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.007360","total_spend_usd":"0.031829","budget_usd":"5.00","input_tokens":3470,"output_tokens":92},"target":"temm1e_agent::budget"}
 
 It depends on the definition:
 
@@ -83,7 +83,7 @@ It depends on the definition:
 
 If you tell me where you saw it (OS, hard drive spec, etc.), I can say which one they likely mean.
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 1
 Input Tokens: 3,470
@@ -91,13 +91,13 @@ Output Tokens: 92
 Tools Used: 0
 Combined Tokens: 3,562
 Total Cost: $0.0074
-{"timestamp":"2026-03-10T11:49:23.997662Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:49:23.997698Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Simple","prompt_tier":"Basic","skip_tool_loop":false,"max_iterations":2},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:49:25.078968Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006562","total_spend_usd":"0.038392","budget_usd":"5.00","input_tokens":3646,"output_tokens":13},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:49:23.997662Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:49:23.997698Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Simple","prompt_tier":"Basic","skip_tool_loop":false,"max_iterations":2},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:49:25.078968Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006562","total_spend_usd":"0.038392","budget_usd":"5.00","input_tokens":3646,"output_tokens":13},"target":"temm1e_agent::budget"}
 
 HTTP stands for **Hypertext Transfer Protocol**.
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 1
 Input Tokens: 3,646
@@ -105,19 +105,19 @@ Output Tokens: 13
 Tools Used: 0
 Combined Tokens: 3,659
 Total Cost: $0.0066
-{"timestamp":"2026-03-10T11:49:44.005348Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:49:44.005420Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:49:45.545778Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006914","total_spend_usd":"0.045306","budget_usd":"5.00","input_tokens":3719,"output_tokens":29},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:49:45.545808Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_7DebOFTebQYAddvjDaV1ZdV4"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:49:45.545821Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:49:45.545827Z","level":"INFO","fields":{"message":"Executing shell command","command":"ls -la /tmp/skyclaw-bench/workspace_v2","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:49:46.608440Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.007100","total_spend_usd":"0.052406","budget_usd":"5.00","input_tokens":3881,"output_tokens":22},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:49:44.005348Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:49:44.005420Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:49:45.545778Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.006914","total_spend_usd":"0.045306","budget_usd":"5.00","input_tokens":3719,"output_tokens":29},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:49:45.545808Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_7DebOFTebQYAddvjDaV1ZdV4"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:49:45.545821Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:49:45.545827Z","level":"INFO","fields":{"message":"Executing shell command","command":"ls -la /tmp/temm1e-bench/workspace_v2","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:49:46.608440Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.007100","total_spend_usd":"0.052406","budget_usd":"5.00","input_tokens":3881,"output_tokens":22},"target":"temm1e_agent::budget"}
 
 ```sh
-ls -la /tmp/skyclaw-bench/workspace_v2
+ls -la /tmp/temm1e-bench/workspace_v2
 ```
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 2
 Input Tokens: 7,600
@@ -125,25 +125,25 @@ Output Tokens: 51
 Tools Used: 1
 Combined Tokens: 7,651
 Total Cost: $0.0140
-{"timestamp":"2026-03-10T11:50:04.013291Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:04.013362Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:05.271595Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.007605","total_spend_usd":"0.060011","budget_usd":"5.00","input_tokens":4042,"output_tokens":38},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:50:05.271622Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_OsCLpDQoEkbDwmDNvuI7tvt5"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:05.271636Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:50:05.271642Z","level":"INFO","fields":{"message":"Executing shell command","command":"printf %s \"Hello from benchmark\" > /tmp/skyclaw-bench/workspace_v2/test_output.txt","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:50:06.447268Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.007992","total_spend_usd":"0.068003","budget_usd":"5.00","input_tokens":4167,"output_tokens":50},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:50:06.447284Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_C0og3JPhLf5DXkiFzFwArgHn"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:06.447292Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:50:06.447295Z","level":"INFO","fields":{"message":"Executing shell command","command":"ls -la /tmp/skyclaw-bench/workspace_v2 && echo '---' && cat /tmp/skyclaw-bench/workspace_v2/test_output.txt","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:50:07.511772Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.008060","total_spend_usd":"0.076064","budget_usd":"5.00","input_tokens":4382,"output_tokens":28},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:50:04.013291Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:04.013362Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:05.271595Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.007605","total_spend_usd":"0.060011","budget_usd":"5.00","input_tokens":4042,"output_tokens":38},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:50:05.271622Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_OsCLpDQoEkbDwmDNvuI7tvt5"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:05.271636Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:50:05.271642Z","level":"INFO","fields":{"message":"Executing shell command","command":"printf %s \"Hello from benchmark\" > /tmp/temm1e-bench/workspace_v2/test_output.txt","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:50:06.447268Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.007992","total_spend_usd":"0.068003","budget_usd":"5.00","input_tokens":4167,"output_tokens":50},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:50:06.447284Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_C0og3JPhLf5DXkiFzFwArgHn"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:06.447292Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:50:06.447295Z","level":"INFO","fields":{"message":"Executing shell command","command":"ls -la /tmp/temm1e-bench/workspace_v2 && echo '---' && cat /tmp/temm1e-bench/workspace_v2/test_output.txt","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:50:07.511772Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.008060","total_spend_usd":"0.076064","budget_usd":"5.00","input_tokens":4382,"output_tokens":28},"target":"temm1e_agent::budget"}
 
-Created `/tmp/skyclaw-bench/workspace_v2/test_output.txt` containing:
+Created `/tmp/temm1e-bench/workspace_v2/test_output.txt` containing:
 
 ```
 Hello from benchmark
 ```
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 3
 Input Tokens: 12,591
@@ -151,21 +151,21 @@ Output Tokens: 116
 Tools Used: 2
 Combined Tokens: 12,707
 Total Cost: $0.0237
-{"timestamp":"2026-03-10T11:50:24.022241Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:24.022300Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:25.117764Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.008355","total_spend_usd":"0.084418","budget_usd":"5.00","input_tokens":4534,"output_tokens":30},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:50:25.117782Z","level":"INFO","fields":{"message":"Executing tool call","tool":"file_read","id":"call_wnlnJ4BGzTovp252l3CbLHda"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:26.310050Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.008724","total_spend_usd":"0.093142","budget_usd":"5.00","input_tokens":4745,"output_tokens":30},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:50:26.310066Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_goumSyvK6JhlXG41hxgVEGWx"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:26.310074Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:50:26.310077Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat /tmp/skyclaw-bench/workspace_v2/test_output.txt","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:50:27.294167Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.008655","total_spend_usd":"0.101797","budget_usd":"5.00","input_tokens":4858,"output_tokens":11},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:50:24.022241Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:24.022300Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:25.117764Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.008355","total_spend_usd":"0.084418","budget_usd":"5.00","input_tokens":4534,"output_tokens":30},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:50:25.117782Z","level":"INFO","fields":{"message":"Executing tool call","tool":"file_read","id":"call_wnlnJ4BGzTovp252l3CbLHda"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:26.310050Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.008724","total_spend_usd":"0.093142","budget_usd":"5.00","input_tokens":4745,"output_tokens":30},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:50:26.310066Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_goumSyvK6JhlXG41hxgVEGWx"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:26.310074Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:50:26.310077Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat /tmp/temm1e-bench/workspace_v2/test_output.txt","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:50:27.294167Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.008655","total_spend_usd":"0.101797","budget_usd":"5.00","input_tokens":4858,"output_tokens":11},"target":"temm1e_agent::budget"}
 
 It says:
 
 **Hello from benchmark**
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 3
 Input Tokens: 14,137
@@ -173,13 +173,13 @@ Output Tokens: 71
 Tools Used: 2
 Combined Tokens: 14,208
 Total Cost: $0.0257
-{"timestamp":"2026-03-10T11:50:44.032420Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:44.032513Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:45.266009Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.009002","total_spend_usd":"0.110799","budget_usd":"5.00","input_tokens":4976,"output_tokens":21},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:50:45.266038Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_VoWaS5muLqcwrAXfJf1MlQUT"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:50:45.266051Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:50:45.266058Z","level":"INFO","fields":{"message":"Executing shell command","command":"uname -a && whoami","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:50:47.009333Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.010304","total_spend_usd":"0.121103","budget_usd":"5.00","input_tokens":5144,"output_tokens":93},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:50:44.032420Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:44.032513Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:45.266009Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.009002","total_spend_usd":"0.110799","budget_usd":"5.00","input_tokens":4976,"output_tokens":21},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:50:45.266038Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_VoWaS5muLqcwrAXfJf1MlQUT"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:50:45.266051Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:50:45.266058Z","level":"INFO","fields":{"message":"Executing shell command","command":"uname -a && whoami","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:50:47.009333Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.010304","total_spend_usd":"0.121103","budget_usd":"5.00","input_tokens":5144,"output_tokens":93},"target":"temm1e_agent::budget"}
 
 - `uname -a`:
   ```
@@ -191,7 +191,7 @@ Total Cost: $0.0257
   [USER]
   ```
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 2
 Input Tokens: 10,120
@@ -199,15 +199,15 @@ Output Tokens: 114
 Tools Used: 1
 Combined Tokens: 10,234
 Total Cost: $0.0193
-{"timestamp":"2026-03-10T11:51:04.040317Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:51:04.040434Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:51:06.390727Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011456","total_spend_usd":"0.132559","budget_usd":"5.00","input_tokens":5426,"output_tokens":140},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:51:06.390776Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_nYgsojWDYXBFWMvk5Alt6hCn"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:51:06.390810Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:51:06.390823Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat > /tmp/skyclaw-bench/workspace_v2/fib.py <<'PY'\n#!/usr/bin/env python3\n\n# Print the first 20 Fibonacci numbers (starting from 0, 1)\n\na, b = 0, 1\nfor _ in range(20):\n    print(a)\n    a, b = b, a + b\nPY\nchmod +x /tmp/skyclaw-bench/workspace_v2/fib.py\npython3 /tmp/skyclaw-bench/workspace_v2/fib.py | head -n 5","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:51:08.371770Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011296","total_spend_usd":"0.143855","budget_usd":"5.00","input_tokens":5655,"output_tokens":100},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:51:04.040317Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:51:04.040434Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:51:06.390727Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011456","total_spend_usd":"0.132559","budget_usd":"5.00","input_tokens":5426,"output_tokens":140},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:51:06.390776Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_nYgsojWDYXBFWMvk5Alt6hCn"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:51:06.390810Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:51:06.390823Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat > /tmp/temm1e-bench/workspace_v2/fib.py <<'PY'\n#!/usr/bin/env python3\n\n# Print the first 20 Fibonacci numbers (starting from 0, 1)\n\na, b = 0, 1\nfor _ in range(20):\n    print(a)\n    a, b = b, a + b\nPY\nchmod +x /tmp/temm1e-bench/workspace_v2/fib.py\npython3 /tmp/temm1e-bench/workspace_v2/fib.py | head -n 5","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:51:08.371770Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011296","total_spend_usd":"0.143855","budget_usd":"5.00","input_tokens":5655,"output_tokens":100},"target":"temm1e_agent::budget"}
 
-Wrote the script to `/tmp/skyclaw-bench/workspace_v2/fib.py`. It prints the first 20 Fibonacci numbers (starting at 0, 1):
+Wrote the script to `/tmp/temm1e-bench/workspace_v2/fib.py`. It prints the first 20 Fibonacci numbers (starting at 0, 1):
 
 ```python
 #!/usr/bin/env python3
@@ -220,7 +220,7 @@ for _ in range(20):
     a, b = b, a + b
 ```
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 2
 Input Tokens: 11,081
@@ -228,15 +228,15 @@ Output Tokens: 240
 Tools Used: 1
 Combined Tokens: 11,321
 Total Cost: $0.0228
-{"timestamp":"2026-03-10T11:51:24.046824Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:51:24.046882Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:51:26.287420Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.010831","total_spend_usd":"0.154686","budget_usd":"5.00","input_tokens":5909,"output_tokens":35},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:51:26.287506Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_MaqgLo8WxUcPWz1PHy7GuuIN"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:51:26.287523Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:51:26.287531Z","level":"INFO","fields":{"message":"Executing shell command","command":"python3 /tmp/skyclaw-bench/workspace_v2/fib.py","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:51:27.799639Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011553","total_spend_usd":"0.166239","budget_usd":"5.00","input_tokens":6066,"output_tokens":67},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:51:24.046824Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:51:24.046882Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:51:26.287420Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.010831","total_spend_usd":"0.154686","budget_usd":"5.00","input_tokens":5909,"output_tokens":35},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:51:26.287506Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_MaqgLo8WxUcPWz1PHy7GuuIN"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:51:26.287523Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:51:26.287531Z","level":"INFO","fields":{"message":"Executing shell command","command":"python3 /tmp/temm1e-bench/workspace_v2/fib.py","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:51:27.799639Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011553","total_spend_usd":"0.166239","budget_usd":"5.00","input_tokens":6066,"output_tokens":67},"target":"temm1e_agent::budget"}
 
-Output of `/tmp/skyclaw-bench/workspace_v2/fib.py`:
+Output of `/tmp/temm1e-bench/workspace_v2/fib.py`:
 
 ```
 0
@@ -261,7 +261,7 @@ Output of `/tmp/skyclaw-bench/workspace_v2/fib.py`:
 4181
 ```
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 2
 Input Tokens: 11,975
@@ -269,17 +269,17 @@ Output Tokens: 102
 Tools Used: 1
 Combined Tokens: 12,077
 Total Cost: $0.0224
-{"timestamp":"2026-03-10T11:51:44.055315Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:51:44.055423Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:51:45.301431Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011421","total_spend_usd":"0.177660","budget_usd":"5.00","input_tokens":6214,"output_tokens":39},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:51:45.301478Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_xCBq3YWpdCiGLd4fsikj9ctU"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:51:45.301504Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:51:45.301517Z","level":"INFO","fields":{"message":"Executing shell command","command":"find /tmp/skyclaw-bench/workspace_v2 -type f -name '*.txt' | wc -l","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:51:46.458000Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011466","total_spend_usd":"0.189126","budget_usd":"5.00","input_tokens":6336,"output_tokens":27},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:51:44.055315Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:51:44.055423Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:51:45.301431Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011421","total_spend_usd":"0.177660","budget_usd":"5.00","input_tokens":6214,"output_tokens":39},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:51:45.301478Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_xCBq3YWpdCiGLd4fsikj9ctU"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:51:45.301504Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:51:45.301517Z","level":"INFO","fields":{"message":"Executing shell command","command":"find /tmp/temm1e-bench/workspace_v2 -type f -name '*.txt' | wc -l","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:51:46.458000Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.011466","total_spend_usd":"0.189126","budget_usd":"5.00","input_tokens":6336,"output_tokens":27},"target":"temm1e_agent::budget"}
 
-There is **1** `.txt` file under `/tmp/skyclaw-bench/workspace_v2` recursively.
+There is **1** `.txt` file under `/tmp/temm1e-bench/workspace_v2` recursively.
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 2
 Input Tokens: 12,550
@@ -287,32 +287,32 @@ Output Tokens: 66
 Tools Used: 1
 Combined Tokens: 12,616
 Total Cost: $0.0229
-{"timestamp":"2026-03-10T11:52:04.061806Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:04.061865Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:04.061882Z","level":"INFO","fields":{"message":"Compound task detected — injecting DONE criteria prompt"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:06.088462Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.012829","total_spend_usd":"0.201955","budget_usd":"5.00","input_tokens":6611,"output_tokens":90},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:52:06.088554Z","level":"INFO","fields":{"message":"Executing tool call","tool":"send_message","id":"call_5vFwPDMhRHsbDlD3saHrjLDf"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:06.088618Z","level":"INFO","fields":{"message":"Executing tool","tool":"send_message","session":"cli-cli"},"target":"skyclaw_agent::executor"}
+{"timestamp":"2026-03-10T11:52:04.061806Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:04.061865Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:04.061882Z","level":"INFO","fields":{"message":"Compound task detected — injecting DONE criteria prompt"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:06.088462Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.012829","total_spend_usd":"0.201955","budget_usd":"5.00","input_tokens":6611,"output_tokens":90},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:52:06.088554Z","level":"INFO","fields":{"message":"Executing tool call","tool":"send_message","id":"call_5vFwPDMhRHsbDlD3saHrjLDf"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:06.088618Z","level":"INFO","fields":{"message":"Executing tool","tool":"send_message","session":"cli-cli"},"target":"temm1e_agent::executor"}
 
 DONE WHEN:
-1) Directory /tmp/skyclaw-bench/workspace_v2/testdir exists.
+1) Directory /tmp/temm1e-bench/workspace_v2/testdir exists.
 2) Files a.txt, b.txt, c.txt exist inside that directory.
 3) Each file’s contents exactly match its filename (a.txt contains “a.txt”, etc.).
 4) The directory contents are listed showing those three files.
 
-skyclaw> {"timestamp":"2026-03-10T11:52:08.845944Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.014336","total_spend_usd":"0.216291","budget_usd":"5.00","input_tokens":6784,"output_tokens":176},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:52:08.845979Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_6ImKAFerpNh8fPQYGFTlzrfj"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:08.845998Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:52:08.846005Z","level":"INFO","fields":{"message":"Executing shell command","command":"set -e\nmkdir -p /tmp/skyclaw-bench/workspace_v2/testdir\nprintf '%s' 'a.txt' > /tmp/skyclaw-bench/workspace_v2/testdir/a.txt\nprintf '%s' 'b.txt' > /tmp/skyclaw-bench/workspace_v2/testdir/b.txt\nprintf '%s' 'c.txt' > /tmp/skyclaw-bench/workspace_v2/testdir/c.txt\nls -la /tmp/skyclaw-bench/workspace_v2/testdir\n\necho '--- verify contents ---'\nfor f in a.txt b.txt c.txt; do\n  echo \"$f: $(cat /tmp/skyclaw-bench/workspace_v2/testdir/$f)\"\ndone","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:52:12.327970Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.016322","total_spend_usd":"0.232613","budget_usd":"5.00","input_tokens":7191,"output_tokens":267},"target":"skyclaw_agent::budget"}
+temm1e> {"timestamp":"2026-03-10T11:52:08.845944Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.014336","total_spend_usd":"0.216291","budget_usd":"5.00","input_tokens":6784,"output_tokens":176},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:52:08.845979Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_6ImKAFerpNh8fPQYGFTlzrfj"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:08.845998Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:52:08.846005Z","level":"INFO","fields":{"message":"Executing shell command","command":"set -e\nmkdir -p /tmp/temm1e-bench/workspace_v2/testdir\nprintf '%s' 'a.txt' > /tmp/temm1e-bench/workspace_v2/testdir/a.txt\nprintf '%s' 'b.txt' > /tmp/temm1e-bench/workspace_v2/testdir/b.txt\nprintf '%s' 'c.txt' > /tmp/temm1e-bench/workspace_v2/testdir/c.txt\nls -la /tmp/temm1e-bench/workspace_v2/testdir\n\necho '--- verify contents ---'\nfor f in a.txt b.txt c.txt; do\n  echo \"$f: $(cat /tmp/temm1e-bench/workspace_v2/testdir/$f)\"\ndone","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:52:12.327970Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.016322","total_spend_usd":"0.232613","budget_usd":"5.00","input_tokens":7191,"output_tokens":267},"target":"temm1e_agent::budget"}
 
 DONE WHEN:
-1. Directory `/tmp/skyclaw-bench/workspace_v2/testdir` exists.  
+1. Directory `/tmp/temm1e-bench/workspace_v2/testdir` exists.  
 2. Files `a.txt`, `b.txt`, `c.txt` exist inside that directory.  
 3. Each file’s contents exactly match its filename (`a.txt` contains `a.txt`, etc.).  
 4. The directory contents are listed showing those three files.
 
-Directory listing (`/tmp/skyclaw-bench/workspace_v2/testdir`):
+Directory listing (`/tmp/temm1e-bench/workspace_v2/testdir`):
 
 ```
 total 24
@@ -328,7 +328,7 @@ Verified file contents:
 - `b.txt` → `b.txt`
 - `c.txt` → `c.txt`
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 3
 Input Tokens: 20,586
@@ -336,13 +336,13 @@ Output Tokens: 533
 Tools Used: 2
 Combined Tokens: 21,119
 Total Cost: $0.0435
-{"timestamp":"2026-03-10T11:52:24.065273Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:24.065371Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:26.035006Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.014187","total_spend_usd":"0.246801","budget_usd":"5.00","input_tokens":7619,"output_tokens":61},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:52:26.035044Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_pXvJb6afk96ygaTrC9pLNVv2"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:26.035064Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:52:26.035074Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat /tmp/skyclaw-bench/workspace_v2/testdir/a.txt /tmp/skyclaw-bench/workspace_v2/testdir/b.txt /tmp/skyclaw-bench/workspace_v2/testdir/c.txt","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:52:27.456691Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.013843","total_spend_usd":"0.260643","budget_usd":"5.00","input_tokens":7766,"output_tokens":18},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:52:24.065273Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:24.065371Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:26.035006Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.014187","total_spend_usd":"0.246801","budget_usd":"5.00","input_tokens":7619,"output_tokens":61},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:52:26.035044Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_pXvJb6afk96ygaTrC9pLNVv2"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:26.035064Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:52:26.035074Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat /tmp/temm1e-bench/workspace_v2/testdir/a.txt /tmp/temm1e-bench/workspace_v2/testdir/b.txt /tmp/temm1e-bench/workspace_v2/testdir/c.txt","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:52:27.456691Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.013843","total_spend_usd":"0.260643","budget_usd":"5.00","input_tokens":7766,"output_tokens":18},"target":"temm1e_agent::budget"}
 
 Their combined contents are:
 
@@ -350,7 +350,7 @@ Their combined contents are:
 a.txtb.txtc.txt
 ```
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 2
 Input Tokens: 15,385
@@ -358,34 +358,34 @@ Output Tokens: 79
 Tools Used: 1
 Combined Tokens: 15,464
 Total Cost: $0.0280
-{"timestamp":"2026-03-10T11:52:44.072011Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:44.072074Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:45.921442Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.015102","total_spend_usd":"0.275746","budget_usd":"5.00","input_tokens":7830,"output_tokens":100},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:52:45.921475Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_6AV2yWx45BtVUPni4qyIS8N2"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:45.921491Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:52:45.921497Z","level":"INFO","fields":{"message":"Executing shell command","command":"find /tmp/skyclaw-bench/workspace_v2 -type f -name '*.txt' -print0 | tee >(tr '\\0' '\\n' | cat) >/dev/null; echo '---'; find /tmp/skyclaw-bench/workspace_v2 -type f -name '*.txt' -print0 | xargs -0 wc -c | tail -n 1","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:52:45.927918Z","level":"WARN","fields":{"message":"Tool returned error: [stderr]\nsh: -c: line 0: syntax error near unexpected token `('\nsh: -c: line 0: `find /tmp/skyclaw-bench/workspace_v2 -type f -name '*.txt' -print0 | tee >(tr '\\0' '\\n' | cat) >/dev/null; echo '---'; find /tmp/skyclaw-bench/workspace_v2 -type f -name '*.txt' -print0 | xargs -0 wc -c | tail -n 1'\n","tool":"shell"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:52:47.340269Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.014836","total_spend_usd":"0.290582","budget_usd":"5.00","input_tokens":8150,"output_tokens":41},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:52:47.340314Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_twY6to6isi5GBNVCtvPnhUgG"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:47.340340Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:52:47.340353Z","level":"INFO","fields":{"message":"Executing shell command","command":"find /tmp/skyclaw-bench/workspace_v2 -type f -name '*.txt' -print","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:52:48.995282Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.015710","total_spend_usd":"0.306292","budget_usd":"5.00","input_tokens":8329,"output_tokens":81},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:52:48.995328Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_ypsjoulhj9F4YfvnKEibzvMq"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:52:48.995351Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:52:48.995361Z","level":"INFO","fields":{"message":"Executing shell command","command":"find /tmp/skyclaw-bench/workspace_v2 -type f -name '*.txt' | wc -l && find /tmp/skyclaw-bench/workspace_v2 -type f -name '*.txt' -print0 | xargs -0 wc -c | tail -n 1","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:52:51.047012Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.016319","total_spend_usd":"0.322611","budget_usd":"5.00","input_tokens":8501,"output_tokens":103},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:52:44.072011Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:44.072074Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:45.921442Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.015102","total_spend_usd":"0.275746","budget_usd":"5.00","input_tokens":7830,"output_tokens":100},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:52:45.921475Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_6AV2yWx45BtVUPni4qyIS8N2"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:45.921491Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:52:45.921497Z","level":"INFO","fields":{"message":"Executing shell command","command":"find /tmp/temm1e-bench/workspace_v2 -type f -name '*.txt' -print0 | tee >(tr '\\0' '\\n' | cat) >/dev/null; echo '---'; find /tmp/temm1e-bench/workspace_v2 -type f -name '*.txt' -print0 | xargs -0 wc -c | tail -n 1","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:52:45.927918Z","level":"WARN","fields":{"message":"Tool returned error: [stderr]\nsh: -c: line 0: syntax error near unexpected token `('\nsh: -c: line 0: `find /tmp/temm1e-bench/workspace_v2 -type f -name '*.txt' -print0 | tee >(tr '\\0' '\\n' | cat) >/dev/null; echo '---'; find /tmp/temm1e-bench/workspace_v2 -type f -name '*.txt' -print0 | xargs -0 wc -c | tail -n 1'\n","tool":"shell"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:52:47.340269Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.014836","total_spend_usd":"0.290582","budget_usd":"5.00","input_tokens":8150,"output_tokens":41},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:52:47.340314Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_twY6to6isi5GBNVCtvPnhUgG"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:47.340340Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:52:47.340353Z","level":"INFO","fields":{"message":"Executing shell command","command":"find /tmp/temm1e-bench/workspace_v2 -type f -name '*.txt' -print","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:52:48.995282Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.015710","total_spend_usd":"0.306292","budget_usd":"5.00","input_tokens":8329,"output_tokens":81},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:52:48.995328Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_ypsjoulhj9F4YfvnKEibzvMq"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:52:48.995351Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:52:48.995361Z","level":"INFO","fields":{"message":"Executing shell command","command":"find /tmp/temm1e-bench/workspace_v2 -type f -name '*.txt' | wc -l && find /tmp/temm1e-bench/workspace_v2 -type f -name '*.txt' -print0 | xargs -0 wc -c | tail -n 1","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:52:51.047012Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.016319","total_spend_usd":"0.322611","budget_usd":"5.00","input_tokens":8501,"output_tokens":103},"target":"temm1e_agent::budget"}
 
-Found these `.txt` files under `/tmp/skyclaw-bench/workspace_v2`:
+Found these `.txt` files under `/tmp/temm1e-bench/workspace_v2`:
 
-- `/tmp/skyclaw-bench/workspace_v2/test_output.txt`
-- `/tmp/skyclaw-bench/workspace_v2/testdir/a.txt`
-- `/tmp/skyclaw-bench/workspace_v2/testdir/b.txt`
-- `/tmp/skyclaw-bench/workspace_v2/testdir/c.txt`
+- `/tmp/temm1e-bench/workspace_v2/test_output.txt`
+- `/tmp/temm1e-bench/workspace_v2/testdir/a.txt`
+- `/tmp/temm1e-bench/workspace_v2/testdir/b.txt`
+- `/tmp/temm1e-bench/workspace_v2/testdir/c.txt`
 
 **Count:** 4  
 **Total size:** 35 bytes
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 4
 Input Tokens: 32,810
@@ -393,36 +393,36 @@ Output Tokens: 325
 Tools Used: 3
 Combined Tokens: 33,135
 Total Cost: $0.0620
-{"timestamp":"2026-03-10T11:53:04.079699Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:04.079803Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:04.079840Z","level":"INFO","fields":{"message":"Compound task detected — injecting DONE criteria prompt"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:06.812472Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.017024","total_spend_usd":"0.339635","budget_usd":"5.00","input_tokens":8928,"output_tokens":100},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:53:06.812498Z","level":"INFO","fields":{"message":"Executing tool call","tool":"send_message","id":"call_bmPgGOiou7OjPakqFyeNF8OT"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:06.812509Z","level":"INFO","fields":{"message":"Executing tool","tool":"send_message","session":"cli-cli"},"target":"skyclaw_agent::executor"}
+{"timestamp":"2026-03-10T11:53:04.079699Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:04.079803Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:04.079840Z","level":"INFO","fields":{"message":"Compound task detected — injecting DONE criteria prompt"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:06.812472Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.017024","total_spend_usd":"0.339635","budget_usd":"5.00","input_tokens":8928,"output_tokens":100},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:53:06.812498Z","level":"INFO","fields":{"message":"Executing tool call","tool":"send_message","id":"call_bmPgGOiou7OjPakqFyeNF8OT"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:06.812509Z","level":"INFO","fields":{"message":"Executing tool","tool":"send_message","session":"cli-cli"},"target":"temm1e_agent::executor"}
 
 DONE WHEN:
-1) A bash script exists at /tmp/skyclaw-bench/workspace_v2/cleanup.sh.
-2) The script, when executed, removes /tmp/skyclaw-bench/workspace_v2/testdir and all its contents.
-3) After running the script, /tmp/skyclaw-bench/workspace_v2/testdir no longer exists (verified via ls/test).
+1) A bash script exists at /tmp/temm1e-bench/workspace_v2/cleanup.sh.
+2) The script, when executed, removes /tmp/temm1e-bench/workspace_v2/testdir and all its contents.
+3) After running the script, /tmp/temm1e-bench/workspace_v2/testdir no longer exists (verified via ls/test).
 
-skyclaw> {"timestamp":"2026-03-10T11:53:09.988655Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.018674","total_spend_usd":"0.358309","budget_usd":"5.00","input_tokens":9111,"output_tokens":195},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:53:09.988685Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_ztXT2Ib0MSfKpTapFZEBLB6M"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:09.988701Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:53:09.988707Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat > /tmp/skyclaw-bench/workspace_v2/cleanup.sh <<'SH'\n#!/usr/bin/env bash\nset -euo pipefail\n\nTARGET=\"/tmp/skyclaw-bench/workspace_v2/testdir\"\n\nrm -rf \"$TARGET\"\nSH\nchmod +x /tmp/skyclaw-bench/workspace_v2/cleanup.sh\n\n# run it\n/tmp/skyclaw-bench/workspace_v2/cleanup.sh\n\n# verify\nif [ -d /tmp/skyclaw-bench/workspace_v2/testdir ]; then\n  echo \"ERROR: testdir still exists\"\n  exit 1\nelse\n  echo \"OK: testdir removed\"\nfi\n\n# show script exists\nls -la /tmp/skyclaw-bench/workspace_v2/cleanup.sh","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:53:14.596461Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.018629","total_spend_usd":"0.376938","budget_usd":"5.00","input_tokens":9429,"output_tokens":152},"target":"skyclaw_agent::budget"}
+temm1e> {"timestamp":"2026-03-10T11:53:09.988655Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.018674","total_spend_usd":"0.358309","budget_usd":"5.00","input_tokens":9111,"output_tokens":195},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:53:09.988685Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_ztXT2Ib0MSfKpTapFZEBLB6M"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:09.988701Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:53:09.988707Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat > /tmp/temm1e-bench/workspace_v2/cleanup.sh <<'SH'\n#!/usr/bin/env bash\nset -euo pipefail\n\nTARGET=\"/tmp/temm1e-bench/workspace_v2/testdir\"\n\nrm -rf \"$TARGET\"\nSH\nchmod +x /tmp/temm1e-bench/workspace_v2/cleanup.sh\n\n# run it\n/tmp/temm1e-bench/workspace_v2/cleanup.sh\n\n# verify\nif [ -d /tmp/temm1e-bench/workspace_v2/testdir ]; then\n  echo \"ERROR: testdir still exists\"\n  exit 1\nelse\n  echo \"OK: testdir removed\"\nfi\n\n# show script exists\nls -la /tmp/temm1e-bench/workspace_v2/cleanup.sh","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:53:14.596461Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.018629","total_spend_usd":"0.376938","budget_usd":"5.00","input_tokens":9429,"output_tokens":152},"target":"temm1e_agent::budget"}
 
 DONE WHEN:
-1. A bash script exists at `/tmp/skyclaw-bench/workspace_v2/cleanup.sh`.  
-2. The script, when executed, removes `/tmp/skyclaw-bench/workspace_v2/testdir` and all its contents.  
-3. After running the script, `/tmp/skyclaw-bench/workspace_v2/testdir` no longer exists (verified).  
+1. A bash script exists at `/tmp/temm1e-bench/workspace_v2/cleanup.sh`.  
+2. The script, when executed, removes `/tmp/temm1e-bench/workspace_v2/testdir` and all its contents.  
+3. After running the script, `/tmp/temm1e-bench/workspace_v2/testdir` no longer exists (verified).  
 
-Created `/tmp/skyclaw-bench/workspace_v2/cleanup.sh`, ran it, and verified:
+Created `/tmp/temm1e-bench/workspace_v2/cleanup.sh`, ran it, and verified:
 
-- Script exists: `/tmp/skyclaw-bench/workspace_v2/cleanup.sh`
+- Script exists: `/tmp/temm1e-bench/workspace_v2/cleanup.sh`
 - Confirmation after running: `OK: testdir removed`
 - `testdir` is gone (directory no longer exists)
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 3
 Input Tokens: 27,468
@@ -430,20 +430,20 @@ Output Tokens: 447
 Tools Used: 2
 Combined Tokens: 27,915
 Total Cost: $0.0543
-{"timestamp":"2026-03-10T11:53:24.088487Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:24.088579Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:25.478030Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.017547","total_spend_usd":"0.394485","budget_usd":"5.00","input_tokens":9707,"output_tokens":40},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:53:25.478056Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_NCFwsOEKUhjmliJ4wZRBUk5G"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:25.478070Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:53:25.478075Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat /tmp/skyclaw-bench/workspace_v2/nonexistent_file_xyz.txt; echo \"exit_code=$?\"","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:53:26.970766Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.017785","total_spend_usd":"0.412270","budget_usd":"5.00","input_tokens":9859,"output_tokens":38},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:53:24.088487Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:24.088579Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:25.478030Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.017547","total_spend_usd":"0.394485","budget_usd":"5.00","input_tokens":9707,"output_tokens":40},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:53:25.478056Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_NCFwsOEKUhjmliJ4wZRBUk5G"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:25.478070Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:53:25.478075Z","level":"INFO","fields":{"message":"Executing shell command","command":"cat /tmp/temm1e-bench/workspace_v2/nonexistent_file_xyz.txt; echo \"exit_code=$?\"","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:53:26.970766Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.017785","total_spend_usd":"0.412270","budget_usd":"5.00","input_tokens":9859,"output_tokens":38},"target":"temm1e_agent::budget"}
 
 Trying to read it fails with an error because the file doesn’t exist:
 
 - `cat` prints: `No such file or directory`
 - Exit code: `1`
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 2
 Input Tokens: 19,566
@@ -451,13 +451,13 @@ Output Tokens: 78
 Tools Used: 1
 Combined Tokens: 19,644
 Total Cost: $0.0353
-{"timestamp":"2026-03-10T11:53:44.094438Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:44.094639Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:45.377135Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.017959","total_spend_usd":"0.430229","budget_usd":"5.00","input_tokens":10014,"output_tokens":31},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-10T11:53:45.377180Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_n6JxM37ZAOwOHwbYh4ltQOh9"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:53:45.377206Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"skyclaw_agent::executor"}
-{"timestamp":"2026-03-10T11:53:45.377220Z","level":"INFO","fields":{"message":"Executing shell command","command":"ls /nonexistent_path_12345; echo \"exit_code=$?\"","timeout":30},"target":"skyclaw_tools::shell"}
-{"timestamp":"2026-03-10T11:53:46.685501Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.018221","total_spend_usd":"0.448450","budget_usd":"5.00","input_tokens":10148,"output_tokens":33},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:53:44.094438Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:44.094639Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:45.377135Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.017959","total_spend_usd":"0.430229","budget_usd":"5.00","input_tokens":10014,"output_tokens":31},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-10T11:53:45.377180Z","level":"INFO","fields":{"message":"Executing tool call","tool":"shell","id":"call_n6JxM37ZAOwOHwbYh4ltQOh9"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:53:45.377206Z","level":"INFO","fields":{"message":"Executing tool","tool":"shell","session":"cli-cli"},"target":"temm1e_agent::executor"}
+{"timestamp":"2026-03-10T11:53:45.377220Z","level":"INFO","fields":{"message":"Executing shell command","command":"ls /nonexistent_path_12345; echo \"exit_code=$?\"","timeout":30},"target":"temm1e_tools::shell"}
+{"timestamp":"2026-03-10T11:53:46.685501Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.018221","total_spend_usd":"0.448450","budget_usd":"5.00","input_tokens":10148,"output_tokens":33},"target":"temm1e_agent::budget"}
 
 The error is:
 
@@ -467,7 +467,7 @@ ls: /nonexistent_path_12345: No such file or directory
 
 Exit code: `1`
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 2
 Input Tokens: 20,162
@@ -475,15 +475,15 @@ Output Tokens: 64
 Tools Used: 1
 Combined Tokens: 20,226
 Total Cost: $0.0362
-{"timestamp":"2026-03-10T11:54:04.102728Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:54:04.102809Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-10T11:54:05.488300Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.018249","total_spend_usd":"0.466699","budget_usd":"5.00","input_tokens":10276,"output_tokens":19},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-10T11:54:04.102728Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:54:04.102809Z","level":"INFO","fields":{"message":"V2: Task classified","complexity":"Standard","prompt_tier":"Standard","skip_tool_loop":false,"max_iterations":5},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-10T11:54:05.488300Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.018249","total_spend_usd":"0.466699","budget_usd":"5.00","input_tokens":10276,"output_tokens":19},"target":"temm1e_agent::budget"}
 
 The very first thing you said to me was:
 
 **“Hi there!”**
 
-skyclaw> 
+temm1e> 
 Model: gpt-5.2
 API Calls: 1
 Input Tokens: 10,276
@@ -491,4 +491,4 @@ Output Tokens: 19
 Tools Used: 0
 Combined Tokens: 10,295
 Total Cost: $0.0182
-{"timestamp":"2026-03-10T11:54:24.105592Z","level":"INFO","fields":{"message":"CLI session ended by user"},"target":"skyclaw_channels::cli"}
+{"timestamp":"2026-03-10T11:54:24.105592Z","level":"INFO","fields":{"message":"CLI session ended by user"},"target":"temm1e_channels::cli"}

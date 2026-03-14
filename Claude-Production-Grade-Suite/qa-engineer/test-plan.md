@@ -1,4 +1,4 @@
-# SkyClaw Test Plan
+# TEMM1E Test Plan
 
 ## 1. Strategy
 
@@ -15,13 +15,13 @@
 
 | Crate              | Unit | Integration | Notes                                        |
 |---------------------|------|-------------|----------------------------------------------|
-| skyclaw-core        | 90%  | N/A         | Config parsing, type serde, env expansion     |
-| skyclaw-gateway     | 70%  | 80%         | Health endpoints, session manager CRUD        |
-| skyclaw-agent       | 80%  | 60%         | Context assembly, sandbox validation          |
-| skyclaw-providers   | 85%  | 40%         | Request/response serde, SSE parsing (no network) |
-| skyclaw-channels    | 75%  | 50%         | File transfer sanitization, allowlist logic   |
-| skyclaw-memory      | 85%  | 80%         | SQLite CRUD, markdown read/write, search scoring |
-| skyclaw-vault       | 90%  | 90%         | Already 16 tests; extend minimally            |
+| temm1e-core        | 90%  | N/A         | Config parsing, type serde, env expansion     |
+| temm1e-gateway     | 70%  | 80%         | Health endpoints, session manager CRUD        |
+| temm1e-agent       | 80%  | 60%         | Context assembly, sandbox validation          |
+| temm1e-providers   | 85%  | 40%         | Request/response serde, SSE parsing (no network) |
+| temm1e-channels    | 75%  | 50%         | File transfer sanitization, allowlist logic   |
+| temm1e-memory      | 85%  | 80%         | SQLite CRUD, markdown read/write, search scoring |
+| temm1e-vault       | 90%  | 90%         | Already 16 tests; extend minimally            |
 
 ## 2. Test Categories Mapped to User Stories
 
@@ -97,11 +97,11 @@
 
 ## 4. Test Utilities
 
-A workspace-level `skyclaw-test-utils` crate provides:
+A workspace-level `temm1e-test-utils` crate provides:
 - `MockProvider` — returns canned `CompletionResponse`, tracks call count
 - `MockMemory` — in-memory `Vec<MemoryEntry>` with basic search
 - `MockChannel` — records sent messages, configurable allowlist
-- `TestConfigBuilder` — fluent API to build `SkyclawConfig` for tests
+- `TestConfigBuilder` — fluent API to build `Temm1eConfig` for tests
 - `make_test_entry()` — factory for `MemoryEntry` with sensible defaults
 - `make_inbound_msg()` — factory for `InboundMessage`
 
@@ -118,6 +118,6 @@ cargo test --workspace --no-default-features
 cargo test --workspace --lib
 
 # Run specific crate
-cargo test -p skyclaw-core
-cargo test -p skyclaw-memory
+cargo test -p temm1e-core
+cargo test -p temm1e-memory
 ```

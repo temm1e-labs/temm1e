@@ -409,15 +409,15 @@ ZeroClaw can **read OpenClaw configuration and memory data**, enabling migration
 
 ---
 
-## 8. Key Takeaways for SkyClaw
+## 8. Key Takeaways for TEMM1E
 
-1. **Rust trait-based architecture is excellent** — adopt it for SkyClaw's core
-2. **Hybrid search (vector + keyword) is superior** — use it for SkyClaw's memory
-3. **Deny-by-default security** is the right model — make it SkyClaw's default
-4. **No-marketplace has trade-offs** — SkyClaw should find a middle ground (verified/signed skills?)
+1. **Rust trait-based architecture is excellent** — adopt it for TEMM1E's core
+2. **Hybrid search (vector + keyword) is superior** — use it for TEMM1E's memory
+3. **Deny-by-default security** is the right model — make it TEMM1E's default
+4. **No-marketplace has trade-offs** — TEMM1E should find a middle ground (verified/signed skills?)
 5. **PostgreSQL memory backend** enables multi-instance — essential for cloud-native
 6. **TOML config with env var expansion** is clean — adopt it
-7. **OpenClaw compatibility** for migration is smart — SkyClaw should support both ecosystems
+7. **OpenClaw compatibility** for migration is smart — TEMM1E should support both ecosystems
 8. **Cloud-native is missing** — ZeroClaw has tunnels but no native cloud orchestration, no OAuth flows, no headless-first design
 9. **ChaCha20-Poly1305 for secrets** is solid cryptography — adopt it
 10. **Single static binary** deployment model is ideal for cloud containers

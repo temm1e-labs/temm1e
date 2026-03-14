@@ -14,7 +14,7 @@
 
 | Alert | Condition | Duration |
 |-------|-----------|----------|
-| `ProviderDown` | `skyclaw_provider_health_check_success == 0` | 2 minutes |
+| `ProviderDown` | `temm1e_provider_health_check_success == 0` | 2 minutes |
 | `ProviderHighErrorRate` | Provider error rate > 5% | 5 minutes |
 
 ### Related Warning Alerts
@@ -29,10 +29,10 @@
 
 - PagerDuty incident fires with `severity=critical, service=provider`.
 - Users report that the agent is not responding or responding with errors.
-- `skyclaw_provider_health_check_success` gauge is 0 for the affected provider.
-- `skyclaw_provider_request_total{status="error"}` counter is incrementing rapidly.
-- `skyclaw_provider_request_total{status="timeout"}` counter increasing (requests exceeding 60s timeout).
-- Error messages in logs: `SkyclawError::Provider("Anthropic request failed: ...")` or `SkyclawError::Auth(...)`.
+- `temm1e_provider_health_check_success` gauge is 0 for the affected provider.
+- `temm1e_provider_request_total{status="error"}` counter is incrementing rapidly.
+- `temm1e_provider_request_total{status="timeout"}` counter increasing (requests exceeding 60s timeout).
+- Error messages in logs: `Temm1eError::Provider("Anthropic request failed: ...")` or `Temm1eError::Auth(...)`.
 
 ---
 
@@ -56,20 +56,20 @@
 curl http://localhost:8080/status | jq .provider
 
 # Check provider metrics
-curl http://localhost:8080/metrics | grep skyclaw_provider_health_check_success
-curl http://localhost:8080/metrics | grep skyclaw_provider_request_total
+curl http://localhost:8080/metrics | grep temm1e_provider_health_check_success
+curl http://localhost:8080/metrics | grep temm1e_provider_request_total
 ```
 
 ### Step 2: Verify API key validity
 
 ```bash
 # Check if the API key is in the vault
-skyclaw status
+temm1e status
 
 # Test the API key directly
 # For Anthropic:
 curl -s -o /dev/null -w "%{http_code}" \
-  -H "x-api-key: $(skyclaw vault get anthropic-api-key)" \
+  -H "x-api-key: $(temm1e vault get anthropic-api-key)" \
   -H "anthropic-version: 2023-06-01" \
   https://api.anthropic.com/v1/messages \
   -X HEAD
@@ -95,12 +95,12 @@ curl -s -o /dev/null -w "HTTP %{http_code}, time %{time_total}s\n" \
 
 ```bash
 # Filter provider-related logs
-journalctl -u skyclaw --since "10 minutes ago" | grep -i "provider\|anthropic\|complete\|stream"
+journalctl -u temm1e --since "10 minutes ago" | grep -i "provider\|anthropic\|complete\|stream"
 
 # Look for specific error patterns:
 # - "Anthropic request failed" = network/connection error
-# - "API error (401)" = authentication failure (SkyclawError::Auth)
-# - "API error (429)" = rate limiting (SkyclawError::RateLimited)
+# - "API error (401)" = authentication failure (Temm1eError::Auth)
+# - "API error (429)" = rate limiting (Temm1eError::RateLimited)
 # - "API error (500/502/503)" = upstream server error
 # - "Health check failed" = health_check() HEAD request failed
 ```
@@ -128,7 +128,7 @@ curl -v https://api.anthropic.com/v1/messages 2>&1 | head -30
 curl http://localhost:8080/metrics | grep "rate_limited"
 
 # Review recent request volume
-curl http://localhost:8080/metrics | grep skyclaw_provider_request_total
+curl http://localhost:8080/metrics | grep temm1e_provider_request_total
 ```
 
 ---
@@ -141,7 +141,7 @@ curl http://localhost:8080/metrics | grep skyclaw_provider_request_total
 
 2. If a fallback provider is configured, enable it:
    ```toml
-   # skyclaw.toml
+   # temm1e.toml
    [provider]
    name = "openai_compat"  # Switch to fallback
    # or configure automatic fallback:
@@ -150,12 +150,12 @@ curl http://localhost:8080/metrics | grep skyclaw_provider_request_total
 
 3. Restart with the fallback provider:
    ```bash
-   systemctl restart skyclaw
+   systemctl restart temm1e
    ```
 
 4. Monitor fallback provider health:
    ```bash
-   curl http://localhost:8080/metrics | grep skyclaw_provider_health_check_success
+   curl http://localhost:8080/metrics | grep temm1e_provider_health_check_success
    ```
 
 5. When the primary provider recovers, switch back and verify.
@@ -164,34 +164,34 @@ curl http://localhost:8080/metrics | grep skyclaw_provider_request_total
 
 1. Verify the key is present and readable:
    ```bash
-   skyclaw vault list
+   temm1e vault list
    ```
 
 2. If the key is missing or corrupt, re-store it:
    ```bash
    # Store a new API key in the vault
-   echo -n "sk-ant-api03-..." | skyclaw vault store anthropic-api-key
+   echo -n "sk-ant-api03-..." | temm1e vault store anthropic-api-key
    ```
 
-3. If using `vault://skyclaw/anthropic-api-key` URI resolution, verify the URI in config matches the vault key name.
+3. If using `vault://temm1e/anthropic-api-key` URI resolution, verify the URI in config matches the vault key name.
 
 4. Restart to pick up the new key:
    ```bash
-   systemctl restart skyclaw
+   systemctl restart temm1e
    ```
 
 ### Remediation C: Rate Limiting
 
 1. Check current request rate and concurrency:
    ```bash
-   curl http://localhost:8080/metrics | grep skyclaw_provider_request
+   curl http://localhost:8080/metrics | grep temm1e_provider_request
    ```
 
 2. Reduce concurrency by throttling incoming messages or implementing request queuing.
 
 3. If persistent, upgrade the API tier with the provider or distribute load across multiple API keys.
 
-4. The `SkyclawError::RateLimited` variant is intentionally excluded from SLO error counting, but it still impacts user experience.
+4. The `Temm1eError::RateLimited` variant is intentionally excluded from SLO error counting, but it still impacts user experience.
 
 ### Remediation D: Network/DNS Issues
 

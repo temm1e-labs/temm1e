@@ -3,7 +3,7 @@
 ## Status: Proposed
 
 ## Context
-OpenClaw's security is opt-in (sandbox is optional, WebSocket has cross-origin issues). ZeroClaw is better (deny-by-default allowlists) but SkyClaw handles user credentials via chat, making security even more critical.
+OpenClaw's security is opt-in (sandbox is optional, WebSocket has cross-origin issues). ZeroClaw is better (deny-by-default allowlists) but TEMM1E handles user credentials via chat, making security even more critical.
 
 ## Decision
 All security policies are mandatory and enforced by default:

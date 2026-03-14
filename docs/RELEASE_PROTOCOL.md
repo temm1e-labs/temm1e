@@ -1,4 +1,4 @@
-# SkyClaw Release Protocol
+# TEMM1E Release Protocol
 
 **MANDATORY checklist before pushing any release to `main`.** Claude MUST execute every step and verify results before committing.
 
@@ -57,7 +57,7 @@ version = "X.Y.Z"
 | Line ~103 | Agent tools metric | Count tools in Tools table |
 | Line ~354 | Architecture crate count text | Match workspace crates metric |
 | Line ~356-372 | Architecture tree | Must list all crates in `crates/` |
-| Line ~425 | `skyclaw update` example version | Match Cargo.toml version |
+| Line ~425 | `temm1e update` example version | Match Cargo.toml version |
 | Line ~443 | Dev section test count | From step 2 |
 | Release Timeline | New entry at TOP | Date, version, features, test count |
 
@@ -97,7 +97,7 @@ git push origin main
 ## Files That Do NOT Need Updating
 
 - **`docs/benchmarks/BENCHMARK_REPORT.md`** — Version in title reflects when benchmark was taken. Only update if benchmarks are re-run.
-- **`crates/skyclaw-skills/src/lib.rs`** — Test fixtures use hardcoded version strings. These are test data, not release metadata.
+- **`crates/temm1e-skills/src/lib.rs`** — Test fixtures use hardcoded version strings. These are test data, not release metadata.
 - **`Cargo.lock`** — Auto-generated from Cargo.toml changes.
 - **Release Timeline old entries** — Historical entries are frozen. Never modify past versions.
 
@@ -105,9 +105,9 @@ git push origin main
 
 | Mistake | Consequence |
 |---------|-------------|
-| Bump README but not Cargo.toml | `skyclaw -V` shows old version |
+| Bump README but not Cargo.toml | `temm1e -V` shows old version |
 | Bump Cargo.toml but not README badges | GitHub page shows old version |
-| Forget `skyclaw update` example version | Users see wrong version in help output |
+| Forget `temm1e update` example version | Users see wrong version in help output |
 | Forget test count in dev section | `cargo test` comment says wrong number |
 | Forget architecture tree | New crate invisible in docs |
 | Forget CLAUDE.md crate count | Claude starts sessions with wrong context |

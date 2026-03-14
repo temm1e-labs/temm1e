@@ -1,0 +1,61 @@
+[temm1e]
+mode = "local"
+
+[gateway]
+host = "127.0.0.1"
+port = 8080
+tls = false
+
+[provider]
+name = "anthropic"
+api_key = "${ANTHROPIC_API_KEY}"
+model = "claude-sonnet-4-6"
+
+[agent]
+# max_spend_usd = 0.0  # 0.0 = unlimited (default). Set a value to cap per-process spend.
+
+[memory]
+backend = "sqlite"
+
+[memory.search]
+vector_weight = 0.7
+keyword_weight = 0.3
+
+[vault]
+backend = "local-chacha20"
+
+[filestore]
+backend = "local"
+
+[security]
+sandbox = "mandatory"
+file_scanning = true
+skill_signing = "required"
+audit_log = true
+
+[heartbeat]
+enabled = false
+interval = "30m"
+checklist = "HEARTBEAT.md"
+# report_to = ""  # Set to your Telegram chat ID for heartbeat reports
+
+[cron]
+storage = "sqlite"
+
+[tools]
+shell = true
+browser = true
+file = true
+git = true
+cron = true
+http = true
+
+[observability]
+log_level = "info"
+otel_enabled = false
+
+[channel.telegram]
+enabled = true
+token = "${TELEGRAM_BOT_TOKEN}"
+allowlist = []
+file_transfer = true

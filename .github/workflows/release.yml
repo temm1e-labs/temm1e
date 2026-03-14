@@ -52,11 +52,11 @@ jobs:
       - name: Prepare artifact
         run: |
           mkdir -p dist
-          cp target/x86_64-unknown-linux-musl/release/skyclaw dist/skyclaw-x86_64-linux-musl
-          chmod +x dist/skyclaw-x86_64-linux-musl
+          cp target/x86_64-unknown-linux-musl/release/temm1e dist/temm1e-x86_64-linux-musl
+          chmod +x dist/temm1e-x86_64-linux-musl
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/skyclaw-x86_64-linux-musl
+          files: dist/temm1e-x86_64-linux-musl
           generate_release_notes: true

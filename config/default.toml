@@ -1,7 +1,7 @@
-# SkyClaw Default Configuration
+# TEMM1E Default Configuration
 # Cloud-native Rust AI agent runtime — Telegram-native
 
-[skyclaw]
+[temm1e]
 mode = "auto"  # "cloud" | "local" | "auto"
 tenant_isolation = false
 

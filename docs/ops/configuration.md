@@ -1,21 +1,21 @@
 # Operations Guide: Configuration
 
-This guide covers the operational aspects of configuring SkyClaw: environment variables, secret management, configuration hierarchy, and common patterns for production deployments.
+This guide covers the operational aspects of configuring TEMM1E: environment variables, secret management, configuration hierarchy, and common patterns for production deployments.
 
 ## Configuration Hierarchy
 
-SkyClaw loads configuration from multiple sources. Each source overrides the previous:
+TEMM1E loads configuration from multiple sources. Each source overrides the previous:
 
 ```
 1. Compiled defaults        (hardcoded in Rust Default implementations)
        |
-2. /etc/skyclaw/config.toml (system-level config, set during Docker build)
+2. /etc/temm1e/config.toml (system-level config, set during Docker build)
        |
-3. ~/.skyclaw/config.toml   (user-level config)
+3. ~/.temm1e/config.toml   (user-level config)
        |
 4. ./config.toml            (workspace-level config)
        |
-5. SKYCLAW_* env vars       (environment variable overrides)
+5. TEMM1E_* env vars       (environment variable overrides)
        |
 6. CLI flags                (--mode, --config)
        |
@@ -23,27 +23,27 @@ SkyClaw loads configuration from multiple sources. Each source overrides the pre
 ```
 
 In Docker deployments, the typical sources are:
-- `/etc/skyclaw/default.toml` (baked into the image)
-- A mounted `/etc/skyclaw/config.toml` (deployment-specific)
+- `/etc/temm1e/default.toml` (baked into the image)
+- A mounted `/etc/temm1e/config.toml` (deployment-specific)
 - Environment variables (secrets and runtime overrides)
 
 ## Environment Variables
 
-### SKYCLAW_* Prefix Mapping
+### TEMM1E_* Prefix Mapping
 
-Any configuration key can be set via an environment variable using the `SKYCLAW_` prefix. Nested keys use double underscores (`__`).
+Any configuration key can be set via an environment variable using the `TEMM1E_` prefix. Nested keys use double underscores (`__`).
 
 | Environment Variable | Config Key | Example |
 |---------------------|------------|---------|
-| `SKYCLAW_MODE` | `skyclaw.mode` | `cloud` |
-| `SKYCLAW_GATEWAY__HOST` | `gateway.host` | `0.0.0.0` |
-| `SKYCLAW_GATEWAY__PORT` | `gateway.port` | `443` |
-| `SKYCLAW_GATEWAY__TLS` | `gateway.tls` | `true` |
-| `SKYCLAW_PROVIDER__NAME` | `provider.name` | `anthropic` |
-| `SKYCLAW_PROVIDER__MODEL` | `provider.model` | `claude-sonnet-4-6` |
-| `SKYCLAW_MEMORY__BACKEND` | `memory.backend` | `postgres` |
-| `SKYCLAW_OBSERVABILITY__LOG_LEVEL` | `observability.log_level` | `debug` |
-| `SKYCLAW_OBSERVABILITY__OTEL_ENABLED` | `observability.otel_enabled` | `true` |
+| `TEMM1E_MODE` | `temm1e.mode` | `cloud` |
+| `TEMM1E_GATEWAY__HOST` | `gateway.host` | `0.0.0.0` |
+| `TEMM1E_GATEWAY__PORT` | `gateway.port` | `443` |
+| `TEMM1E_GATEWAY__TLS` | `gateway.tls` | `true` |
+| `TEMM1E_PROVIDER__NAME` | `provider.name` | `anthropic` |
+| `TEMM1E_PROVIDER__MODEL` | `provider.model` | `claude-sonnet-4-6` |
+| `TEMM1E_MEMORY__BACKEND` | `memory.backend` | `postgres` |
+| `TEMM1E_OBSERVABILITY__LOG_LEVEL` | `observability.log_level` | `debug` |
+| `TEMM1E_OBSERVABILITY__OTEL_ENABLED` | `observability.otel_enabled` | `true` |
 
 ### ${ENV_VAR} Expansion in Config Files
 
@@ -58,7 +58,7 @@ api_key = "${ANTHROPIC_API_KEY}"
 token = "${TELEGRAM_BOT_TOKEN}"
 ```
 
-At load time, `${ANTHROPIC_API_KEY}` is replaced with the value of the `ANTHROPIC_API_KEY` environment variable. If the variable is not set, SkyClaw reports a configuration error at startup.
+At load time, `${ANTHROPIC_API_KEY}` is replaced with the value of the `ANTHROPIC_API_KEY` environment variable. If the variable is not set, TEMM1E reports a configuration error at startup.
 
 ### Common Environment Variables
 
@@ -75,7 +75,7 @@ These are the environment variables most frequently set in production:
 | `WHATSAPP_API_TOKEN` | If using WhatsApp | WhatsApp Business API token |
 | `DATABASE_URL` | If using PostgreSQL | PostgreSQL connection string |
 | `RUST_LOG` | No | Log filter (overrides `observability.log_level`) |
-| `SKYCLAW_MODE` | No | Runtime mode override |
+| `TEMM1E_MODE` | No | Runtime mode override |
 
 ## vault:// URIs
 
@@ -85,7 +85,7 @@ The `vault://` URI scheme references secrets stored in the encrypted vault.
 
 1. A config value is set to `vault://key-name`
 2. At startup, the config loader detects `vault://` prefixes
-3. The vault backend decrypts the named secret from `~/.skyclaw/vault.enc`
+3. The vault backend decrypts the named secret from `~/.temm1e/vault.enc`
 4. The plaintext value replaces the `vault://` URI in memory
 5. The vault file itself is never modified during resolution
 
@@ -112,8 +112,8 @@ Alternatively, the vault can be managed programmatically through the `Vault` tra
 
 | Mode | Vault File | Key File |
 |------|-----------|----------|
-| Local | `~/.skyclaw/vault.enc` | `~/.skyclaw/vault.key` |
-| Docker | `/var/lib/skyclaw/vault.enc` | `/var/lib/skyclaw/vault.key` |
+| Local | `~/.temm1e/vault.enc` | `~/.temm1e/vault.key` |
+| Docker | `/var/lib/temm1e/vault.enc` | `/var/lib/temm1e/vault.key` |
 
 The vault key file must be protected. In Docker deployments, it lives on the persistent volume. For production, consider mounting it from a secrets manager.
 
@@ -131,15 +131,15 @@ The vault key file must be protected. In Docker deployments, it lives on the per
 Recommended settings for production cloud deployments:
 
 ```toml
-[skyclaw]
+[temm1e]
 mode = "cloud"
 
 [gateway]
 host = "0.0.0.0"
 port = 443
 tls = true
-tls_cert = "/etc/skyclaw/cert.pem"
-tls_key = "/etc/skyclaw/key.pem"
+tls_cert = "/etc/temm1e/cert.pem"
+tls_key = "/etc/temm1e/key.pem"
 
 [memory]
 backend = "postgres"
@@ -171,7 +171,7 @@ Cloud mode automatically:
 Recommended settings for local development:
 
 ```toml
-[skyclaw]
+[temm1e]
 mode = "local"
 
 [gateway]
@@ -180,7 +180,7 @@ port = 8080
 
 [memory]
 backend = "sqlite"
-path = "~/.skyclaw/memory.db"
+path = "~/.temm1e/memory.db"
 
 [observability]
 log_level = "debug"
@@ -194,7 +194,7 @@ Local mode automatically:
 
 ### Auto Mode
 
-When `mode = "auto"`, SkyClaw detects the environment:
+When `mode = "auto"`, TEMM1E detects the environment:
 
 1. Container runtime detected (/.dockerenv or cgroup)? -> cloud
 2. Cloud metadata endpoint reachable (169.254.169.254)? -> cloud
@@ -203,23 +203,23 @@ When `mode = "auto"`, SkyClaw detects the environment:
 
 ## ZeroClaw Configuration Compatibility
 
-SkyClaw reads ZeroClaw TOML configuration files. If a `config.toml` is detected as ZeroClaw format, it is automatically converted at load time.
+TEMM1E reads ZeroClaw TOML configuration files. If a `config.toml` is detected as ZeroClaw format, it is automatically converted at load time.
 
 Mapped sections:
-- ZeroClaw provider configs -> SkyClaw `[provider]`
-- ZeroClaw channel configs -> SkyClaw `[channel.*]`
-- ZeroClaw memory configs -> SkyClaw `[memory]`
-- ZeroClaw tunnel configs -> SkyClaw `[tunnel]`
+- ZeroClaw provider configs -> TEMM1E `[provider]`
+- ZeroClaw channel configs -> TEMM1E `[channel.*]`
+- ZeroClaw memory configs -> TEMM1E `[memory]`
+- ZeroClaw tunnel configs -> TEMM1E `[tunnel]`
 
 Unsupported fields generate a warning in the logs.
 
 ## OpenClaw Configuration Compatibility
 
-SkyClaw can also read OpenClaw YAML configuration files. If a `.yaml` or `.yml` config is detected, it is parsed and converted to the SkyClaw format.
+TEMM1E can also read OpenClaw YAML configuration files. If a `.yaml` or `.yml` config is detected, it is parsed and converted to the TEMM1E format.
 
 ```bash
 # Migrate from OpenClaw
-skyclaw migrate --from openclaw /path/to/openclaw/workspace
+temm1e migrate --from openclaw /path/to/openclaw/workspace
 ```
 
 ## Configuration Validation
@@ -227,7 +227,7 @@ skyclaw migrate --from openclaw /path/to/openclaw/workspace
 Validate your configuration before deploying:
 
 ```bash
-skyclaw config validate
+temm1e config validate
 ```
 
 This checks:
@@ -240,7 +240,7 @@ This checks:
 To see the fully resolved configuration:
 
 ```bash
-skyclaw config show
+temm1e config show
 ```
 
 This prints the merged configuration from all sources (with secrets redacted in the output).

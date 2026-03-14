@@ -4,22 +4,22 @@
   "status": "complete",
   "artifacts": [
     "Claude-Production-Grade-Suite/qa-engineer/test-plan.md",
-    "crates/skyclaw-test-utils/Cargo.toml",
-    "crates/skyclaw-test-utils/src/lib.rs",
-    "crates/skyclaw-core/src/config/loader.rs",
-    "crates/skyclaw-core/src/types/message.rs",
-    "crates/skyclaw-core/src/types/config.rs",
-    "crates/skyclaw-gateway/src/session.rs",
-    "crates/skyclaw-gateway/src/health.rs",
-    "crates/skyclaw-agent/src/executor.rs",
-    "crates/skyclaw-agent/src/context.rs",
-    "crates/skyclaw-providers/src/anthropic.rs",
-    "crates/skyclaw-providers/src/openai_compat.rs",
-    "crates/skyclaw-providers/src/lib.rs",
-    "crates/skyclaw-channels/src/file_transfer.rs",
-    "crates/skyclaw-channels/src/lib.rs",
-    "crates/skyclaw-memory/src/sqlite.rs",
-    "crates/skyclaw-memory/src/markdown.rs"
+    "crates/temm1e-test-utils/Cargo.toml",
+    "crates/temm1e-test-utils/src/lib.rs",
+    "crates/temm1e-core/src/config/loader.rs",
+    "crates/temm1e-core/src/types/message.rs",
+    "crates/temm1e-core/src/types/config.rs",
+    "crates/temm1e-gateway/src/session.rs",
+    "crates/temm1e-gateway/src/health.rs",
+    "crates/temm1e-agent/src/executor.rs",
+    "crates/temm1e-agent/src/context.rs",
+    "crates/temm1e-providers/src/anthropic.rs",
+    "crates/temm1e-providers/src/openai_compat.rs",
+    "crates/temm1e-providers/src/lib.rs",
+    "crates/temm1e-channels/src/file_transfer.rs",
+    "crates/temm1e-channels/src/lib.rs",
+    "crates/temm1e-memory/src/sqlite.rs",
+    "crates/temm1e-memory/src/markdown.rs"
   ],
   "metrics": {
     "test_cases_planned": 75,
@@ -38,13 +38,13 @@
     "tool_calls": 42
   },
   "test_breakdown": {
-    "skyclaw-core": 15,
-    "skyclaw-gateway": 10,
-    "skyclaw-agent": 10,
-    "skyclaw-providers": 28,
-    "skyclaw-channels": 8,
-    "skyclaw-memory": 19,
-    "skyclaw-vault": 16,
-    "skyclaw-test-utils": 6
+    "temm1e-core": 15,
+    "temm1e-gateway": 10,
+    "temm1e-agent": 10,
+    "temm1e-providers": 28,
+    "temm1e-channels": 8,
+    "temm1e-memory": 19,
+    "temm1e-vault": 16,
+    "temm1e-test-utils": 6
   }
 }

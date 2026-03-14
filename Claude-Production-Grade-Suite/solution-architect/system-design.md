@@ -1,12 +1,12 @@
-# SkyClaw v0.1 — System Design
+# TEMM1E v0.1 — System Design
 
 ## Crate Structure (Rust Workspace)
 
 ```
-skyclaw/
+temm1e/
 ├── Cargo.toml                    # Workspace root
 ├── crates/
-│   ├── skyclaw-core/             # Core traits, types, error handling
+│   ├── temm1e-core/             # Core traits, types, error handling
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── traits/           # All 12 trait definitions
@@ -37,7 +37,7 @@ skyclaw/
 │   │           ├── yaml_compat.rs # OpenClaw YAML compat reader
 │   │           └── env.rs        # Environment variable expansion
 │   │
-│   ├── skyclaw-gateway/          # SkyGate: the cloud gateway
+│   ├── temm1e-gateway/          # SkyGate: the cloud gateway
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── server.rs         # axum HTTP/WS server
@@ -46,7 +46,7 @@ skyclaw/
 │   │       ├── health.rs         # /health endpoint
 │   │       └── tls.rs            # TLS configuration (rustls)
 │   │
-│   ├── skyclaw-agent/            # Agent runtime (the brain)
+│   ├── temm1e-agent/            # Agent runtime (the brain)
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── runtime.rs        # Agent loop: context → LLM → tools → reply
@@ -54,7 +54,7 @@ skyclaw/
 │   │       ├── executor.rs       # Tool call execution with sandboxing
 │   │       └── streaming.rs      # Response streaming back to channel
 │   │
-│   ├── skyclaw-providers/        # AI provider implementations
+│   ├── temm1e-providers/        # AI provider implementations
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── anthropic.rs      # Anthropic Claude API
@@ -63,7 +63,7 @@ skyclaw/
 │   │       ├── mistral.rs        # Mistral API
 │   │       └── groq.rs           # Groq API
 │   │
-│   ├── skyclaw-channels/         # Channel implementations
+│   ├── temm1e-channels/         # Channel implementations
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── cli.rs            # CLI REPL channel
@@ -73,7 +73,7 @@ skyclaw/
 │   │       ├── whatsapp.rs       # WhatsApp Business API
 │   │       └── file_transfer.rs  # FileTransfer trait impls per channel
 │   │
-│   ├── skyclaw-memory/           # Memory backend implementations
+│   ├── temm1e-memory/           # Memory backend implementations
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── sqlite.rs         # SQLite + vector search
@@ -82,14 +82,14 @@ skyclaw/
 │   │       ├── search.rs         # Hybrid search engine (vector + keyword)
 │   │       └── migration.rs      # OpenClaw/ZeroClaw memory import
 │   │
-│   ├── skyclaw-vault/            # Secrets management
+│   ├── temm1e-vault/            # Secrets management
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── local.rs          # ChaCha20-Poly1305 local vault
 │   │       ├── resolver.rs       # vault:// URI resolver
 │   │       └── detector.rs       # API key pattern detection in messages
 │   │
-│   ├── skyclaw-tools/            # Built-in tool implementations
+│   ├── temm1e-tools/            # Built-in tool implementations
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── shell.rs          # Shell command execution
@@ -99,7 +99,7 @@ skyclaw/
 │   │       ├── http.rs           # HTTP requests
 │   │       └── screenshot.rs     # Screen capture
 │   │
-│   ├── skyclaw-skills/           # Skill loading & management
+│   ├── temm1e-skills/           # Skill loading & management
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── loader.rs         # SKILL.md parser
@@ -107,20 +107,20 @@ skyclaw/
 │   │       ├── openclaw_compat.rs # OpenClaw skill format parser
 │   │       └── capability.rs     # Capability declaration & enforcement
 │   │
-│   ├── skyclaw-automation/       # Heartbeat & Cron
+│   ├── temm1e-automation/       # Heartbeat & Cron
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── heartbeat.rs      # HEARTBEAT.md periodic checker
 │   │       └── cron.rs           # Persistent cron scheduler
 │   │
-│   ├── skyclaw-observable/       # Observability
+│   ├── temm1e-observable/       # Observability
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── logging.rs        # Structured JSON logging (tracing)
 │   │       ├── metrics.rs        # Metrics collection
 │   │       └── otel.rs           # OpenTelemetry export
 │   │
-│   └── skyclaw-filestore/        # File storage backends
+│   └── temm1e-filestore/        # File storage backends
 │       └── src/
 │           ├── lib.rs
 │           ├── local.rs          # Local filesystem storage
@@ -145,7 +145,7 @@ skyclaw/
                              │ Platform API (HTTP/WS)
                              ▼
 ┌─────────────────────────────────────────────────────────┐
-│  skyclaw-channels (Channel trait + FileTransfer trait)    │
+│  temm1e-channels (Channel trait + FileTransfer trait)    │
 │  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────────┐ │
 │  │ telegram │ │ discord  │ │  slack │ │   whatsapp   │ │
 │  └────┬─────┘ └────┬─────┘ └───┬────┘ └──────┬───────┘ │
@@ -155,7 +155,7 @@ skyclaw/
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────┐
-│  skyclaw-gateway (SkyGate)                               │
+│  temm1e-gateway (SkyGate)                               │
 │  ┌────────────┐  ┌──────────────┐  ┌─────────────────┐ │
 │  │  Router    │→ │  Session Mgr │→ │  Rate Limiter   │ │
 │  └────────────┘  └──────────────┘  └─────────────────┘ │
@@ -163,7 +163,7 @@ skyclaw/
                           │ SessionContext
                           ▼
 ┌─────────────────────────────────────────────────────────┐
-│  skyclaw-agent (SkyAgent Runtime)                        │
+│  temm1e-agent (SkyAgent Runtime)                        │
 │                                                          │
 │  1. Context Assembly                                     │
 │     ├── Session history (from memory)                    │
@@ -190,7 +190,7 @@ skyclaw/
           │                    │                    │
           ▼                    ▼                    ▼
 ┌──────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│ skyclaw-     │  │ skyclaw-tools    │  │ skyclaw-vault    │
+│ temm1e-     │  │ temm1e-tools    │  │ temm1e-vault    │
 │ memory       │  │ ┌──────────────┐ │  │ ┌──────────────┐ │
 │ ┌──────────┐ │  │ │ shell        │ │  │ │ ChaCha20     │ │
 │ │ sqlite   │ │  │ │ file_ops     │ │  │ │ vault.enc    │ │
@@ -217,16 +217,16 @@ skyclaw/
 - **thiserror** for defining error types in each crate
 - **anyhow** at the binary/CLI level for ergonomic error propagation
 - Every crate defines its own `Error` enum implementing `std::error::Error`
-- Errors propagate through `Result<T, SkyclawError>` at crate boundaries
+- Errors propagate through `Result<T, Temm1eError>` at crate boundaries
 - User-facing errors are converted to friendly messages before reaching channels
 
 ## Configuration Resolution Order
 
 1. Default values (compiled in)
-2. System config: `/etc/skyclaw/config.toml`
-3. User config: `~/.skyclaw/config.toml`
+2. System config: `/etc/temm1e/config.toml`
+3. User config: `~/.temm1e/config.toml`
 4. Workspace config: `./config.toml`
-5. Environment variables: `SKYCLAW_*` prefix
+5. Environment variables: `TEMM1E_*` prefix
 6. CLI flags: `--provider`, `--mode`, etc.
 7. vault:// URIs resolved from vault at runtime
 

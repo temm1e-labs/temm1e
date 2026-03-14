@@ -1,37 +1,37 @@
-# Skill: Add a new tool to SkyClaw
+# Skill: Add a new tool to TEMM1E
 
 ## When to use
 
-Use this skill when the user asks to add a new tool capability for the SkyClaw agent (e.g., HTTP client, database query, image generation, code execution, web scraping).
+Use this skill when the user asks to add a new tool capability for the TEMM1E agent (e.g., HTTP client, database query, image generation, code execution, web scraping).
 
 ## Reference implementation
 
 Study the existing definitions:
-- `crates/skyclaw-core/src/traits/tool.rs` -- the `Tool` trait, `ToolDeclarations`, `ToolInput`, `ToolOutput`, `ToolContext`, `PathAccess`
-- `crates/skyclaw-tools/src/lib.rs` -- the tools crate (currently minimal, ready for implementations)
-- `crates/skyclaw-tools/Cargo.toml` -- tool crate dependencies and feature flags
+- `crates/temm1e-core/src/traits/tool.rs` -- the `Tool` trait, `ToolDeclarations`, `ToolInput`, `ToolOutput`, `ToolContext`, `PathAccess`
+- `crates/temm1e-tools/src/lib.rs` -- the tools crate (currently minimal, ready for implementations)
+- `crates/temm1e-tools/Cargo.toml` -- tool crate dependencies and feature flags
 
 ## Steps
 
 ### 1. Create the tool source file
 
-Create `crates/skyclaw-tools/src/<tool_name>.rs` using the template below.
+Create `crates/temm1e-tools/src/<tool_name>.rs` using the template below.
 
 ### 2. Add the module to lib.rs
 
-Edit `crates/skyclaw-tools/src/lib.rs`:
+Edit `crates/temm1e-tools/src/lib.rs`:
 - Add `pub mod <tool_name>;`
 - Add `pub use <tool_name>::<ToolName>Tool;`
 - If the tool requires an optional dependency, gate it: `#[cfg(feature = "<tool_name>")] pub mod <tool_name>;`
 
 ### 3. Add dependencies and feature flags if needed
 
-Edit `crates/skyclaw-tools/Cargo.toml`:
+Edit `crates/temm1e-tools/Cargo.toml`:
 - Add any tool-specific dependencies (mark optional if feature-gated)
 - Add feature flag if needed: `<tool_name> = ["dep:some-crate"]`
 
 If feature-gated, also edit root `Cargo.toml`:
-- Add the feature flag: `<tool_name> = ["skyclaw-tools/<tool_name>"]`
+- Add the feature flag: `<tool_name> = ["temm1e-tools/<tool_name>"]`
 
 ### 4. Write tests
 
@@ -47,9 +47,9 @@ Include tests in the tool source file:
 ### 5. Verify
 
 ```bash
-cargo check -p skyclaw-tools
-cargo test -p skyclaw-tools
-cargo clippy -p skyclaw-tools -- -D warnings
+cargo check -p temm1e-tools
+cargo test -p temm1e-tools
+cargo clippy -p temm1e-tools -- -D warnings
 ```
 
 ## Template
@@ -58,10 +58,10 @@ cargo clippy -p skyclaw-tools -- -D warnings
 //! <ToolName> tool -- <brief description>.
 
 use async_trait::async_trait;
-use skyclaw_core::types::error::SkyclawError;
-use skyclaw_core::{Tool, ToolDeclarations, ToolInput, ToolOutput, ToolContext, PathAccess};
+use temm1e_core::types::error::Temm1eError;
+use temm1e_core::{Tool, ToolDeclarations, ToolInput, ToolOutput, ToolContext, PathAccess};
 
-/// <ToolName> tool for the SkyClaw agent.
+/// <ToolName> tool for the TEMM1E agent.
 pub struct <ToolName>Tool {
     // TODO: Add any state the tool needs (e.g., HTTP client, config)
 }
@@ -135,11 +135,11 @@ impl Tool for <ToolName>Tool {
         &self,
         input: ToolInput,
         ctx: &ToolContext,
-    ) -> Result<ToolOutput, SkyclawError> {
+    ) -> Result<ToolOutput, Temm1eError> {
         // 1. Parse and validate input arguments
         // let some_param = input.arguments.get("some_param")
         //     .and_then(|v| v.as_str())
-        //     .ok_or_else(|| SkyclawError::Tool("Missing required parameter: some_param".into()))?;
+        //     .ok_or_else(|| Temm1eError::Tool("Missing required parameter: some_param".into()))?;
 
         // 2. Enforce sandbox rules
         //    - Validate file paths are within ctx.workspace_path
@@ -230,14 +230,14 @@ mod tests {
         // };
         // let result = tool.execute(input, &test_ctx()).await;
         // // Should either return Ok(ToolOutput { is_error: true, .. })
-        // // or Err(SkyclawError::Tool(...))
+        // // or Err(Temm1eError::Tool(...))
     }
 }
 ```
 
 ## Key conventions
 
-- **Error vs. tool error**: Return `Err(SkyclawError::Tool(...))` when the tool infrastructure fails (e.g., missing dependency). Return `Ok(ToolOutput { is_error: true, content: "..." })` when the tool ran but the operation failed (e.g., HTTP 404, file not found). The AI model sees `is_error: true` results and can retry or adjust.
+- **Error vs. tool error**: Return `Err(Temm1eError::Tool(...))` when the tool infrastructure fails (e.g., missing dependency). Return `Ok(ToolOutput { is_error: true, content: "..." })` when the tool ran but the operation failed (e.g., HTTP 404, file not found). The AI model sees `is_error: true` results and can retry or adjust.
 - **Sandbox declarations**: Every tool MUST declare its resource needs in `declarations()`. The sandbox enforcer validates these at runtime. Be specific -- declare only the domains and paths the tool actually needs.
 - **Path safety**: Always validate that file paths are within `ctx.workspace_path`. Reject path traversal attempts (`../`). Use `path.canonicalize()` and check `starts_with(ctx.workspace_path)`.
 - **Parameters schema**: Use JSON Schema format. The AI model reads this to understand how to call the tool. Include `description` for each property.

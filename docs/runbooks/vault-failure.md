@@ -14,7 +14,7 @@
 
 | Alert | Condition | Duration |
 |-------|-----------|----------|
-| `VaultDecryptionFailure` | `increase(skyclaw_vault_decryption_failures_total[5m]) > 0` | Immediate (any failure) |
+| `VaultDecryptionFailure` | `increase(temm1e_vault_decryption_failures_total[5m]) > 0` | Immediate (any failure) |
 | `VaultHighErrorRate` | Vault error rate > 0.1% | 2 minutes |
 
 ### Related Warning Alerts
@@ -28,11 +28,11 @@
 ### Observable Symptoms
 
 - PagerDuty incident fires with `severity=critical, service=vault`.
-- `skyclaw_vault_decryption_failures_total` counter has incremented.
-- `skyclaw_vault_operation_total{status="error"}` is increasing.
+- `temm1e_vault_decryption_failures_total` counter has incremented.
+- `temm1e_vault_operation_total{status="error"}` is increasing.
 - Provider connections fail because API keys cannot be decrypted from the vault.
-- Log messages containing `SkyclawError::Vault("decryption failed: ...")`.
-- Log messages containing `SkyclawError::Vault("corrupt vault file: ...")`.
+- Log messages containing `Temm1eError::Vault("decryption failed: ...")`.
+- Log messages containing `Temm1eError::Vault("corrupt vault file: ...")`.
 
 ---
 
@@ -42,7 +42,7 @@
 |-----------|--------|
 | **User-facing** | If provider API keys are stored in the vault, all AI completions fail. Secrets-dependent operations halt. |
 | **SLO burn** | Vault Operations SLO (99.99%) has only 4.3 min/month budget. Decryption failures have zero-tolerance policy. |
-| **Blast radius** | All components that resolve secrets via `vault://skyclaw/` URIs are affected. |
+| **Blast radius** | All components that resolve secrets via `vault://temm1e/` URIs are affected. |
 | **Data loss risk** | HIGH. If `vault.key` is lost or corrupted, all encrypted secrets in `vault.enc` become permanently unrecoverable. |
 | **Security risk** | Decryption failure may indicate key tampering or unauthorized access to vault files. |
 
@@ -55,7 +55,7 @@
 Check logs to determine whether this is a decryption failure, a file I/O failure, or a data corruption issue:
 
 ```bash
-journalctl -u skyclaw --since "10 minutes ago" | grep -i "vault\|decrypt\|encrypt"
+journalctl -u temm1e --since "10 minutes ago" | grep -i "vault\|decrypt\|encrypt"
 ```
 
 Failure patterns:
@@ -74,34 +74,34 @@ Failure patterns:
 
 ```bash
 # Check existence and size (must be exactly 32 bytes)
-ls -la ~/.skyclaw/vault.key
-wc -c ~/.skyclaw/vault.key
-# Expected output: 32 ~/.skyclaw/vault.key
+ls -la ~/.temm1e/vault.key
+wc -c ~/.temm1e/vault.key
+# Expected output: 32 ~/.temm1e/vault.key
 
 # Check permissions (must be 0600 = 384 decimal)
-stat -c "%a %s" ~/.skyclaw/vault.key   # Linux
-stat -f "%Lp %z" ~/.skyclaw/vault.key  # macOS
+stat -c "%a %s" ~/.temm1e/vault.key   # Linux
+stat -f "%Lp %z" ~/.temm1e/vault.key  # macOS
 # Expected: 600 32
 
 # Verify it contains binary data (not text/base64)
-file ~/.skyclaw/vault.key
+file ~/.temm1e/vault.key
 # Expected: "data" (raw binary)
-xxd ~/.skyclaw/vault.key | head -3
+xxd ~/.temm1e/vault.key | head -3
 ```
 
 ### Step 3: Verify vault.enc file integrity
 
 ```bash
 # Check existence and readability
-ls -la ~/.skyclaw/vault.enc
+ls -la ~/.temm1e/vault.enc
 
 # Validate JSON structure
-python3 -m json.tool ~/.skyclaw/vault.enc > /dev/null 2>&1 && echo "Valid JSON" || echo "INVALID JSON"
+python3 -m json.tool ~/.temm1e/vault.enc > /dev/null 2>&1 && echo "Valid JSON" || echo "INVALID JSON"
 
 # Check structure: should be a JSON object with string keys
 python3 -c "
 import json
-with open('$HOME/.skyclaw/vault.enc') as f:
+with open('$HOME/.temm1e/vault.enc') as f:
     data = json.load(f)
 print(f'Keys: {len(data)}')
 for key in list(data.keys())[:5]:
@@ -114,7 +114,7 @@ for key in list(data.keys())[:5]:
 
 ```bash
 # Check available disk space
-df -h ~/.skyclaw/
+df -h ~/.temm1e/
 
 # Check for filesystem errors
 dmesg | grep -i "error\|fault\|corrupt" | tail -20
@@ -127,23 +127,23 @@ iostat -x 1 3
 
 ```bash
 # Full directory check
-ls -la ~/.skyclaw/
+ls -la ~/.temm1e/
 # vault.key should be: -rw------- (0600)
 # vault.enc should be: -rw-r--r-- or -rw-------
 
 # Check process user matches file owner
-ps aux | grep skyclaw | grep -v grep
-stat ~/.skyclaw/vault.key
+ps aux | grep temm1e | grep -v grep
+stat ~/.temm1e/vault.key
 ```
 
 ### Step 6: Test vault operations in isolation
 
 ```bash
-# Use the SkyClaw CLI to test vault read
-skyclaw vault list
+# Use the TEMM1E CLI to test vault read
+temm1e vault list
 
 # Try to read a specific key
-skyclaw vault get <key-name>
+temm1e vault get <key-name>
 ```
 
 ---
@@ -155,11 +155,11 @@ skyclaw vault get <key-name>
 If `VaultKeyPermissionDrift` fired (permissions are not 0600):
 
 ```bash
-chmod 600 ~/.skyclaw/vault.key
+chmod 600 ~/.temm1e/vault.key
 
 # Verify
-stat -c "%a" ~/.skyclaw/vault.key  # Linux
-stat -f "%Lp" ~/.skyclaw/vault.key  # macOS
+stat -c "%a" ~/.temm1e/vault.key  # Linux
+stat -f "%Lp" ~/.temm1e/vault.key  # macOS
 # Must show: 600
 ```
 
@@ -172,29 +172,29 @@ No restart required. The next vault operation will succeed.
 1. Check for backups:
    ```bash
    # Check common backup locations
-   ls -la ~/.skyclaw/vault.key.bak
-   ls -la /backup/skyclaw/vault.key
+   ls -la ~/.temm1e/vault.key.bak
+   ls -la /backup/temm1e/vault.key
    ```
 
 2. If a backup exists, restore it:
    ```bash
-   cp /backup/skyclaw/vault.key ~/.skyclaw/vault.key
-   chmod 600 ~/.skyclaw/vault.key
+   cp /backup/temm1e/vault.key ~/.temm1e/vault.key
+   chmod 600 ~/.temm1e/vault.key
    ```
 
 3. If no backup exists and vault.key is corrupted:
    - All existing secrets are lost.
    - Remove the corrupted vault files:
      ```bash
-     mv ~/.skyclaw/vault.key ~/.skyclaw/vault.key.corrupted
-     mv ~/.skyclaw/vault.enc ~/.skyclaw/vault.enc.corrupted
+     mv ~/.temm1e/vault.key ~/.temm1e/vault.key.corrupted
+     mv ~/.temm1e/vault.enc ~/.temm1e/vault.enc.corrupted
      ```
-   - SkyClaw will generate a new vault.key on next startup via `LocalVault::ensure_key()`.
+   - TEMM1E will generate a new vault.key on next startup via `LocalVault::ensure_key()`.
    - Re-provision all secrets (API keys, etc.) manually.
 
-4. Restart SkyClaw:
+4. Restart TEMM1E:
    ```bash
-   systemctl restart skyclaw
+   systemctl restart temm1e
    ```
 
 ### Remediation C: vault.enc Corruption
@@ -204,13 +204,13 @@ No restart required. The next vault operation will succeed.
    # Attempt to salvage
    python3 -c "
    import json
-   with open('$HOME/.skyclaw/vault.enc') as f:
+   with open('$HOME/.temm1e/vault.enc') as f:
        raw = f.read()
    # Try to find valid JSON prefix
    for i in range(len(raw), 0, -1):
        try:
            data = json.loads(raw[:i])
-           with open('$HOME/.skyclaw/vault.enc.salvaged', 'w') as out:
+           with open('$HOME/.temm1e/vault.enc.salvaged', 'w') as out:
                json.dump(data, out, indent=2)
            print(f'Salvaged {len(data)} keys')
            break
@@ -221,9 +221,9 @@ No restart required. The next vault operation will succeed.
 
 2. If salvage succeeds:
    ```bash
-   cp ~/.skyclaw/vault.enc ~/.skyclaw/vault.enc.corrupted
-   mv ~/.skyclaw/vault.enc.salvaged ~/.skyclaw/vault.enc
-   systemctl restart skyclaw
+   cp ~/.temm1e/vault.enc ~/.temm1e/vault.enc.corrupted
+   mv ~/.temm1e/vault.enc.salvaged ~/.temm1e/vault.enc
+   systemctl restart temm1e
    ```
 
 3. If individual entries are corrupted (bad base64 nonce/ciphertext), remove only the affected entries from the JSON and restart.
@@ -234,11 +234,11 @@ The `LocalVault::flush()` method rewrites the entire `vault.enc` on every mutati
 
 ```bash
 # Free disk space
-df -h ~/.skyclaw/
+df -h ~/.temm1e/
 # Remove unnecessary files or expand volume
 
 # Verify write capability
-touch ~/.skyclaw/test_write && rm ~/.skyclaw/test_write
+touch ~/.temm1e/test_write && rm ~/.temm1e/test_write
 ```
 
 ### Remediation E: Security Incident Response
@@ -247,19 +247,19 @@ If decryption failure is suspected to be caused by tampering:
 
 1. **Preserve evidence:**
    ```bash
-   cp -a ~/.skyclaw/ /tmp/skyclaw-incident-$(date +%s)/
-   sha256sum ~/.skyclaw/vault.key ~/.skyclaw/vault.enc
+   cp -a ~/.temm1e/ /tmp/temm1e-incident-$(date +%s)/
+   sha256sum ~/.temm1e/vault.key ~/.temm1e/vault.enc
    ```
 
 2. **Check file modification times:**
    ```bash
-   stat ~/.skyclaw/vault.key ~/.skyclaw/vault.enc
+   stat ~/.temm1e/vault.key ~/.temm1e/vault.enc
    ```
 
 3. **Check access logs:**
    ```bash
    # auditd logs if enabled
-   ausearch -f ~/.skyclaw/vault.key
+   ausearch -f ~/.temm1e/vault.key
    ```
 
 4. Escalate as a security incident per the [Incident Response](./incident-response.md) playbook (SEV1).
@@ -276,14 +276,14 @@ If decryption failure is suspected to be caused by tampering:
 1. **Automated backups:** Back up `vault.key` to a separate secure location on every startup. The 32-byte key file is trivial to back up.
    ```bash
    # Example backup script run by systemd ExecStartPre
-   cp ~/.skyclaw/vault.key /secure-backup/vault.key.$(date +%Y%m%d)
+   cp ~/.temm1e/vault.key /secure-backup/vault.key.$(date +%Y%m%d)
    ```
 
 2. **File integrity monitoring:** Use AIDE, Tripwire, or similar to detect unauthorized changes to `vault.key` and `vault.enc`.
 
 3. **Permission enforcement:** The heartbeat loop checks `vault.key` permissions. Ensure `VaultKeyPermissionDrift` warning alert is routed to the team.
 
-4. **Disk space monitoring:** Alert on disk usage > 80% for the volume containing `~/.skyclaw/`.
+4. **Disk space monitoring:** Alert on disk usage > 80% for the volume containing `~/.temm1e/`.
 
 5. **Key rotation plan:** Document and periodically test vault key rotation:
    - Decrypt all secrets with old key

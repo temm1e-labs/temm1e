@@ -1,5 +1,5 @@
 # ================================================
-# SkyClaw - Fly.io Deployment Configuration
+# TEMM1E - Fly.io Deployment Configuration
 # Alternative to Terraform/AWS for quick deploys.
 #
 # Usage:
@@ -8,7 +8,7 @@
 #   fly secrets set ANTHROPIC_API_KEY=sk-...
 # ================================================
 
-app = "skyclaw"
+app = "temm1e"
 primary_region = "iad"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
@@ -17,7 +17,7 @@ kill_timeout = "5s"
   dockerfile = "../../Dockerfile"
 
 [env]
-  SKYCLAW_MODE = "cloud"
+  TEMM1E_MODE = "cloud"
   RUST_LOG = "info"
 
 [http_service]
@@ -63,6 +63,6 @@ kill_timeout = "5s"
   cpus = 1
 
 [mounts]
-  source = "skyclaw_data"
-  destination = "/var/lib/skyclaw"
+  source = "temm1e_data"
+  destination = "/var/lib/temm1e"
   initial_size = "1gb"

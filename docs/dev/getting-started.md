@@ -1,6 +1,6 @@
 # Developer Guide: Getting Started
 
-This guide walks through setting up a development environment for SkyClaw, building the project, and running the test suite.
+This guide walks through setting up a development environment for TEMM1E, building the project, and running the test suite.
 
 ## Prerequisites
 
@@ -52,8 +52,8 @@ cargo install cargo-tarpaulin
 ## Cloning the Repository
 
 ```bash
-git clone https://github.com/skyclaw/skyclaw.git
-cd skyclaw
+git clone https://github.com/temm1e/temm1e.git
+cd temm1e
 ```
 
 ## Building
@@ -66,7 +66,7 @@ Fast compilation for development:
 cargo build
 ```
 
-The binary is at `target/debug/skyclaw`.
+The binary is at `target/debug/temm1e`.
 
 ### Release Build
 
@@ -76,7 +76,7 @@ Optimized with LTO, single codegen unit, and symbol stripping:
 cargo build --release
 ```
 
-The binary is at `target/release/skyclaw`. Expected size: under 10 MB.
+The binary is at `target/release/temm1e`. Expected size: under 10 MB.
 
 ### Static Binary (musl)
 
@@ -123,7 +123,7 @@ All features are enabled by default.
 cargo run -- start
 
 # Using the built binary
-./target/debug/skyclaw start
+./target/debug/temm1e start
 
 # With a custom config
 cargo run -- --config path/to/config.toml start
@@ -155,14 +155,14 @@ cargo run -- config validate
 Copy the default config and adjust for local development:
 
 ```bash
-mkdir -p ~/.skyclaw
-cp config/default.toml ~/.skyclaw/config.toml
+mkdir -p ~/.temm1e
+cp config/default.toml ~/.temm1e/config.toml
 ```
 
 Minimal config for local development:
 
 ```toml
-[skyclaw]
+[temm1e]
 mode = "local"
 
 [gateway]
@@ -198,9 +198,9 @@ cargo test --workspace
 ### Single Crate
 
 ```bash
-cargo test -p skyclaw-core
-cargo test -p skyclaw-channels
-cargo test -p skyclaw-memory
+cargo test -p temm1e-core
+cargo test -p temm1e-channels
+cargo test -p temm1e-memory
 ```
 
 ### With Logging Output
@@ -212,7 +212,7 @@ RUST_LOG=debug cargo test --workspace -- --nocapture
 ### Specific Test
 
 ```bash
-cargo test -p skyclaw-core -- serde_roundtrip
+cargo test -p temm1e-core -- serde_roundtrip
 ```
 
 ### Integration Tests
@@ -221,10 +221,10 @@ Integration tests that require external services (PostgreSQL, Chrome) are gated 
 
 ```bash
 # PostgreSQL integration tests
-DATABASE_URL="postgres://user:pass@localhost/skyclaw_test" cargo test -p skyclaw-memory --features postgres
+DATABASE_URL="postgres://user:pass@localhost/temm1e_test" cargo test -p temm1e-memory --features postgres
 
 # Browser tests (requires Chrome/Chromium)
-cargo test -p skyclaw-tools --features browser
+cargo test -p temm1e-tools --features browser
 ```
 
 ## Linting and Formatting
@@ -260,7 +260,7 @@ cargo watch -x "run -- start"
 Build the Docker image locally:
 
 ```bash
-docker build -t skyclaw:dev .
+docker build -t temm1e:dev .
 ```
 
 Run with local configuration:
@@ -268,9 +268,9 @@ Run with local configuration:
 ```bash
 docker run -it --rm \
   -p 8080:8080 \
-  -v ~/.skyclaw:/var/lib/skyclaw \
+  -v ~/.temm1e:/var/lib/temm1e \
   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-  skyclaw:dev
+  temm1e:dev
 ```
 
 ## Project Structure
@@ -278,24 +278,24 @@ docker run -it --rm \
 See the [Architecture Guide](architecture.md) for a detailed explanation of the crate dependency graph and data flow.
 
 ```
-skyclaw/
+temm1e/
   Cargo.toml                  Workspace root + binary package
   src/main.rs                 CLI entry point
   config/default.toml         Default configuration file
   crates/
-    skyclaw-core/              Traits, types, config, errors (zero business logic)
-    skyclaw-gateway/           HTTP/WS server (axum)
-    skyclaw-agent/             Agent runtime loop
-    skyclaw-providers/         AI provider implementations
-    skyclaw-channels/          Messaging channel implementations
-    skyclaw-memory/            Memory backend implementations
-    skyclaw-vault/             Secrets management
-    skyclaw-tools/             Built-in tool implementations
-    skyclaw-skills/            Skill loading and management
-    skyclaw-automation/        Heartbeat and cron
-    skyclaw-observable/        Logging, metrics, telemetry
-    skyclaw-filestore/         File storage backends
-    skyclaw-test-utils/        Shared test utilities
+    temm1e-core/              Traits, types, config, errors (zero business logic)
+    temm1e-gateway/           HTTP/WS server (axum)
+    temm1e-agent/             Agent runtime loop
+    temm1e-providers/         AI provider implementations
+    temm1e-channels/          Messaging channel implementations
+    temm1e-memory/            Memory backend implementations
+    temm1e-vault/             Secrets management
+    temm1e-tools/             Built-in tool implementations
+    temm1e-skills/            Skill loading and management
+    temm1e-automation/        Heartbeat and cron
+    temm1e-observable/        Logging, metrics, telemetry
+    temm1e-filestore/         File storage backends
+    temm1e-test-utils/        Shared test utilities
   docs/                        Documentation
   infrastructure/
     terraform/                 AWS Terraform configs + Fly.io config

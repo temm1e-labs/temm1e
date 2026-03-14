@@ -1,6 +1,8 @@
-# SkyClaw Setup Guide — For Beginners
+# HI!! Let's Set Me Up :3
 
-This guide walks you through every step of setting up SkyClaw from scratch. No prior experience with Rust, servers, or AI APIs required.
+Okay okay okay so YOU want to run me on your computer?? That's AWESOME. I'm going to walk you through every single step. Yes, every step. You don't need to know Rust, servers, or AI stuff. I'll explain as we go.
+
+This is literally me helping you summon me into existence. Let's GO.
 
 ## What You'll Need
 
@@ -11,9 +13,11 @@ This guide walks you through every step of setting up SkyClaw from scratch. No p
   - A ChatGPT Plus or Pro subscription ($20/month) — easiest, no API key needed
   - An API key from any AI provider (Anthropic, OpenAI, Google, etc.)
 
-## Step 1: Install Rust
+That's it. That's the whole list. Let's begin.
 
-SkyClaw is written in Rust. You need the Rust compiler to build it.
+## Step 1: Get Rust (It's What I'm Made Of!)
+
+I'm written in Rust! Which means you need the Rust compiler to bring me to life. Don't worry, it's one command.
 
 Open your terminal and run:
 
@@ -21,67 +25,71 @@ Open your terminal and run:
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-When it asks, press `1` for the default installation. After it finishes:
+It'll ask you a question. Press `1` for the default installation. Once it finishes:
 
 ```bash
 source $HOME/.cargo/env
 ```
 
-Verify it worked:
+Did it work? Let's check!
 
 ```bash
 rustc --version
 # Should print something like: rustc 1.82.0 (...)
 ```
 
-> **Windows users:** Install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) first (`wsl --install` in PowerShell), then run these commands inside WSL.
+If you see a version number, NICE. Rust is ready.
+
+> **Windows users:** You'll need [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) first. Run `wsl --install` in PowerShell, then do everything inside WSL from here on. It's basically Linux running inside Windows — very cool actually.
 
 ## Step 2: Install Chrome (Optional)
 
-SkyClaw has a browser tool that can navigate websites, click buttons, take screenshots, and fill forms. It needs Chrome or Chromium installed.
+I have a browser tool! I can navigate websites, click buttons, take screenshots, fill out forms — the works. But I need Chrome or Chromium installed to do it.
 
-- **macOS:** Chrome is probably already installed. If not, download from google.com/chrome.
+- **macOS:** Chrome is probably already there. If not, grab it from google.com/chrome.
 - **Linux:** `sudo apt install chromium-browser` (Ubuntu/Debian) or `sudo dnf install chromium` (Fedora).
-- **Skip this** if you don't need the browser tool — everything else works without it.
+- **Don't need the browser tool?** Skip this entirely. Everything else works without it.
 
 ## Step 3: Create a Telegram Bot
 
-This is how you'll talk to SkyClaw. It takes 60 seconds.
+This is how you'll talk to me! It takes about 60 seconds and it's honestly kind of fun.
 
 1. Open Telegram on your phone or desktop
 2. Search for **@BotFather** and open a chat with it
 3. Send `/newbot`
-4. BotFather asks for a name — type anything (e.g., "My SkyClaw")
-5. BotFather asks for a username — pick something ending in `bot` (e.g., `my_skyclaw_bot`)
+4. BotFather asks for a name — type anything (e.g., "My TEMM1E")
+5. BotFather asks for a username — pick something ending in `bot` (e.g., `my_temm1e_bot`)
 6. BotFather gives you a **bot token** — it looks like `7123456789:AAHx...`. **Copy this token and save it somewhere safe.**
 
-> Your bot token is a secret. Anyone with it can control your bot. Don't share it publicly.
+> Your bot token is a secret. Anyone who has it can control your bot. Don't share it publicly. Treat it like a password.
 
-## Step 4: Download and Build SkyClaw
+## Step 4: Download and Build Me!
+
+Here's where I start becoming real.
 
 ```bash
-git clone https://github.com/nagisanzenin/skyclaw.git
-cd skyclaw
+git clone https://github.com/nagisanzenin/temm1e.git
+cd temm1e
 cargo build --release
 ```
 
-The first build takes 2-4 minutes (it's compiling ~300 dependencies). Subsequent builds are much faster.
+The first build takes 2-4 minutes because Rust is compiling around 300 dependencies. Go grab a drink or something. Subsequent builds are WAY faster.
 
-When it finishes, your binary is at `./target/release/skyclaw`.
+When it finishes, your binary is at `./target/release/temm1e`. That's me. I'm in there.
 
-## Step 5: Connect an AI Provider
+## Step 5: Give Me a Brain
 
-You need an AI brain for SkyClaw. Choose ONE option:
+I need an AI provider to think with. Choose ONE option:
 
 ### Option A: Use Your ChatGPT Account (Easiest)
 
-If you have ChatGPT Plus ($20/month) or ChatGPT Pro:
+If you have ChatGPT Plus ($20/month) or ChatGPT Pro, this is the fastest path.
 
 ```bash
-./target/release/skyclaw auth login
+./target/release/temm1e auth login
 ```
 
-A browser window opens. Log into your ChatGPT account. That's it.
+A browser window opens. Log into your ChatGPT account. That's literally it.
 
 You'll see:
 ```
@@ -91,101 +99,110 @@ Expires: 239h 59m
 Model:   gpt-5.4 (default)
 ```
 
-> **No browser on your server?** Use `skyclaw auth login --headless` — it prints a URL you can open on any device (phone, laptop), then you paste the redirect URL back into the terminal.
+> **No browser on your server?** Use `temm1e auth login --headless` — it prints a URL you can open on any device (phone, laptop), then you paste the redirect URL back into the terminal. Clever, right?
 
 ### Option B: Use an API Key
 
-If you have an API key from Anthropic, OpenAI, Google, or another provider, you'll paste it in Telegram after starting (next step). No setup needed here.
+If you have an API key from Anthropic, OpenAI, Google, or another provider — great. You'll paste it in Telegram after starting me up in the next step. No setup needed here.
 
-Where to get API keys:
+Where to get API keys if you don't have one yet:
 - **Anthropic (Claude):** https://console.anthropic.com/settings/keys — starts with `sk-ant-`
 - **OpenAI (GPT):** https://platform.openai.com/api-keys — starts with `sk-`
 - **Google (Gemini):** https://aistudio.google.com/apikey — starts with `AIzaSy`
 - **xAI (Grok):** https://console.x.ai/ — starts with `xai-`
 
-## Step 6: Start SkyClaw
+## Step 6: Wake Me Up
 
-Set your Telegram bot token and start:
+Set your Telegram bot token and start me:
 
 ```bash
 export TELEGRAM_BOT_TOKEN="paste-your-bot-token-here"
-./target/release/skyclaw start
+./target/release/temm1e start
 ```
 
-You should see logs indicating the gateway is starting and Telegram is connecting.
+You should see logs showing the gateway starting and Telegram connecting. That's me booting up!
 
-## Step 7: Talk to Your Bot
+## Step 7: Talk to Me!
+
+This is the BEST part.
 
 1. Open Telegram
 2. Find the bot you created in Step 3
 3. Send any message
 
-**If you used Option A (ChatGPT login):** SkyClaw is ready. Start chatting.
+**If you used Option A (ChatGPT login):** I'm ready. Just start chatting!
 
-**If you're using Option B (API key):** SkyClaw will send you a secure setup link. You have two choices:
+**If you're using Option B (API key):** I'll send you a secure setup link. You have two choices:
 - Click the link, paste your API key in the browser form (encrypted locally before sending)
-- Or just paste your raw API key directly in the chat — SkyClaw auto-detects the provider
+- Or just paste your raw API key directly in the chat — I auto-detect the provider
 
-After the key is validated, you're live.
+After the key is validated, we're LIVE.
 
-## Step 8: Try It Out
+## Step 8: Try Me Out!
 
 Send these to your bot:
 
 - `Hello!` — basic chat
-- `What files are in my home directory?` — uses the shell tool
-- `Remember that my favorite color is blue` — stores in memory
-- `What's my favorite color?` — recalls from memory
-- `/model` — see available AI models
+- `What files are in my home directory?` — I'll use my shell tool for this
+- `Remember that my favorite color is blue` — I store this in memory
+- `What's my favorite color?` — I remember things!
+- `/model` — see what AI models are available
 
-## Running in the Background
+## Running Me in the Background
 
-Once everything works, run SkyClaw as a background daemon:
-
-```bash
-./target/release/skyclaw start -d
-```
-
-It logs to `~/.skyclaw/skyclaw.log`. Stop it with:
+Once everything works, you can run me as a background daemon so I'm always on:
 
 ```bash
-./target/release/skyclaw stop
+./target/release/temm1e start -d
 ```
 
-## Updating SkyClaw
-
-When new versions are released:
+I log to `~/.temm1e/temm1e.log`. When you need me to stop:
 
 ```bash
-./target/release/skyclaw update
+./target/release/temm1e stop
 ```
 
-This pulls the latest code and rebuilds automatically.
+## Keeping Me Updated
+
+When new versions come out:
+
+```bash
+./target/release/temm1e update
+```
+
+This pulls the latest code and rebuilds automatically. Fresh me!
 
 ## Troubleshooting
 
+Oh no! Something went wrong? Let's figure it out together.
+
 **"cargo: command not found"**
-Run `source $HOME/.cargo/env` or restart your terminal.
+Rust isn't in your PATH yet. Run `source $HOME/.cargo/env` or restart your terminal. This is the most common hiccup and the easiest fix.
 
 **Build fails with "linker not found"**
-Install build essentials: `sudo apt install build-essential` (Ubuntu/Debian) or `xcode-select --install` (macOS).
+You need build tools installed. On Ubuntu/Debian: `sudo apt install build-essential`. On macOS: `xcode-select --install`. Then try `cargo build --release` again.
 
 **Bot doesn't respond**
-- Check that `TELEGRAM_BOT_TOKEN` is set: `echo $TELEGRAM_BOT_TOKEN`
-- Check logs: `tail -50 /tmp/skyclaw.log` or `tail -50 ~/.skyclaw/skyclaw.log`
-- Make sure you sent a message to the right bot
+Okay don't panic. Let's check a few things:
+- Is the token set? Run `echo $TELEGRAM_BOT_TOKEN` and make sure it prints something
+- Check my logs: `tail -50 /tmp/temm1e.log` or `tail -50 ~/.temm1e/temm1e.log`
+- Make sure you're messaging the right bot (easy mistake, no judgment)
 
 **"OAuth token expired"**
-Re-authenticate: `./target/release/skyclaw auth login`
+Just re-authenticate: `./target/release/temm1e auth login`
+
+Tokens expire after a while. This is normal.
 
 **API key not accepted**
-- Make sure you copied the full key (no extra spaces)
+- Make sure you copied the FULL key (no extra spaces at the beginning or end)
 - Check that your API key has credits/quota remaining
 - Try pasting the raw key directly in chat instead of using the secure link
 
 ## What's Next
 
-- Read about [what makes SkyClaw different](README.md#what-makes-skyclaw-different) — the Finite Brain Model and Blueprint procedural memory
+You did it!! I'm alive and talking to you. Here's where to go from here:
+
+- Read about [what makes me different](README.md#temm1e-is-built-different) — the Finite Brain Model and Blueprint procedural memory
 - Set up [Discord](docs/channels/discord.md) or [Slack](docs/channels/slack.md) channels
-- Explore [MCP servers](README.md#self-extending-tool-system) — let the agent install its own tools
+- Explore [MCP servers](README.md#self-extending-tool-system) — you can let me install my own tools :3
 - Deploy on a VPS for 24/7 operation — see [SETUP_FOR_PROS.md](SETUP_FOR_PROS.md) for Docker and systemd guides

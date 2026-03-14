@@ -1,32 +1,32 @@
-# Skill: Add a new AI provider to SkyClaw
+# Skill: Add a new AI provider to TEMM1E
 
 ## When to use
 
-Use this skill when the user asks to add a new AI/LLM provider (e.g., Google Gemini, Mistral, Cohere, AWS Bedrock, a custom local model server) to SkyClaw.
+Use this skill when the user asks to add a new AI/LLM provider (e.g., Google Gemini, Mistral, Cohere, AWS Bedrock, a custom local model server) to TEMM1E.
 
 ## Reference implementation
 
 Study the existing providers:
-- `crates/skyclaw-providers/src/anthropic.rs` -- full Provider implementation with SSE streaming, tool use, error handling
-- `crates/skyclaw-providers/src/openai_compat.rs` -- OpenAI-compatible provider (works with many backends)
-- `crates/skyclaw-core/src/traits/provider.rs` -- the `Provider` trait definition
+- `crates/temm1e-providers/src/anthropic.rs` -- full Provider implementation with SSE streaming, tool use, error handling
+- `crates/temm1e-providers/src/openai_compat.rs` -- OpenAI-compatible provider (works with many backends)
+- `crates/temm1e-core/src/traits/provider.rs` -- the `Provider` trait definition
 
 ## Steps
 
 ### 1. Create the provider source file
 
-Create `crates/skyclaw-providers/src/<provider_name>.rs` using the template below.
+Create `crates/temm1e-providers/src/<provider_name>.rs` using the template below.
 
 ### 2. Add the module to lib.rs
 
-Edit `crates/skyclaw-providers/src/lib.rs`:
+Edit `crates/temm1e-providers/src/lib.rs`:
 - Add `pub mod <provider_name>;`
 - Add `pub use <provider_name>::<ProviderName>Provider;`
 - Add a match arm in `create_provider()` for the new provider name
 
 ### 3. Add dependencies if needed
 
-Edit `crates/skyclaw-providers/Cargo.toml`:
+Edit `crates/temm1e-providers/Cargo.toml`:
 - Add any provider-specific dependencies (most providers just use `reqwest` which is already included)
 
 ### 4. Write tests
@@ -41,9 +41,9 @@ Include tests in the provider source file:
 ### 5. Verify
 
 ```bash
-cargo check -p skyclaw-providers
-cargo test -p skyclaw-providers
-cargo clippy -p skyclaw-providers -- -D warnings
+cargo check -p temm1e-providers
+cargo test -p temm1e-providers
+cargo clippy -p temm1e-providers -- -D warnings
 ```
 
 ## Template
@@ -55,12 +55,12 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 use reqwest::Client;
 use serde::Deserialize;
-use skyclaw_core::types::error::SkyclawError;
-use skyclaw_core::types::message::{
+use temm1e_core::types::error::Temm1eError;
+use temm1e_core::types::message::{
     ChatMessage, CompletionRequest, CompletionResponse, ContentPart, MessageContent, Role,
     StreamChunk, ToolDefinition, Usage,
 };
-use skyclaw_core::Provider;
+use temm1e_core::Provider;
 use tracing::{debug, error};
 
 /// <ProviderName> API provider.
@@ -89,7 +89,7 @@ impl <ProviderName>Provider {
         &self,
         request: &CompletionRequest,
         stream: bool,
-    ) -> Result<serde_json::Value, SkyclawError> {
+    ) -> Result<serde_json::Value, Temm1eError> {
         // TODO: Convert CompletionRequest to provider-specific format
         // - Map Role::User, Role::Assistant, Role::System, Role::Tool
         // - Convert ToolDefinition to provider's tool format
@@ -146,7 +146,7 @@ struct ApiResponse {
 // Conversion helpers
 // ---------------------------------------------------------------------------
 
-fn convert_message(msg: &ChatMessage) -> Result<serde_json::Value, SkyclawError> {
+fn convert_message(msg: &ChatMessage) -> Result<serde_json::Value, Temm1eError> {
     let role = match msg.role {
         Role::User => "user",
         Role::Assistant => "assistant",
@@ -211,7 +211,7 @@ impl Provider for <ProviderName>Provider {
     async fn complete(
         &self,
         request: CompletionRequest,
-    ) -> Result<CompletionResponse, SkyclawError> {
+    ) -> Result<CompletionResponse, Temm1eError> {
         let body = self.build_request_body(&request, false)?;
 
         debug!(provider = "<provider_name>", model = %request.model, "Sending completion request");
@@ -224,7 +224,7 @@ impl Provider for <ProviderName>Provider {
             .json(&body)
             .send()
             .await
-            .map_err(|e| SkyclawError::Provider(format!("Request failed: {e}")))?;
+            .map_err(|e| Temm1eError::Provider(format!("Request failed: {e}")))?;
 
         let status = response.status();
         if !status.is_success() {
@@ -234,12 +234,12 @@ impl Provider for <ProviderName>Provider {
                 .unwrap_or_else(|_| "unknown error".into());
             error!(provider = "<provider_name>", %status, "API error: {}", error_body);
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                return Err(SkyclawError::RateLimited(error_body));
+                return Err(Temm1eError::RateLimited(error_body));
             }
             if status == reqwest::StatusCode::UNAUTHORIZED {
-                return Err(SkyclawError::Auth(error_body));
+                return Err(Temm1eError::Auth(error_body));
             }
-            return Err(SkyclawError::Provider(format!(
+            return Err(Temm1eError::Provider(format!(
                 "API error ({status}): {error_body}"
             )));
         }
@@ -251,7 +251,7 @@ impl Provider for <ProviderName>Provider {
     async fn stream(
         &self,
         request: CompletionRequest,
-    ) -> Result<BoxStream<'_, Result<StreamChunk, SkyclawError>>, SkyclawError> {
+    ) -> Result<BoxStream<'_, Result<StreamChunk, Temm1eError>>, Temm1eError> {
         let body = self.build_request_body(&request, true)?;
 
         debug!(provider = "<provider_name>", model = %request.model, "Sending streaming request");
@@ -264,7 +264,7 @@ impl Provider for <ProviderName>Provider {
             .json(&body)
             .send()
             .await
-            .map_err(|e| SkyclawError::Provider(format!("Stream request failed: {e}")))?;
+            .map_err(|e| Temm1eError::Provider(format!("Stream request failed: {e}")))?;
 
         let status = response.status();
         if !status.is_success() {
@@ -273,12 +273,12 @@ impl Provider for <ProviderName>Provider {
                 .await
                 .unwrap_or_else(|_| "unknown error".into());
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                return Err(SkyclawError::RateLimited(error_body));
+                return Err(Temm1eError::RateLimited(error_body));
             }
             if status == reqwest::StatusCode::UNAUTHORIZED {
-                return Err(SkyclawError::Auth(error_body));
+                return Err(Temm1eError::Auth(error_body));
             }
-            return Err(SkyclawError::Provider(format!(
+            return Err(Temm1eError::Provider(format!(
                 "API error ({status}): {error_body}"
             )));
         }
@@ -324,7 +324,7 @@ impl Provider for <ProviderName>Provider {
                         }
                         Some(Err(e)) => {
                             return Some((
-                                Err(SkyclawError::Provider(format!("Stream read error: {e}"))),
+                                Err(Temm1eError::Provider(format!("Stream read error: {e}"))),
                                 (byte_stream, buffer),
                             ));
                         }
@@ -337,7 +337,7 @@ impl Provider for <ProviderName>Provider {
         Ok(Box::pin(event_stream))
     }
 
-    async fn health_check(&self) -> Result<bool, SkyclawError> {
+    async fn health_check(&self) -> Result<bool, Temm1eError> {
         // TODO: Implement a lightweight check (HEAD request or models list)
         let resp = self
             .client
@@ -345,12 +345,12 @@ impl Provider for <ProviderName>Provider {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .send()
             .await
-            .map_err(|e| SkyclawError::Provider(format!("Health check failed: {e}")))?;
+            .map_err(|e| Temm1eError::Provider(format!("Health check failed: {e}")))?;
 
         Ok(resp.status().is_success())
     }
 
-    async fn list_models(&self) -> Result<Vec<String>, SkyclawError> {
+    async fn list_models(&self) -> Result<Vec<String>, Temm1eError> {
         // TODO: Query the provider's models endpoint, or return a static list
         Ok(vec![
             // "model-name-here".to_string(),
@@ -417,10 +417,10 @@ mod tests {
 
 ## Key conventions
 
-- **Error mapping**: Map HTTP 429 to `SkyclawError::RateLimited`, 401 to `SkyclawError::Auth`, everything else to `SkyclawError::Provider`.
+- **Error mapping**: Map HTTP 429 to `Temm1eError::RateLimited`, 401 to `Temm1eError::Auth`, everything else to `Temm1eError::Provider`.
 - **SSE streaming**: Use `futures::stream::unfold` over the `response.bytes_stream()` to parse server-sent events. Buffer incomplete lines. Handle `[DONE]` or provider-specific end markers.
-- **Tool use**: Map SkyClaw's `ToolDefinition` to the provider's function/tool calling format. Accumulate partial JSON for streaming tool calls.
+- **Tool use**: Map TEMM1E's `ToolDefinition` to the provider's function/tool calling format. Accumulate partial JSON for streaming tool calls.
 - **Builder pattern**: Always provide `new(api_key)` and `with_base_url(url)` constructors.
 - **Health check**: Implement a lightweight check that verifies API reachability without consuming tokens.
 - **System prompt**: Handle system prompt placement according to the provider's API (separate field vs. first message).
-- **No cross-impl deps**: Providers must not depend on each other. Shared utilities go in `skyclaw-core`.
+- **No cross-impl deps**: Providers must not depend on each other. Shared utilities go in `temm1e-core`.

@@ -1,6 +1,6 @@
-# SkyClaw SLO Definitions
+# TEMM1E SLO Definitions
 
-> Service Level Objectives for the SkyClaw cloud-native Rust AI agent runtime.
+> Service Level Objectives for the TEMM1E cloud-native Rust AI agent runtime.
 > Owner: SRE | Last updated: 2026-03-08 | Review cadence: quarterly
 
 ---
@@ -8,7 +8,7 @@
 ## 1. Message Processing
 
 ### SLI
-**Metric:** `skyclaw_message_processing_duration_seconds`
+**Metric:** `temm1e_message_processing_duration_seconds`
 - Histogram measuring the time from `InboundMessage` receipt at the gateway router (`route_message`) to `OutboundMessage` return, **excluding** upstream AI provider latency.
 - Labels: `channel` (telegram, discord, slack, whatsapp, cli), `status` (success, error), `tool_rounds` (0..10).
 
@@ -27,18 +27,18 @@
 ### Measurement
 - Source: `Observable::observe_histogram` calls in `AgentRuntime::process_message`.
 - Provider call time is subtracted using a nested span (`provider_complete_duration_seconds`).
-- Errors counted: any `SkyclawError` variant returned from `route_message` except `SkyclawError::RateLimited` (which is intentional throttling).
+- Errors counted: any `Temm1eError` variant returned from `route_message` except `Temm1eError::RateLimited` (which is intentional throttling).
 
 ---
 
 ## 2. AI Provider Availability
 
 ### SLI
-**Metric:** `skyclaw_provider_request_total` (counter) with labels `provider` (anthropic, openai_compat), `status` (success, error, timeout).
+**Metric:** `temm1e_provider_request_total` (counter) with labels `provider` (anthropic, openai_compat), `status` (success, error, timeout).
 
-**Metric:** `skyclaw_provider_request_duration_seconds` (histogram) with labels `provider`, `model`.
+**Metric:** `temm1e_provider_request_duration_seconds` (histogram) with labels `provider`, `model`.
 
-**Metric:** `skyclaw_provider_health_check_success` (gauge, 0 or 1) from `Provider::health_check()`.
+**Metric:** `temm1e_provider_health_check_success` (gauge, 0 or 1) from `Provider::health_check()`.
 
 ### SLO
 | Target | Window | Budget |
@@ -48,7 +48,7 @@
 | Health check pass rate >= 99.5% | 7-day rolling | 0.5% |
 
 ### Error Budget Policy
-- Provider errors are partially outside SkyClaw's control (upstream dependency).
+- Provider errors are partially outside TEMM1E's control (upstream dependency).
 - When budget < 50%: enable automatic provider fallback if a secondary provider is configured.
 - When budget exhausted: raise to upstream provider support; consider switching default model.
 
@@ -62,11 +62,11 @@
 ## 3. Gateway Uptime
 
 ### SLI
-**Metric:** `skyclaw_gateway_up` (gauge, 0 or 1) derived from synthetic `/health` endpoint probes.
+**Metric:** `temm1e_gateway_up` (gauge, 0 or 1) derived from synthetic `/health` endpoint probes.
 
-**Metric:** `skyclaw_gateway_http_request_duration_seconds` (histogram) with labels `method`, `path`, `status_code`.
+**Metric:** `temm1e_gateway_http_request_duration_seconds` (histogram) with labels `method`, `path`, `status_code`.
 
-**Metric:** `skyclaw_gateway_http_requests_total` (counter) with labels `method`, `path`, `status_code`.
+**Metric:** `temm1e_gateway_http_requests_total` (counter) with labels `method`, `path`, `status_code`.
 
 ### SLO
 | Target | Window | Budget |
@@ -90,11 +90,11 @@
 ## 4. Memory Operations
 
 ### SLI
-**Metric:** `skyclaw_memory_operation_duration_seconds` (histogram) with labels `backend` (sqlite, postgres), `operation` (store, search, get, delete, list_sessions, get_session_history).
+**Metric:** `temm1e_memory_operation_duration_seconds` (histogram) with labels `backend` (sqlite, postgres), `operation` (store, search, get, delete, list_sessions, get_session_history).
 
-**Metric:** `skyclaw_memory_operation_total` (counter) with labels `backend`, `operation`, `status` (success, error).
+**Metric:** `temm1e_memory_operation_total` (counter) with labels `backend`, `operation`, `status` (success, error).
 
-**Metric:** `skyclaw_memory_entries_total` (gauge) -- total entries in the memory store.
+**Metric:** `temm1e_memory_entries_total` (gauge) -- total entries in the memory store.
 
 ### SLO
 | Target | Window | Budget |
@@ -117,11 +117,11 @@
 ## 5. Vault Operations
 
 ### SLI
-**Metric:** `skyclaw_vault_operation_duration_seconds` (histogram) with labels `backend` (local-chacha20, aws-kms), `operation` (store_secret, get_secret, delete_secret, list_keys, resolve_uri).
+**Metric:** `temm1e_vault_operation_duration_seconds` (histogram) with labels `backend` (local-chacha20, aws-kms), `operation` (store_secret, get_secret, delete_secret, list_keys, resolve_uri).
 
-**Metric:** `skyclaw_vault_operation_total` (counter) with labels `backend`, `operation`, `status` (success, error).
+**Metric:** `temm1e_vault_operation_total` (counter) with labels `backend`, `operation`, `status` (success, error).
 
-**Metric:** `skyclaw_vault_decryption_failures_total` (counter) -- specifically tracks ChaCha20-Poly1305 decryption failures which may indicate key corruption.
+**Metric:** `temm1e_vault_decryption_failures_total` (counter) -- specifically tracks ChaCha20-Poly1305 decryption failures which may indicate key corruption.
 
 ### SLO
 | Target | Window | Budget |
@@ -145,13 +145,13 @@
 ## 6. File Transfer
 
 ### SLI
-**Metric:** `skyclaw_file_transfer_duration_seconds` (histogram) with labels `channel`, `direction` (receive, send), `mime_type`.
+**Metric:** `temm1e_file_transfer_duration_seconds` (histogram) with labels `channel`, `direction` (receive, send), `mime_type`.
 
-**Metric:** `skyclaw_file_transfer_bytes_total` (counter) with labels `channel`, `direction`.
+**Metric:** `temm1e_file_transfer_bytes_total` (counter) with labels `channel`, `direction`.
 
-**Metric:** `skyclaw_file_transfer_total` (counter) with labels `channel`, `direction`, `status` (success, error).
+**Metric:** `temm1e_file_transfer_total` (counter) with labels `channel`, `direction`, `status` (success, error).
 
-**Metric:** `skyclaw_file_transfer_size_bytes` (histogram) -- file size distribution.
+**Metric:** `temm1e_file_transfer_size_bytes` (histogram) -- file size distribution.
 
 ### SLO
 | Target | Window | Budget |
@@ -174,9 +174,9 @@
 ## 7. Session Management
 
 ### SLI
-**Metric:** `skyclaw_active_sessions` (gauge) -- current session count from `SessionManager::session_count()`.
+**Metric:** `temm1e_active_sessions` (gauge) -- current session count from `SessionManager::session_count()`.
 
-**Metric:** `skyclaw_session_operation_duration_seconds` (histogram) with labels `operation` (get_or_create, update, remove).
+**Metric:** `temm1e_session_operation_duration_seconds` (histogram) with labels `operation` (get_or_create, update, remove).
 
 ### SLO
 | Target | Window | Budget |
@@ -193,11 +193,11 @@
 ## 8. Tool Execution
 
 ### SLI
-**Metric:** `skyclaw_tool_execution_duration_seconds` (histogram) with labels `tool_name`, `status` (success, error, sandbox_violation).
+**Metric:** `temm1e_tool_execution_duration_seconds` (histogram) with labels `tool_name`, `status` (success, error, sandbox_violation).
 
-**Metric:** `skyclaw_tool_execution_total` (counter) with same labels.
+**Metric:** `temm1e_tool_execution_total` (counter) with same labels.
 
-**Metric:** `skyclaw_tool_rounds_per_message` (histogram) -- number of tool-use rounds per message (max 10 per `MAX_TOOL_ROUNDS`).
+**Metric:** `temm1e_tool_rounds_per_message` (histogram) -- number of tool-use rounds per message (max 10 per `MAX_TOOL_ROUNDS`).
 
 ### SLO
 | Target | Window | Budget |
@@ -207,7 +207,7 @@
 | p99 single tool execution < 30 s | 30-day rolling | 1% |
 
 ### Measurement
-- Source: `execute_tool()` in `skyclaw-agent/src/executor.rs`.
+- Source: `execute_tool()` in `temm1e-agent/src/executor.rs`.
 - Sandbox violations from `validate_sandbox()` are counted separately.
 - `MAX_TOOL_ROUNDS` (10) exhaustion is tracked as a warning event.
 

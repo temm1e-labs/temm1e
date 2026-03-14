@@ -1,0 +1,34 @@
+[package]
+name = "temm1e-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "HTTP/WebSocket gateway for TEMM1E"
+
+[dependencies]
+temm1e-core.workspace = true
+temm1e-agent.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tokio.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+reqwest.workspace = true
+url.workspace = true
+base64.workspace = true
+rand.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+temm1e-test-utils.workspace = true
+tokio = { workspace = true, features = ["full", "test-util"] }
+tower = { workspace = true, features = ["util"] }

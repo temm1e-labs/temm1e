@@ -1,27 +1,27 @@
 # API Reference: Configuration
 
-SkyClaw uses TOML as its native configuration format. ZeroClaw TOML and OpenClaw YAML configs are detected and converted automatically at load time.
+TEMM1E uses TOML as its native configuration format. ZeroClaw TOML and OpenClaw YAML configs are detected and converted automatically at load time.
 
 ## Configuration Resolution Order
 
 Sources are loaded in this order. Later sources override earlier ones:
 
 1. **Compiled defaults** -- hardcoded in Rust structs via `Default` implementations
-2. **System config** -- `/etc/skyclaw/config.toml`
-3. **User config** -- `~/.skyclaw/config.toml`
+2. **System config** -- `/etc/temm1e/config.toml`
+3. **User config** -- `~/.temm1e/config.toml`
 4. **Workspace config** -- `./config.toml` in the current directory
-5. **Environment variables** -- `SKYCLAW_*` prefix, mapped to config keys
+5. **Environment variables** -- `TEMM1E_*` prefix, mapped to config keys
 6. **CLI flags** -- `--mode`, `--config`, etc.
 7. **vault:// URIs** -- resolved from the encrypted vault at runtime
 
 ## Sections
 
-### [skyclaw]
+### [temm1e]
 
 Top-level runtime settings.
 
 ```toml
-[skyclaw]
+[temm1e]
 mode = "auto"              # "cloud" | "local" | "auto"
 tenant_isolation = false   # Enable multi-tenant isolation (future)
 ```
@@ -40,8 +40,8 @@ HTTP/WebSocket gateway server settings.
 host = "127.0.0.1"
 port = 8080
 tls = false
-# tls_cert = "/etc/skyclaw/cert.pem"
-# tls_key = "/etc/skyclaw/key.pem"
+# tls_cert = "/etc/temm1e/cert.pem"
+# tls_key = "/etc/temm1e/key.pem"
 ```
 
 | Key | Type | Default | Description |
@@ -104,8 +104,8 @@ Memory backend for conversation history and long-term memory.
 ```toml
 [memory]
 backend = "sqlite"
-# path = "~/.skyclaw/memory.db"
-# connection_string = "postgres://user:pass@localhost/skyclaw"
+# path = "~/.temm1e/memory.db"
+# connection_string = "postgres://user:pass@localhost/temm1e"
 
 [memory.search]
 vector_weight = 0.7
@@ -127,13 +127,13 @@ Encrypted secrets management.
 ```toml
 [vault]
 backend = "local-chacha20"
-# key_file = "~/.skyclaw/vault.key"
+# key_file = "~/.temm1e/vault.key"
 ```
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `backend` | string | `"local-chacha20"` | Vault backend. `"local-chacha20"` uses ChaCha20-Poly1305 AEAD. |
-| `key_file` | string? | null | Path to vault encryption key. If not set, defaults to `~/.skyclaw/vault.key`. |
+| `key_file` | string? | null | Path to vault encryption key. If not set, defaults to `~/.temm1e/vault.key`. |
 
 ### [filestore]
 
@@ -142,8 +142,8 @@ File storage backends for received and generated files.
 ```toml
 [filestore]
 backend = "local"
-# path = "~/.skyclaw/files"
-# bucket = "my-skyclaw-bucket"
+# path = "~/.temm1e/files"
+# bucket = "my-temm1e-bucket"
 # region = "us-east-1"
 ```
 
@@ -285,14 +285,14 @@ file_transfer = true
 
 ## Environment Variable Mapping
 
-Any config value can be set via an environment variable using the `SKYCLAW_` prefix:
+Any config value can be set via an environment variable using the `TEMM1E_` prefix:
 
 ```bash
-SKYCLAW_MODE=cloud                     # skyclaw.mode
-SKYCLAW_GATEWAY__HOST=0.0.0.0          # gateway.host
-SKYCLAW_GATEWAY__PORT=443              # gateway.port
-SKYCLAW_PROVIDER__NAME=anthropic       # provider.name
-SKYCLAW_OBSERVABILITY__LOG_LEVEL=debug # observability.log_level
+TEMM1E_MODE=cloud                     # temm1e.mode
+TEMM1E_GATEWAY__HOST=0.0.0.0          # gateway.host
+TEMM1E_GATEWAY__PORT=443              # gateway.port
+TEMM1E_PROVIDER__NAME=anthropic       # provider.name
+TEMM1E_OBSERVABILITY__LOG_LEVEL=debug # observability.log_level
 ```
 
 Double underscores (`__`) separate nested keys.
@@ -309,20 +309,20 @@ api_key = "vault://anthropic-api-key"
 token = "vault://telegram-bot-token"
 ```
 
-The vault resolver decrypts the named secret at runtime from the local vault file (`~/.skyclaw/vault.enc`).
+The vault resolver decrypts the named secret at runtime from the local vault file (`~/.temm1e/vault.enc`).
 
 ## Full Example
 
 ```toml
-[skyclaw]
+[temm1e]
 mode = "cloud"
 
 [gateway]
 host = "0.0.0.0"
 port = 443
 tls = true
-tls_cert = "/etc/skyclaw/cert.pem"
-tls_key = "/etc/skyclaw/key.pem"
+tls_cert = "/etc/temm1e/cert.pem"
+tls_key = "/etc/temm1e/key.pem"
 
 [provider]
 name = "anthropic"
@@ -339,11 +339,11 @@ keyword_weight = 0.3
 
 [vault]
 backend = "local-chacha20"
-key_file = "/var/lib/skyclaw/.vault.key"
+key_file = "/var/lib/temm1e/.vault.key"
 
 [filestore]
 backend = "s3"
-bucket = "skyclaw-files"
+bucket = "temm1e-files"
 region = "us-east-1"
 
 [security]

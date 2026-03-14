@@ -1,8 +1,8 @@
-# SkyClaw v0.1 — Business Requirements Document
+# TEMM1E v0.1 — Business Requirements Document
 
 ## Executive Summary
 
-SkyClaw is a cloud-native, Rust-based autonomous AI agent runtime. Users interact with their agent entirely through messaging apps (Telegram, Discord, Slack, WhatsApp, CLI) — sending credentials, files, and commands as naturally as chatting. No SSH, no config files, no setup complexity.
+TEMM1E is a cloud-native, Rust-based autonomous AI agent runtime. Users interact with their agent entirely through messaging apps (Telegram, Discord, Slack, WhatsApp, CLI) — sending credentials, files, and commands as naturally as chatting. No SSH, no config files, no setup complexity.
 
 **v0.1 Goal**: Ship a functional, performant runtime that proves the "messaging app as control plane" thesis with full bi-directional file transfer, multi-provider AI support, and ecosystem compatibility with both OpenClaw and ZeroClaw.
 
@@ -13,9 +13,9 @@ SkyClaw is a cloud-native, Rust-based autonomous AI agent runtime. Users interac
 | Role | Description | Needs |
 |------|-------------|-------|
 | **Developer User** | Primary target. Wants a cloud AI agent without SSH/setup | Zero-friction onboarding via messaging app |
-| **Project Owner** | SkyClaw maintainer | Clean Rust codebase, trait-based extensibility, <10 MB binary |
+| **Project Owner** | TEMM1E maintainer | Clean Rust codebase, trait-based extensibility, <10 MB binary |
 | **Claw Ecosystem** | OpenClaw/ZeroClaw community | Migration path, config/skill compatibility |
-| **Cloud Operators** | Anyone deploying SkyClaw on Docker/VPS | Single binary, Docker-first, easy provisioning |
+| **Cloud Operators** | Anyone deploying TEMM1E on Docker/VPS | Single binary, Docker-first, easy provisioning |
 
 ---
 
@@ -41,7 +41,7 @@ SkyClaw is a cloud-native, Rust-based autonomous AI agent runtime. Users interac
 ### Epic 1: Core Runtime & Agent Loop
 
 **US-1.1: Agent Loop Execution**
-> As a developer, I want SkyClaw to receive my message, assemble context, call an AI model, execute tool calls, and stream the reply back — so I have a working AI agent.
+> As a developer, I want TEMM1E to receive my message, assemble context, call an AI model, execute tool calls, and stream the reply back — so I have a working AI agent.
 
 Acceptance Criteria:
 - [ ] Gateway receives inbound message from any configured channel
@@ -53,22 +53,22 @@ Acceptance Criteria:
 - [ ] Full cycle completes in <2s for simple queries (excluding model latency)
 
 **US-1.1b: Dual-Mode Runtime (Cloud + Local)**
-> As a developer, I want SkyClaw to run both as a cloud-native headless daemon AND on my local machine — so I can develop locally and deploy to the cloud with the same binary.
+> As a developer, I want TEMM1E to run both as a cloud-native headless daemon AND on my local machine — so I can develop locally and deploy to the cloud with the same binary.
 
 Acceptance Criteria:
-- [ ] `skyclaw start --mode cloud` — binds to 0.0.0.0, expects TLS, cloud-optimized defaults
-- [ ] `skyclaw start --mode local` — binds to 127.0.0.1, no TLS required, local-optimized defaults
-- [ ] Auto-detect mode from config `skyclaw.mode = "cloud" | "local" | "auto"`
+- [ ] `temm1e start --mode cloud` — binds to 0.0.0.0, expects TLS, cloud-optimized defaults
+- [ ] `temm1e start --mode local` — binds to 127.0.0.1, no TLS required, local-optimized defaults
+- [ ] Auto-detect mode from config `temm1e.mode = "cloud" | "local" | "auto"`
 - [ ] `auto` mode: detects environment (checks for cloud metadata endpoints, container runtime)
 - [ ] Same binary, same config format, same channels — only defaults change
 - [ ] Local mode uses SQLite + filesystem; cloud mode can use PostgreSQL + S3
-- [ ] Local mode stores vault key in `~/.skyclaw/vault.key`; cloud mode supports KMS
+- [ ] Local mode stores vault key in `~/.temm1e/vault.key`; cloud mode supports KMS
 
 **US-1.2: Configuration System**
-> As a developer, I want to configure SkyClaw via a TOML file with environment variable expansion — so I can set up providers, channels, and memory without code changes.
+> As a developer, I want to configure TEMM1E via a TOML file with environment variable expansion — so I can set up providers, channels, and memory without code changes.
 
 Acceptance Criteria:
-- [ ] Reads `config.toml` from workspace root or `~/.skyclaw/config.toml`
+- [ ] Reads `config.toml` from workspace root or `~/.temm1e/config.toml`
 - [ ] Supports `${ENV_VAR}` expansion for secrets
 - [ ] Supports `vault://` URI scheme for vault-backed secrets
 - [ ] Validates config on startup with clear error messages
@@ -76,21 +76,21 @@ Acceptance Criteria:
 - [ ] Can also read OpenClaw YAML configs (migration mode)
 
 **US-1.3: CLI Interface**
-> As a developer, I want a CLI to start the gateway, run one-shot commands, check status, and manage skills — so I can operate SkyClaw from my terminal.
+> As a developer, I want a CLI to start the gateway, run one-shot commands, check status, and manage skills — so I can operate TEMM1E from my terminal.
 
 Acceptance Criteria:
-- [ ] `skyclaw start` — launch gateway daemon
-- [ ] `skyclaw chat` — interactive CLI channel
-- [ ] `skyclaw status` — show running state, connected channels, provider health
-- [ ] `skyclaw config validate` — check configuration
-- [ ] `skyclaw skill list/install` — manage skills
-- [ ] `skyclaw version` — show version info
+- [ ] `temm1e start` — launch gateway daemon
+- [ ] `temm1e chat` — interactive CLI channel
+- [ ] `temm1e status` — show running state, connected channels, provider health
+- [ ] `temm1e config validate` — check configuration
+- [ ] `temm1e skill list/install` — manage skills
+- [ ] `temm1e version` — show version info
 - [ ] All commands complete in <100ms (except start)
 
 ### Epic 2: Messaging Channels (5 channels)
 
 **US-2.1: Telegram Channel**
-> As a developer, I want to interact with SkyClaw through a Telegram bot — sending messages, files, and receiving responses with file attachments.
+> As a developer, I want to interact with TEMM1E through a Telegram bot — sending messages, files, and receiving responses with file attachments.
 
 Acceptance Criteria:
 - [ ] Bot connects via Telegram Bot API with token from config/vault
@@ -103,7 +103,7 @@ Acceptance Criteria:
 - [ ] Graceful reconnection on network interruption
 
 **US-2.2: Discord Channel**
-> As a developer, I want to interact with SkyClaw through a Discord bot.
+> As a developer, I want to interact with TEMM1E through a Discord bot.
 
 Acceptance Criteria:
 - [ ] Bot connects via Discord Gateway with token from config/vault
@@ -115,7 +115,7 @@ Acceptance Criteria:
 - [ ] Slash commands for status/config
 
 **US-2.3: Slack Channel**
-> As a developer, I want to interact with SkyClaw through a Slack bot.
+> As a developer, I want to interact with TEMM1E through a Slack bot.
 
 Acceptance Criteria:
 - [ ] Connects via Slack Bot API (Socket Mode or Events API)
@@ -126,7 +126,7 @@ Acceptance Criteria:
 - [ ] Thread-aware conversations
 
 **US-2.4: WhatsApp Channel**
-> As a developer, I want to interact with SkyClaw through WhatsApp.
+> As a developer, I want to interact with TEMM1E through WhatsApp.
 
 Acceptance Criteria:
 - [ ] Connects via WhatsApp Business API or Web protocol
@@ -180,7 +180,7 @@ Acceptance Criteria:
 - [ ] Optional S3/R2 backend for overflow storage
 
 **US-4.2: Credential File Parsing**
-> As a developer, I want to send a .env or credentials file via chat and have SkyClaw parse and securely store the credentials.
+> As a developer, I want to send a .env or credentials file via chat and have TEMM1E parse and securely store the credentials.
 
 Acceptance Criteria:
 - [ ] Detects .env file format and parses key=value pairs
@@ -207,10 +207,10 @@ Acceptance Criteria:
 - [ ] Page snapshots (DOM + screenshot) for agent context
 
 **US-4.4: GUI Mode (Local Desktop)**
-> As a developer running SkyClaw locally, I want it to support a GUI mode that can interact with desktop applications and display a browser — so I get full visual automation.
+> As a developer running TEMM1E locally, I want it to support a GUI mode that can interact with desktop applications and display a browser — so I get full visual automation.
 
 Acceptance Criteria:
-- [ ] `skyclaw start --gui` enables headed browser and desktop interaction
+- [ ] `temm1e start --gui` enables headed browser and desktop interaction
 - [ ] Headed Chrome/Chromium with visible browser window
 - [ ] Screen capture for agent context (screenshot tool)
 - [ ] Optional: basic desktop automation via accessibility APIs or screen coordinates
@@ -241,7 +241,7 @@ Acceptance Criteria:
 Acceptance Criteria:
 - [ ] Detects API key patterns in messages (sk-ant-*, sk-*, gsk_*, etc.)
 - [ ] Immediately encrypts with ChaCha20-Poly1305 AEAD
-- [ ] Local vault stored at `~/.skyclaw/vault.enc`
+- [ ] Local vault stored at `~/.temm1e/vault.enc`
 - [ ] Vault key derived from user passphrase or stored locally
 - [ ] `vault://` URI scheme in config resolves to vault entries
 - [ ] Vault entries can be listed (key names only) and deleted via chat
@@ -263,7 +263,7 @@ Acceptance Criteria:
 ### Epic 7: Skill System
 
 **US-7.1: Local Skill Loading with Ecosystem Compatibility**
-> As a developer, I want to load skills from disk in both SkyClaw and OpenClaw formats.
+> As a developer, I want to load skills from disk in both TEMM1E and OpenClaw formats.
 
 Acceptance Criteria:
 - [ ] Loads SKILL.md files with YAML frontmatter from workspace
@@ -272,28 +272,28 @@ Acceptance Criteria:
 - [ ] Skill precedence: workspace > user > bundled
 - [ ] Skills declare required capabilities (file, network, shell)
 - [ ] Runtime enforces declared capabilities
-- [ ] CLI: `skyclaw skill list`, `skyclaw skill info <name>`
+- [ ] CLI: `temm1e skill list`, `temm1e skill info <name>`
 
 ### Epic 8: Ecosystem Compatibility
 
 **US-8.1: ZeroClaw Config Compatibility**
-> As a ZeroClaw user, I want SkyClaw to read my existing config.toml — so I can migrate easily.
+> As a ZeroClaw user, I want TEMM1E to read my existing config.toml — so I can migrate easily.
 
 Acceptance Criteria:
 - [ ] Parses ZeroClaw config.toml format
-- [ ] Maps ZeroClaw provider/channel/memory/tunnel sections to SkyClaw equivalents
+- [ ] Maps ZeroClaw provider/channel/memory/tunnel sections to TEMM1E equivalents
 - [ ] Warns on unsupported fields
 - [ ] Migration guide in docs
 
 **US-8.2: OpenClaw Config & Memory Compatibility**
-> As an OpenClaw user, I want SkyClaw to read my YAML config and Markdown memory files.
+> As an OpenClaw user, I want TEMM1E to read my YAML config and Markdown memory files.
 
 Acceptance Criteria:
 - [ ] Parses OpenClaw YAML configuration
 - [ ] Reads OpenClaw Markdown memory files (MEMORY.md, memory/*.md)
 - [ ] Imports OpenClaw session history
-- [ ] Maps OpenClaw channel configs to SkyClaw equivalents
-- [ ] `skyclaw migrate --from openclaw <workspace>` CLI command
+- [ ] Maps OpenClaw channel configs to TEMM1E equivalents
+- [ ] `temm1e migrate --from openclaw <workspace>` CLI command
 
 ### Epic 9: Automation
 
@@ -305,7 +305,7 @@ Acceptance Criteria:
 - [ ] Cron scheduler persists jobs to configured backend (SQLite or PostgreSQL)
 - [ ] Jobs survive gateway restarts
 - [ ] Cron output optionally delivered to a chat channel
-- [ ] `skyclaw cron list/add/remove` CLI commands
+- [ ] `temm1e cron list/add/remove` CLI commands
 
 ### Epic 10: Observability
 
@@ -364,7 +364,7 @@ Acceptance Criteria:
 ## Out of Scope for v0.1
 
 - Multi-tenant deployment (Tenant trait designed but single-tenant only)
-- SkyHub registry server (local skills only)
+- TemHub registry server (local skills only)
 - Kubernetes / Fly.io orchestrator backends (Docker only)
 - Web UI dashboard
 - OAuth redirect flow handling (chat-based keys + file upload only)

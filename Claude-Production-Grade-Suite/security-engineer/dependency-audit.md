@@ -1,4 +1,4 @@
-# SkyClaw Dependency Audit Report
+# TEMM1E Dependency Audit Report
 
 **Version:** 1.0
 **Date:** 2026-03-08
@@ -98,7 +98,7 @@ Since `cargo audit` is not installed, the following is a manual assessment based
 | Risk | Crate | Details | Mitigation |
 |------|-------|---------|------------|
 | **Feature-gated but default-on** | `serenity`, `poise` | Discord dependencies are in default features but no implementation exists in source. | Remove from default features until Discord channel is implemented. |
-| **Missing `zeroize` dependency** | N/A | The vault crate does not depend on `zeroize` for key material cleanup. | Add `zeroize = "1"` to `skyclaw-vault/Cargo.toml`. |
+| **Missing `zeroize` dependency** | N/A | The vault crate does not depend on `zeroize` for key material cleanup. | Add `zeroize = "1"` to `temm1e-vault/Cargo.toml`. |
 | **No Cargo.lock pinning verification** | All | No mechanism to verify Cargo.lock integrity in CI. | Add `cargo deny` or `cargo vet` to the CI pipeline for supply chain verification. |
 
 ---
@@ -107,7 +107,7 @@ Since `cargo audit` is not installed, the following is a manual assessment based
 
 ### Immediate Actions (Before Production)
 
-1. **Add `zeroize` = "1" to skyclaw-vault** -- Required for CA-01 remediation
+1. **Add `zeroize` = "1" to temm1e-vault** -- Required for CA-01 remediation
 2. **Replace `serde_yaml` 0.9** -- Deprecated crate with no future security patches
 3. **Remove unused `config` crate** -- Reduces attack surface
 4. **Install and integrate `cargo audit`** in CI pipeline

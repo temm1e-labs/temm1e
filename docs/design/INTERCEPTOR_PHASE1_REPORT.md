@@ -2,7 +2,7 @@
 
 **Implementation Report — Confidence: 100% | Risk: LOW**
 
-Author: Claude Opus 4.6 | Date: 2026-03-11 | SkyClaw v2.3.1
+Author: Claude Opus 4.6 | Date: 2026-03-11 | TEMM1E v2.3.1
 
 ---
 
@@ -24,7 +24,7 @@ The agent loop in `runtime.rs` emits a `TaskStatus` enum at every state transiti
 ### Data Model
 
 ```rust
-// crates/skyclaw-agent/src/task_status.rs (NEW FILE)
+// crates/temm1e-agent/src/task_status.rs (NEW FILE)
 
 use std::time::Instant;
 
@@ -114,7 +114,7 @@ pub async fn process_message(
     interrupt: Option<Arc<AtomicBool>>,
     pending: Option<PendingMessages>,
     reply_tx: Option<tokio::sync::mpsc::UnboundedSender<OutboundMessage>>,
-) -> Result<(OutboundMessage, TurnUsage), SkyclawError>
+) -> Result<(OutboundMessage, TurnUsage), Temm1eError>
 ```
 
 **New:**
@@ -127,7 +127,7 @@ pub async fn process_message(
     pending: Option<PendingMessages>,
     reply_tx: Option<tokio::sync::mpsc::UnboundedSender<OutboundMessage>>,
     status_tx: Option<tokio::sync::watch::Sender<TaskStatus>>,  // NEW — additive
-) -> Result<(OutboundMessage, TurnUsage), SkyclawError>
+) -> Result<(OutboundMessage, TurnUsage), Temm1eError>
 ```
 
 **Why `Option<watch::Sender>`:** The parameter is optional so existing callers can pass `None` and get exactly current behavior. CLI chat handler passes `None` (no observer). Gateway worker creates the channel and holds the `Receiver`.
@@ -165,7 +165,7 @@ agent.process_message(&msg, &mut session, None, None, Some(early_tx), None)
 | Performance overhead | **Negligible.** Each `send_modify` is one atomic RwLock acquire + release. The agent loop runs 1-20 rounds per message, each round taking 2-30 seconds (provider call + tool execution). 10 status emissions per round × 20 rounds = 200 atomic ops over 60-600 seconds. Unmeasurable. | None needed. |
 | `Instant` not `Send`/`Sync` | **Non-issue.** `Instant` is `Send + Sync + Clone + Copy` on all platforms. `TaskStatus` derives `Clone` and all fields are `Send + Sync`. `watch::Sender<TaskStatus>` requires `T: Send + Sync`. | Verified — compiles. |
 | Breaking existing tests | **Zero impact.** No test calls `process_message` directly — all tests are unit-level on sub-functions (context building, tool execution, classification). The 2 integration test paths through `process_message` are the gateway worker and CLI handler, which are tested via live runs, not unit tests. Adding an `Option` param with `None` default changes nothing for tests. | Pass `None` in any test that calls `process_message`. |
-| `TaskStatus` in public API | **Intended.** `task_status.rs` is a new public module in `skyclaw-agent`. Consumers who don't care about it simply ignore the `Option`. Future phases import `TaskStatus` for the Interceptor. | Stable enum — new variants can be added without breaking callers since they pattern-match via `_` wildcard. |
+| `TaskStatus` in public API | **Intended.** `task_status.rs` is a new public module in `temm1e-agent`. Consumers who don't care about it simply ignore the `Option`. Future phases import `TaskStatus` for the Interceptor. | Stable enum — new variants can be added without breaking callers since they pattern-match via `_` wildcard. |
 
 **Confidence: 100%.** This is adding an optional output channel with zero behavioral change when unused.
 
@@ -230,7 +230,7 @@ pub async fn process_message(
     reply_tx: Option<tokio::sync::mpsc::UnboundedSender<OutboundMessage>>,
     status_tx: Option<watch::Sender<TaskStatus>>, // NEW from Status Emission
     cancel: Option<CancellationToken>,            // NEW — unused in Phase 1 loop
-) -> Result<(OutboundMessage, TurnUsage), SkyclawError>
+) -> Result<(OutboundMessage, TurnUsage), Temm1eError>
 ```
 
 **Inside the agent loop (Phase 1 — no behavior change):**
@@ -269,7 +269,7 @@ slot.cancel_token.cancel();                     // NEW — sets the token for Ph
 
 `CancellationToken` lives in `tokio_util::sync`. This crate is already in `Cargo.lock` (transitive dependency via reqwest, h2, etc.) but not declared directly.
 
-**Option A: Add `tokio-util` to `skyclaw-agent/Cargo.toml`:**
+**Option A: Add `tokio-util` to `temm1e-agent/Cargo.toml`:**
 ```toml
 tokio-util = { version = "0.7", features = ["sync"] }
 ```
@@ -313,7 +313,7 @@ pub async fn process_message(
     reply_tx: Option<tokio::sync::mpsc::UnboundedSender<OutboundMessage>>,
     status_tx: Option<tokio::sync::watch::Sender<TaskStatus>>,
     cancel: Option<CancellationToken>,
-) -> Result<(OutboundMessage, TurnUsage), SkyclawError>
+) -> Result<(OutboundMessage, TurnUsage), Temm1eError>
 ```
 
 **9 parameters is a lot.** Consider bundling into a struct in a future refactor:
@@ -334,10 +334,10 @@ This is a **Phase 1 optional cleanup**, not a blocker. Both approaches compile a
 
 | File | Change | Lines Affected |
 |------|--------|----------------|
-| `crates/skyclaw-agent/src/task_status.rs` | **NEW** — `TaskStatus`, `TaskPhase` types | ~50 lines |
-| `crates/skyclaw-agent/src/lib.rs` | Add `pub mod task_status;` | 1 line |
-| `crates/skyclaw-agent/src/runtime.rs` | Add `status_tx` + `cancel` params, emit status at 10 checkpoint locations | ~30 lines added |
-| `crates/skyclaw-agent/Cargo.toml` | Add `tokio-util = { version = "0.7", features = ["sync"] }` | 1 line |
+| `crates/temm1e-agent/src/task_status.rs` | **NEW** — `TaskStatus`, `TaskPhase` types | ~50 lines |
+| `crates/temm1e-agent/src/lib.rs` | Add `pub mod task_status;` | 1 line |
+| `crates/temm1e-agent/src/runtime.rs` | Add `status_tx` + `cancel` params, emit status at 10 checkpoint locations | ~30 lines added |
+| `crates/temm1e-agent/Cargo.toml` | Add `tokio-util = { version = "0.7", features = ["sync"] }` | 1 line |
 | `src/main.rs` (gateway worker) | Create `watch::channel` + `CancellationToken`, pass to `process_message`, cancel on `/stop` | ~8 lines |
 | `src/main.rs` (CLI handler) | Pass `None, None` for new params | 1 line |
 | `src/main.rs` (ChatSlot struct) | Add `cancel_token: CancellationToken` field | 2 lines |
@@ -359,7 +359,7 @@ This is a **Phase 1 optional cleanup**, not a blocker. Both approaches compile a
 4. **Build gate:** `cargo check --workspace` compiles with new signature
 5. **Clippy gate:** `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 6. **Existing tests:** `cargo test --workspace` — all 1,307 pass unchanged
-7. **CLI self-test:** 10-turn conversation via `skyclaw chat` — zero regressions (status_tx is None in CLI path, cancel is None — purely additive)
+7. **CLI self-test:** 10-turn conversation via `temm1e chat` — zero regressions (status_tx is None in CLI path, cancel is None — purely additive)
 
 ### Phase 2 Readiness Test (manual)
 
@@ -373,7 +373,7 @@ tokio::spawn(async move {
     }
 });
 ```
-Run SkyClaw, send a message with tool usage, verify debug logs show phase transitions. Remove after verification.
+Run TEMM1E, send a message with tool usage, verify debug logs show phase transitions. Remove after verification.
 
 ---
 

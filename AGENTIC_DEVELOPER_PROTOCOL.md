@@ -2,7 +2,7 @@
 
 **Status: MANDATORY for ALL releases, features, and implementations.**
 
-This protocol defines how Claude Code (the agentic developer) must self-test and validate all SkyClaw work. The user does not have time or capacity to manually test — Claude must do it.
+This protocol defines how Claude Code (the agentic developer) must self-test and validate all TEMM1E work. The user does not have time or capacity to manually test — Claude must do it.
 
 ---
 
@@ -44,14 +44,14 @@ Every new module, function, or feature MUST have unit tests in a `#[cfg(test)] m
 Run the specific crate's tests to verify:
 
 ```bash
-cargo test -p skyclaw-<crate> -- --nocapture
+cargo test -p temm1e-<crate> -- --nocapture
 ```
 
 ---
 
 ## 3. Self-Testing via CLI
 
-After compilation and unit tests pass, test the feature end-to-end by running SkyClaw directly.
+After compilation and unit tests pass, test the feature end-to-end by running TEMM1E directly.
 
 ### Current approach (until `chat` command is wired):
 
@@ -59,12 +59,12 @@ After compilation and unit tests pass, test the feature end-to-end by running Sk
 # Build release binary
 cargo build --release
 
-# Start SkyClaw with CLI-accessible configuration
+# Start TEMM1E with CLI-accessible configuration
 # The service starts and listens for messages via configured channels
-./target/release/skyclaw start 2>&1 | tee /tmp/skyclaw.log &
+./target/release/temm1e start 2>&1 | tee /tmp/temm1e.log &
 
 # Monitor logs in real-time for debugging
-tail -f /tmp/skyclaw.log
+tail -f /tmp/temm1e.log
 ```
 
 ### Target approach (once `chat` command is implemented):
@@ -72,7 +72,7 @@ tail -f /tmp/skyclaw.log
 ```bash
 # Build and run interactive CLI chat directly
 cargo build --release
-./target/release/skyclaw chat
+./target/release/temm1e chat
 ```
 
 The `chat` command should wire the CLI channel (`CliChannel`) into the agent runtime, enabling direct conversation with the agent without needing Telegram or any external service.
@@ -92,9 +92,9 @@ The `chat` command should wire the CLI channel (`CliChannel`) into the agent run
 When something fails:
 
 1. **Read the error output carefully** — Rust compiler errors are precise
-2. **Tail the logs** — `tail -f /tmp/skyclaw.log | grep --line-buffered -E "ERROR|WARN|panic"`
+2. **Tail the logs** — `tail -f /tmp/temm1e.log | grep --line-buffered -E "ERROR|WARN|panic"`
 3. **Add tracing** — Use `tracing::debug!` with structured fields to trace data flow
-4. **Isolate the failure** — Run specific crate tests: `cargo test -p skyclaw-<crate> <test_name>`
+4. **Isolate the failure** — Run specific crate tests: `cargo test -p temm1e-<crate> <test_name>`
 5. **Fix and re-verify** — After fixing, re-run the full compilation gate (step 1)
 
 Never skip to the next step without understanding and fixing the current failure.
@@ -117,17 +117,17 @@ Before any version bump or release:
 
 ## 6. Log Monitoring
 
-Always start SkyClaw with log output captured:
+Always start TEMM1E with log output captured:
 
 ```bash
 # Start with logging to file
-./target/release/skyclaw start 2>&1 | tee /tmp/skyclaw.log &
+./target/release/temm1e start 2>&1 | tee /tmp/temm1e.log &
 
 # Watch for errors
-tail -f /tmp/skyclaw.log | grep --line-buffered -E "ERROR|WARN|panic"
+tail -f /tmp/temm1e.log | grep --line-buffered -E "ERROR|WARN|panic"
 
 # Watch specific subsystem
-tail -f /tmp/skyclaw.log | grep --line-buffered "memory_manage"
+tail -f /tmp/temm1e.log | grep --line-buffered "memory_manage"
 ```
 
 Read log output BEFORE reporting success. Silent failures are the worst kind.

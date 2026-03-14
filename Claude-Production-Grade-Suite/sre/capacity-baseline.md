@@ -1,6 +1,6 @@
-# SkyClaw Capacity Baseline
+# TEMM1E Capacity Baseline
 
-> Resource requirements, scaling triggers, and bottleneck analysis for SkyClaw runtime.
+> Resource requirements, scaling triggers, and bottleneck analysis for TEMM1E runtime.
 > Owner: SRE | Last updated: 2026-03-08
 
 ---
@@ -179,7 +179,7 @@ Each active session (`SessionContext` in the `SessionManager` HashMap) consumes:
 #### B1: Provider Latency (External, Dominant)
 - **Impact:** 1-30 s per completion call dominates end-to-end latency.
 - **Mitigation:** Provider latency is excluded from message processing SLO. Streaming reduces perceived latency. Provider fallback reduces error impact.
-- **Cannot be optimized** within SkyClaw; upstream dependency.
+- **Cannot be optimized** within TEMM1E; upstream dependency.
 
 #### B2: Session History Memory Growth (Internal)
 - **Impact:** Unbounded history in `SessionContext.history: Vec<ChatMessage>` grows linearly with conversation length.
@@ -232,7 +232,7 @@ Each active session (`SessionContext` in the `SessionManager` HashMap) consumes:
 ## 6. Capacity Planning Checklist
 
 ### Pre-Deployment
-- [ ] Binary size verified < 10 MB (`ls -la target/release/skyclaw`)
+- [ ] Binary size verified < 10 MB (`ls -la target/release/temm1e`)
 - [ ] Cold start verified < 50 ms (measure spawn-to-health)
 - [ ] Idle RSS verified < 20 MB (no active sessions)
 - [ ] SQLite connection pool sized appropriately (5 for local, 20 for cloud)

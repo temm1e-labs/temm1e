@@ -1,12 +1,12 @@
-# Blueprint System — Procedural Memory for SkyClaw Agents
+# Blueprint System — Procedural Memory for TEMM1E Agents
 
 > **Status**: Design Proposal
-> **Author**: SkyClaw Core Team
+> **Author**: TEMM1E Core Team
 > **Date**: 2026-03-12
 
 ## 1. The Problem
 
-SkyClaw's current post-task learning system (`learning.rs`) extracts **declarative summaries** after task completion:
+TEMM1E's current post-task learning system (`learning.rs`) extracts **declarative summaries** after task completion:
 
 ```
 [OK] shell+browser: Task type 'shell+browser' succeeded using: shell → browser → web_fetch.
@@ -19,7 +19,7 @@ For complex, multi-step tasks — the kind that take 20+ tool calls, involve aut
 
 ### Real example
 
-A user asks: *"Go on Reddit, log in, find subreddits relevant to SkyClaw, and engage naturally — 3 genuine comments for every 1 that mentions SkyClaw."*
+A user asks: *"Go on Reddit, log in, find subreddits relevant to TEMM1E, and engage naturally — 3 genuine comments for every 1 that mentions TEMM1E."*
 
 After completing this task, the current system produces:
 
@@ -47,7 +47,7 @@ A **Blueprint** is a replayable, structured procedure that the agent writes afte
 
 ### Blueprints vs. Skills
 
-Skills are **authored instructions** — human-written, version-controlled, distributed via SkyHub. They tell the agent what a skill *is* and how to *generally* use it.
+Skills are **authored instructions** — human-written, version-controlled, distributed via TemHub. They tell the agent what a skill *is* and how to *generally* use it.
 
 Blueprints are **earned knowledge** — auto-generated from real execution, specific to observed conditions, refined through repetition. They tell the agent what *actually worked* and what to watch out for.
 
@@ -387,10 +387,10 @@ MemoryEntry {
 
 ### 5.2 Filesystem (Optional Cache)
 
-For fast local access, blueprints can also be cached as `.md` files under `~/.skyclaw/blueprints/`:
+For fast local access, blueprints can also be cached as `.md` files under `~/.temm1e/blueprints/`:
 
 ```
-~/.skyclaw/blueprints/
+~/.temm1e/blueprints/
   bp-reddit-organic-engagement.md
   bp-deploy-docker-vps.md
   bp-github-issue-triage.md
@@ -553,7 +553,7 @@ Suggest appropriate values for:
 
 ### Phase 1: Foundation (MVP)
 - Add `Blueprint` entry type to `MemoryEntryType`
-- Create `blueprint.rs` module in `skyclaw-agent` with:
+- Create `blueprint.rs` module in `temm1e-agent` with:
   - `Blueprint` struct (parsed from Markdown + frontmatter)
   - `should_create_blueprint()` — threshold heuristics
   - `create_blueprint_prompt()` — authoring prompt generator
@@ -581,7 +581,7 @@ Suggest appropriate values for:
 - Blueprint inheritance: a specific blueprint can extend a general one
 
 ### Phase 5: Distribution
-- Blueprint sharing via SkyHub (opt-in, anonymized)
+- Blueprint sharing via TemHub (opt-in, anonymized)
 - Community-curated blueprints for common tasks
 - Blueprint ratings and trust scoring
 
@@ -625,7 +625,7 @@ These questions were raised during design and resolved:
 
 1. **LLM authoring quality**: The blueprint is only as good as the LLM's ability to distill procedure from conversation history. How do we validate blueprint quality before storing? (Possible: dry-run validation pass, or quality gate based on specificity heuristics.)
 
-2. **Multi-user blueprints**: If multiple users of a shared SkyClaw instance perform similar tasks, should their blueprints merge? How to handle conflicting procedures?
+2. **Multi-user blueprints**: If multiple users of a shared TEMM1E instance perform similar tasks, should their blueprints merge? How to handle conflicting procedures?
 
 3. **Privacy**: Blueprints may contain sensitive operational details (login flows, internal URLs, API patterns). How do we handle blueprint storage encryption and access control?
 

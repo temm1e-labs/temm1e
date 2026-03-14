@@ -1,28 +1,28 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/skyclaw-core",
-    "crates/skyclaw-gateway",
-    "crates/skyclaw-agent",
-    "crates/skyclaw-providers",
-    "crates/skyclaw-channels",
-    "crates/skyclaw-memory",
-    "crates/skyclaw-vault",
-    "crates/skyclaw-tools",
-    "crates/skyclaw-skills",
-    "crates/skyclaw-automation",
-    "crates/skyclaw-observable",
-    "crates/skyclaw-filestore",
-    "crates/skyclaw-test-utils",
-    "crates/skyclaw-mcp",
-    "crates/skyclaw-codex-oauth",
+    "crates/temm1e-core",
+    "crates/temm1e-gateway",
+    "crates/temm1e-agent",
+    "crates/temm1e-providers",
+    "crates/temm1e-channels",
+    "crates/temm1e-memory",
+    "crates/temm1e-vault",
+    "crates/temm1e-tools",
+    "crates/temm1e-skills",
+    "crates/temm1e-automation",
+    "crates/temm1e-observable",
+    "crates/temm1e-filestore",
+    "crates/temm1e-test-utils",
+    "crates/temm1e-mcp",
+    "crates/temm1e-codex-oauth",
 ]
 
 [workspace.package]
-version = "2.4.1"
+version = "2.6.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/nagisanzenin/skyclaw"
+repository = "https://github.com/nagisanzenin/temm1e"
 rust-version = "1.82"
 
 [workspace.dependencies]
@@ -100,24 +100,24 @@ tokio-stream = "0.1"
 tokio-util = { version = "0.7", features = ["rt"] }
 
 # Internal crates
-skyclaw-core = { path = "crates/skyclaw-core" }
-skyclaw-gateway = { path = "crates/skyclaw-gateway" }
-skyclaw-agent = { path = "crates/skyclaw-agent" }
-skyclaw-providers = { path = "crates/skyclaw-providers" }
-skyclaw-channels = { path = "crates/skyclaw-channels" }
-skyclaw-memory = { path = "crates/skyclaw-memory" }
-skyclaw-vault = { path = "crates/skyclaw-vault" }
-skyclaw-tools = { path = "crates/skyclaw-tools" }
-skyclaw-skills = { path = "crates/skyclaw-skills" }
-skyclaw-automation = { path = "crates/skyclaw-automation" }
-skyclaw-observable = { path = "crates/skyclaw-observable" }
-skyclaw-filestore = { path = "crates/skyclaw-filestore" }
-skyclaw-test-utils = { path = "crates/skyclaw-test-utils" }
-skyclaw-mcp = { path = "crates/skyclaw-mcp" }
-skyclaw-codex-oauth = { path = "crates/skyclaw-codex-oauth" }
+temm1e-core = { path = "crates/temm1e-core" }
+temm1e-gateway = { path = "crates/temm1e-gateway" }
+temm1e-agent = { path = "crates/temm1e-agent" }
+temm1e-providers = { path = "crates/temm1e-providers" }
+temm1e-channels = { path = "crates/temm1e-channels" }
+temm1e-memory = { path = "crates/temm1e-memory" }
+temm1e-vault = { path = "crates/temm1e-vault" }
+temm1e-tools = { path = "crates/temm1e-tools" }
+temm1e-skills = { path = "crates/temm1e-skills" }
+temm1e-automation = { path = "crates/temm1e-automation" }
+temm1e-observable = { path = "crates/temm1e-observable" }
+temm1e-filestore = { path = "crates/temm1e-filestore" }
+temm1e-test-utils = { path = "crates/temm1e-test-utils" }
+temm1e-mcp = { path = "crates/temm1e-mcp" }
+temm1e-codex-oauth = { path = "crates/temm1e-codex-oauth" }
 
 [package]
-name = "skyclaw"
+name = "temm1e"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -125,24 +125,24 @@ rust-version.workspace = true
 description = "Cloud-native Rust AI agent runtime"
 
 [[bin]]
-name = "skyclaw"
+name = "temm1e"
 path = "src/main.rs"
 
 [dependencies]
-skyclaw-core.workspace = true
-skyclaw-gateway.workspace = true
-skyclaw-agent.workspace = true
-skyclaw-providers.workspace = true
-skyclaw-channels.workspace = true
-skyclaw-memory.workspace = true
-skyclaw-vault.workspace = true
-skyclaw-tools.workspace = true
-skyclaw-skills.workspace = true
-skyclaw-automation.workspace = true
-skyclaw-observable.workspace = true
-skyclaw-filestore.workspace = true
-skyclaw-mcp = { workspace = true, optional = true }
-skyclaw-codex-oauth = { workspace = true, optional = true }
+temm1e-core.workspace = true
+temm1e-gateway.workspace = true
+temm1e-agent.workspace = true
+temm1e-providers.workspace = true
+temm1e-channels.workspace = true
+temm1e-memory.workspace = true
+temm1e-vault.workspace = true
+temm1e-tools.workspace = true
+temm1e-skills.workspace = true
+temm1e-automation.workspace = true
+temm1e-observable.workspace = true
+temm1e-filestore.workspace = true
+temm1e-mcp = { workspace = true, optional = true }
+temm1e-codex-oauth = { workspace = true, optional = true }
 tokio.workspace = true
 clap.workspace = true
 dirs.workspace = true
@@ -164,13 +164,13 @@ tokio-util.workspace = true
 
 [features]
 default = ["telegram", "browser", "mcp", "codex-oauth"]
-telegram = ["skyclaw-channels/telegram"]
-discord = ["skyclaw-channels/discord"]
-slack = ["skyclaw-channels/slack"]
-browser = ["skyclaw-tools/browser"]
-postgres = ["skyclaw-memory/postgres"]
-mcp = ["dep:skyclaw-mcp"]
-codex-oauth = ["dep:skyclaw-codex-oauth"]
+telegram = ["temm1e-channels/telegram"]
+discord = ["temm1e-channels/discord"]
+slack = ["temm1e-channels/slack"]
+browser = ["temm1e-tools/browser"]
+postgres = ["temm1e-memory/postgres"]
+mcp = ["dep:temm1e-mcp"]
+codex-oauth = ["dep:temm1e-codex-oauth"]
 
 [profile.release]
 opt-level = "z"

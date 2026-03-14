@@ -4,16 +4,16 @@
   "status": "complete",
   "artifacts": [
     "Cargo.toml",
-    "crates/skyclaw-vault/Cargo.toml",
-    "crates/skyclaw-vault/src/local.rs",
-    "crates/skyclaw-agent/Cargo.toml",
-    "crates/skyclaw-agent/src/executor.rs",
-    "crates/skyclaw-agent/src/runtime.rs",
-    "crates/skyclaw-channels/src/telegram.rs",
-    "crates/skyclaw-channels/src/cli.rs",
-    "crates/skyclaw-core/src/types/config.rs",
-    "crates/skyclaw-providers/src/openai_compat.rs",
-    "crates/skyclaw-gateway/src/session.rs"
+    "crates/temm1e-vault/Cargo.toml",
+    "crates/temm1e-vault/src/local.rs",
+    "crates/temm1e-agent/Cargo.toml",
+    "crates/temm1e-agent/src/executor.rs",
+    "crates/temm1e-agent/src/runtime.rs",
+    "crates/temm1e-channels/src/telegram.rs",
+    "crates/temm1e-channels/src/cli.rs",
+    "crates/temm1e-core/src/types/config.rs",
+    "crates/temm1e-providers/src/openai_compat.rs",
+    "crates/temm1e-gateway/src/session.rs"
   ],
   "metrics": {
     "critical_fixed": 2,
@@ -60,7 +60,7 @@
     "DF-02": {
       "severity": "HIGH",
       "summary": "Credential detection not wired in",
-      "fix": "Added skyclaw-vault dependency to skyclaw-agent; wired detect_credentials() call in process_message before appending to session history"
+      "fix": "Added temm1e-vault dependency to temm1e-agent; wired detect_credentials() call in process_message before appending to session history"
     },
     "DF-15": {
       "severity": "HIGH",

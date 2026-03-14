@@ -12,9 +12,9 @@
 3. Follow the prompts to name your bot
 4. Copy the bot token (format: `1234567890:AAH...`)
 
-## Step 2: Configure SkyClaw
+## Step 2: Configure TEMM1E
 
-Add to your `skyclaw.toml`:
+Add to your `temm1e.toml`:
 
 ```toml
 [channel.telegram]
@@ -34,14 +34,14 @@ export TELEGRAM_BOT_TOKEN="your-bot-token-here"
 
 ```bash
 cargo build --release --features telegram
-./target/release/skyclaw start
+./target/release/temm1e start
 ```
 
 ## Step 4: Connect
 
 1. Open your bot in Telegram (search for `@your_bot_name`)
 2. Send any message — the first user is auto-whitelisted as admin
-3. If no API key is configured, SkyClaw enters onboarding mode and asks you to paste one
+3. If no API key is configured, TEMM1E enters onboarding mode and asks you to paste one
 
 ## User Management
 
@@ -53,7 +53,7 @@ The first user to message the bot becomes the admin. Admin commands:
 | `/revoke <user_id>` | Remove a user from the whitelist |
 | `/users` | List all whitelisted users |
 
-The allowlist persists at `~/.skyclaw/allowlist.toml`.
+The allowlist persists at `~/.temm1e/allowlist.toml`.
 
 To find a user's numeric ID, have them message [@userinfobot](https://t.me/userinfobot).
 

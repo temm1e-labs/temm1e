@@ -14,7 +14,7 @@
 
 | Alert | Condition | Duration |
 |-------|-----------|----------|
-| `GatewayDown` | `up{job="skyclaw"} == 0` | 1 minute |
+| `GatewayDown` | `up{job="temm1e"} == 0` | 1 minute |
 | `GatewayUnhealthy` | `/health` endpoint returning non-200 | 2 minutes |
 
 ### Observable Symptoms
@@ -23,8 +23,8 @@
 - Slack #incidents channel receives notification.
 - External probes (Blackbox Exporter) report `/health` endpoint unreachable.
 - All channels (Telegram, Discord, Slack, WhatsApp, CLI) stop receiving responses.
-- `skyclaw_gateway_up` gauge drops to 0.
-- No new entries in `skyclaw_gateway_http_requests_total`.
+- `temm1e_gateway_up` gauge drops to 0.
+- No new entries in `temm1e_gateway_http_requests_total`.
 
 ---
 
@@ -44,13 +44,13 @@
 ### Step 1: Verify the process is running
 
 ```bash
-# Check if the skyclaw process is alive
-pgrep -f skyclaw
-ps aux | grep skyclaw
+# Check if the temm1e process is alive
+pgrep -f temm1e
+ps aux | grep temm1e
 
 # If running in a container
-docker ps | grep skyclaw
-kubectl get pods -l app=skyclaw
+docker ps | grep temm1e
+kubectl get pods -l app=temm1e
 ```
 
 If the process is not running, skip to [Remediation: Process Crash](#remediation-a-process-crash).
@@ -72,18 +72,18 @@ If the port is not bound but the process is running, the `TcpListener::bind()` i
 
 ```bash
 # View recent logs (structured JSON output)
-journalctl -u skyclaw --since "5 minutes ago" --no-pager
+journalctl -u temm1e --since "5 minutes ago" --no-pager
 
 # If in Docker
-docker logs --tail 200 --timestamps skyclaw
+docker logs --tail 200 --timestamps temm1e
 
 # If in Kubernetes
-kubectl logs -l app=skyclaw --tail=200 --timestamps
+kubectl logs -l app=temm1e --tail=200 --timestamps
 ```
 
 Look for:
-- `SkyclawError::Internal("Failed to bind to ...")` -- port conflict
-- `SkyclawError::Internal("Server error: ...")` -- axum runtime failure
+- `Temm1eError::Internal("Failed to bind to ...")` -- port conflict
+- `Temm1eError::Internal("Server error: ...")` -- axum runtime failure
 - Panic backtraces -- unexpected crash
 - OOM killer messages in `dmesg`
 
@@ -108,15 +108,15 @@ If `/health` returns non-200, the `HealthResponse.status` field is not "ok" -- t
 ```bash
 # Memory
 free -m
-cat /proc/$(pgrep skyclaw)/status | grep VmRSS
+cat /proc/$(pgrep temm1e)/status | grep VmRSS
 
 # File descriptors
-ls /proc/$(pgrep skyclaw)/fd | wc -l
+ls /proc/$(pgrep temm1e)/fd | wc -l
 ulimit -n
 
 # Disk (SQLite, vault files)
-df -h ~/.skyclaw/
-ls -la ~/.skyclaw/
+df -h ~/.temm1e/
+ls -la ~/.temm1e/
 ```
 
 ### Step 6: Check for port conflicts
@@ -141,11 +141,11 @@ netstat -tlnp | grep 8080
 
 2. Restart the service:
    ```bash
-   systemctl restart skyclaw
+   systemctl restart temm1e
    # or
-   docker restart skyclaw
+   docker restart temm1e
    # or
-   kubectl rollout restart deployment/skyclaw
+   kubectl rollout restart deployment/temm1e
    ```
 
 3. Verify recovery:
@@ -155,7 +155,7 @@ netstat -tlnp | grep 8080
 
 4. If the process crashes again immediately, check configuration:
    ```bash
-   skyclaw config validate
+   temm1e config validate
    ```
 
 ### Remediation B: Port Binding Failure
@@ -165,17 +165,17 @@ netstat -tlnp | grep 8080
    lsof -i :8080
    ```
 
-2. Either stop the conflicting process or change SkyClaw's port:
+2. Either stop the conflicting process or change TEMM1E's port:
    ```bash
-   # In skyclaw.toml
+   # In temm1e.toml
    [gateway]
    host = "127.0.0.1"
    port = 8081  # Change to available port
    ```
 
-3. Restart SkyClaw:
+3. Restart TEMM1E:
    ```bash
-   systemctl restart skyclaw
+   systemctl restart temm1e
    ```
 
 ### Remediation C: Health Endpoint Returning Non-200
@@ -191,7 +191,7 @@ netstat -tlnp | grep 8080
 
 4. If memory backend is the issue, check SQLite file integrity:
    ```bash
-   sqlite3 ~/.skyclaw/memory.db "PRAGMA integrity_check;"
+   sqlite3 ~/.temm1e/memory.db "PRAGMA integrity_check;"
    ```
 
 ### Remediation D: Resource Exhaustion
@@ -199,11 +199,11 @@ netstat -tlnp | grep 8080
 1. If OOM killed, increase memory limit:
    ```bash
    # Kubernetes
-   kubectl edit deployment skyclaw
+   kubectl edit deployment temm1e
    # Increase resources.limits.memory
 
    # Docker
-   docker update --memory 512m skyclaw
+   docker update --memory 512m temm1e
    ```
 
 2. If file descriptor exhaustion:
@@ -220,14 +220,14 @@ If the failure correlates with a recent deployment:
 docker run -d <previous-image-tag>
 
 # Kubernetes
-kubectl rollout undo deployment/skyclaw
+kubectl rollout undo deployment/temm1e
 ```
 
 ---
 
 ## Prevention Measures
 
-1. **Pre-deployment health checks:** CI pipeline must verify `skyclaw config validate` and a startup/shutdown cycle before promoting a build.
+1. **Pre-deployment health checks:** CI pipeline must verify `temm1e config validate` and a startup/shutdown cycle before promoting a build.
 
 2. **Readiness probes:** Configure Kubernetes readiness probe on `/health` to prevent traffic routing to unhealthy instances.
 

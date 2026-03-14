@@ -1,0 +1,16 @@
+[package]
+name = "temm1e-automation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Automation and scheduling for TEMM1E"
+
+[dependencies]
+temm1e-core.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

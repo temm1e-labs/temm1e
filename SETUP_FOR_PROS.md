@@ -1,6 +1,6 @@
-# SkyClaw Setup — Quick Reference
+# TEMM1E — Setup for Pros
 
-Assumes familiarity with Rust, Docker, VPS management, and API key handling.
+You know what you're doing. Here's what you need.
 
 ## Requirements
 
@@ -11,26 +11,26 @@ Assumes familiarity with Rust, Docker, VPS management, and API key handling.
 ## Build
 
 ```bash
-git clone https://github.com/nagisanzenin/skyclaw.git && cd skyclaw
+git clone https://github.com/nagisanzenin/temm1e.git && cd temm1e
 cargo build --release   # ~2.5min cold, 9.6 MB binary
 ```
 
-## Authentication
+## Authentication — Pick Your Poison
 
 ### Codex OAuth (ChatGPT Plus/Pro)
 
 ```bash
-skyclaw auth login                    # browser flow
-skyclaw auth login --headless         # headless (paste redirect URL)
-skyclaw auth login --output ./o.json  # export token for containers
-skyclaw auth status                   # check expiry
+temm1e auth login                    # browser flow
+temm1e auth login --headless         # headless (paste redirect URL)
+temm1e auth login --output ./o.json  # export token for containers
+temm1e auth status                   # check expiry
 ```
 
-Tokens last ~10 days. Stored at `~/.skyclaw/oauth.json`. Auto-detected at startup.
+Tokens last ~10 days. Stored at `~/.temm1e/oauth.json`. Auto-detected at startup.
 
 ### API Key
 
-Skip auth. Start the bot, paste any supported key in Telegram. Auto-detected:
+No auth flow needed. Start the bot, paste any supported key in Telegram. Auto-detected:
 
 | Prefix | Provider |
 |--------|----------|
@@ -46,15 +46,15 @@ Or use the OTK secure setup link (AES-256-GCM encrypted client-side).
 
 ```bash
 export TELEGRAM_BOT_TOKEN="..."
-skyclaw start                          # foreground
-skyclaw start -d                       # daemon (logs: ~/.skyclaw/skyclaw.log)
-skyclaw start -d --log /var/log/sk.log # custom log path
-skyclaw stop                           # graceful shutdown
+temm1e start                          # foreground
+temm1e start -d                       # daemon (logs: ~/.temm1e/temm1e.log)
+temm1e start -d --log /var/log/sk.log # custom log path
+temm1e stop                           # graceful shutdown
 ```
 
 ## Configuration
 
-Config file: `skyclaw.toml` (project root) or `~/.skyclaw/skyclaw.toml`.
+Config file: `temm1e.toml` (project root) or `~/.temm1e/temm1e.toml`.
 
 ```toml
 [provider]
@@ -78,13 +78,13 @@ backend = "sqlite"
 sandbox = "mandatory"
 ```
 
-Environment variables are expanded via `${VAR}` syntax. Full schema: `crates/skyclaw-core/src/types/config.rs`.
+Environment variables expand via `${VAR}` syntax. Full schema: `crates/temm1e-core/src/types/config.rs`.
 
 ## Docker
 
 ```bash
 # Authenticate on host
-skyclaw auth login --output ./oauth.json
+temm1e auth login --output ./oauth.json
 
 # Or set API key as env var
 echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
@@ -93,41 +93,41 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 ```yaml
 # docker-compose.yml
 services:
-  skyclaw:
+  temm1e:
     build: .
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     volumes:
-      - ./oauth.json:/root/.skyclaw/oauth.json      # Codex OAuth
-      - ./skyclaw.toml:/root/.skyclaw/skyclaw.toml   # config
-      - skyclaw-data:/root/.skyclaw                   # persistent state
+      - ./oauth.json:/root/.temm1e/oauth.json      # Codex OAuth
+      - ./temm1e.toml:/root/.temm1e/temm1e.toml   # config
+      - temm1e-data:/root/.temm1e                   # persistent state
     restart: unless-stopped
 
 volumes:
-  skyclaw-data:
+  temm1e-data:
 ```
 
-Telegram config auto-injects from `TELEGRAM_BOT_TOKEN` env var — no need to edit `skyclaw.toml` for the token.
+`TELEGRAM_BOT_TOKEN` env var auto-injects into Telegram config. No need to duplicate it in `temm1e.toml`.
 
 ## VPS Deployment (systemd)
 
 ```bash
 # Build on server (or cross-compile and scp the binary)
 cargo build --release
-sudo cp target/release/skyclaw /usr/local/bin/
+sudo cp target/release/temm1e /usr/local/bin/
 
 # Create systemd service
-sudo tee /etc/systemd/system/skyclaw.service << 'EOF'
+sudo tee /etc/systemd/system/temm1e.service << 'EOF'
 [Unit]
-Description=SkyClaw AI Agent
+Description=TEMM1E AI Agent
 After=network.target
 
 [Service]
 Type=simple
-User=skyclaw
+User=temm1e
 Environment=TELEGRAM_BOT_TOKEN=your-token
 Environment=ANTHROPIC_API_KEY=your-key
-ExecStart=/usr/local/bin/skyclaw start
+ExecStart=/usr/local/bin/temm1e start
 Restart=always
 RestartSec=5
 
@@ -136,15 +136,15 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now skyclaw
-journalctl -u skyclaw -f  # tail logs
+sudo systemctl enable --now temm1e
+journalctl -u temm1e -f  # tail logs
 ```
 
-Minimum VPS: 512 MB RAM, 1 vCPU. SkyClaw idles at 15 MB RSS.
+Minimum VPS: 512 MB RAM, 1 vCPU. Idles at 15 MB RSS. >:3
 
-## Multi-Provider Setup
+## Multi-Provider — Switch Live
 
-Switch providers live in Telegram with `/model`:
+Swap providers mid-conversation with `/model`:
 
 ```
 /model                    # list available models
@@ -152,13 +152,11 @@ Switch providers live in Telegram with `/model`:
 /model claude-sonnet-4-6 # switch to Claude
 ```
 
-Or via natural language: "Switch to GPT-5.2"
+Or just say "Switch to GPT-5.2" — natural language works too.
 
-Credentials stored at `~/.skyclaw/credentials.toml` — the agent reads and edits this file itself.
+Credentials stored at `~/.temm1e/credentials.toml`. The agent reads and edits this file itself.
 
-## MCP Servers
-
-Add external tool servers at runtime:
+## MCP Servers — Extend at Runtime
 
 ```
 /mcp add fetch npx -y @modelcontextprotocol/server-fetch
@@ -167,32 +165,34 @@ Add external tool servers at runtime:
 /mcp remove fetch       # disconnect
 ```
 
-Or let the agent self-extend — it searches the 14-server built-in registry by capability.
+The agent also self-extends — it searches the 14-server built-in registry by capability when it needs something it doesn't have.
 
-Config: `~/.skyclaw/mcp.toml`
+Config: `~/.temm1e/mcp.toml`
 
 ## Key Paths
 
 | Path | Purpose |
 |------|---------|
-| `~/.skyclaw/` | Home directory (all persistent state) |
-| `~/.skyclaw/credentials.toml` | Provider API keys (encrypted) |
-| `~/.skyclaw/oauth.json` | Codex OAuth tokens |
-| `~/.skyclaw/memory.db` | SQLite memory backend |
-| `~/.skyclaw/allowlist.toml` | User whitelist |
-| `~/.skyclaw/custom-tools/` | Agent-authored script tools |
-| `~/.skyclaw/mcp.toml` | MCP server configuration |
-| `~/.skyclaw/skyclaw.log` | Daemon log (with `-d`) |
+| `~/.temm1e/` | Home directory (all persistent state) |
+| `~/.temm1e/credentials.toml` | Provider API keys (encrypted) |
+| `~/.temm1e/oauth.json` | Codex OAuth tokens |
+| `~/.temm1e/memory.db` | SQLite memory backend |
+| `~/.temm1e/allowlist.toml` | User whitelist |
+| `~/.temm1e/custom-tools/` | Agent-authored script tools |
+| `~/.temm1e/mcp.toml` | MCP server configuration |
+| `~/.temm1e/temm1e.log` | Daemon log (with `-d`) |
 
 ## Updating
 
 ```bash
-skyclaw update   # git pull + cargo build --release
+temm1e update   # git pull + cargo build --release
 # or manually:
 git pull && cargo build --release
 ```
 
-## Compilation Gates (for contributors)
+## Compilation Gates
+
+All four pass before anything touches main. No exceptions.
 
 ```bash
 cargo check --workspace
@@ -200,8 +200,6 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
 cargo test --workspace    # 1,378 tests, 0 failures
 ```
-
-All four must pass before any commit to main.
 
 ## Design Documents
 

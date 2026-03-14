@@ -1,28 +1,28 @@
-{"timestamp":"2026-03-11T03:48:33.712825Z","level":"INFO","fields":{"message":"SkyClaw starting","mode":"auto"},"target":"skyclaw"}
-SkyClaw interactive chat
+{"timestamp":"2026-03-11T03:48:33.712825Z","level":"INFO","fields":{"message":"TEMM1E starting","mode":"auto"},"target":"temm1e"}
+TEMM1E interactive chat
 Type '/quit' or '/exit' to quit.
 
-{"timestamp":"2026-03-11T03:48:33.715047Z","level":"INFO","fields":{"message":"SQLite memory backend initialised"},"target":"skyclaw_memory::sqlite"}
-{"timestamp":"2026-03-11T03:48:33.715103Z","level":"INFO","fields":{"message":"CLI channel started"},"target":"skyclaw_channels::cli"}
-skyclaw> {"timestamp":"2026-03-11T03:48:33.717161Z","level":"INFO","fields":{"message":"SQLite usage store initialised"},"target":"skyclaw_memory::sqlite_usage"}
-{"timestamp":"2026-03-11T03:48:33.717249Z","level":"INFO","fields":{"message":"Tools registered","count":13},"target":"skyclaw_tools"}
-{"timestamp":"2026-03-11T03:48:33.717479Z","level":"INFO","fields":{"message":"Loaded MCP config from \"/Users/quanduong/.skyclaw/mcp.toml\"","servers":1},"target":"skyclaw_mcp::config"}
-{"timestamp":"2026-03-11T03:48:33.717541Z","level":"INFO","fields":{"message":"Loaded MCP config from \"/Users/quanduong/.skyclaw/mcp.toml\"","servers":1},"target":"skyclaw_mcp::config"}
-{"timestamp":"2026-03-11T03:48:35.132836Z","level":"INFO","fields":{"message":"MCP server initialized","server":"playwright","mcp_server_name":"Playwright","mcp_server_version":"0.0.68","protocol":"2025-11-25"},"target":"skyclaw_mcp::client"}
-{"timestamp":"2026-03-11T03:48:35.135479Z","level":"INFO","fields":{"message":"MCP server connected","server":"playwright","tools":22},"target":"skyclaw_mcp::manager"}
-{"timestamp":"2026-03-11T03:48:35.135537Z","level":"INFO","fields":{"message":"MCP bridge tools loaded","count":22},"target":"skyclaw"}
+{"timestamp":"2026-03-11T03:48:33.715047Z","level":"INFO","fields":{"message":"SQLite memory backend initialised"},"target":"temm1e_memory::sqlite"}
+{"timestamp":"2026-03-11T03:48:33.715103Z","level":"INFO","fields":{"message":"CLI channel started"},"target":"temm1e_channels::cli"}
+temm1e> {"timestamp":"2026-03-11T03:48:33.717161Z","level":"INFO","fields":{"message":"SQLite usage store initialised"},"target":"temm1e_memory::sqlite_usage"}
+{"timestamp":"2026-03-11T03:48:33.717249Z","level":"INFO","fields":{"message":"Tools registered","count":13},"target":"temm1e_tools"}
+{"timestamp":"2026-03-11T03:48:33.717479Z","level":"INFO","fields":{"message":"Loaded MCP config from \"/Users/quanduong/.temm1e/mcp.toml\"","servers":1},"target":"temm1e_mcp::config"}
+{"timestamp":"2026-03-11T03:48:33.717541Z","level":"INFO","fields":{"message":"Loaded MCP config from \"/Users/quanduong/.temm1e/mcp.toml\"","servers":1},"target":"temm1e_mcp::config"}
+{"timestamp":"2026-03-11T03:48:35.132836Z","level":"INFO","fields":{"message":"MCP server initialized","server":"playwright","mcp_server_name":"Playwright","mcp_server_version":"0.0.68","protocol":"2025-11-25"},"target":"temm1e_mcp::client"}
+{"timestamp":"2026-03-11T03:48:35.135479Z","level":"INFO","fields":{"message":"MCP server connected","server":"playwright","tools":22},"target":"temm1e_mcp::manager"}
+{"timestamp":"2026-03-11T03:48:35.135537Z","level":"INFO","fields":{"message":"MCP bridge tools loaded","count":22},"target":"temm1e"}
 Connected to openai (model: gpt-4o-mini)
 Budget: unlimited
 ---
 
-{"timestamp":"2026-03-11T03:48:35.135798Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-11T03:48:36.870580Z","level":"INFO","fields":{"message":"LLM classify: message classified","category":"Chat","difficulty":"Simple","chat_text_len":84},"target":"skyclaw_agent::llm_classifier"}
-{"timestamp":"2026-03-11T03:48:36.870982Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.000061","total_spend_usd":"0.000061","budget_usd":"0.00","input_tokens":267,"output_tokens":35},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-11T03:48:36.871015Z","level":"INFO","fields":{"message":"V2: LLM classified message","category":"Chat","difficulty":"Simple"},"target":"skyclaw_agent::runtime"}
+{"timestamp":"2026-03-11T03:48:35.135798Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-11T03:48:36.870580Z","level":"INFO","fields":{"message":"LLM classify: message classified","category":"Chat","difficulty":"Simple","chat_text_len":84},"target":"temm1e_agent::llm_classifier"}
+{"timestamp":"2026-03-11T03:48:36.870982Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.000061","total_spend_usd":"0.000061","budget_usd":"0.00","input_tokens":267,"output_tokens":35},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-11T03:48:36.871015Z","level":"INFO","fields":{"message":"V2: LLM classified message","category":"Chat","difficulty":"Simple"},"target":"temm1e_agent::runtime"}
 
 Hello! I'm based on the GPT-3 model developed by OpenAI. How can I assist you today?
 
-skyclaw> 
+temm1e> 
 Model: gpt-4o-mini
 API Calls: 1
 Input Tokens: 267
@@ -30,14 +30,14 @@ Output Tokens: 35
 Tools Used: 0
 Combined Tokens: 302
 Total Cost: $0.0001
-{"timestamp":"2026-03-11T03:48:53.708309Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-11T03:48:54.579402Z","level":"INFO","fields":{"message":"LLM classify: message classified","category":"Chat","difficulty":"Simple","chat_text_len":30},"target":"skyclaw_agent::llm_classifier"}
-{"timestamp":"2026-03-11T03:48:54.579431Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.000061","total_spend_usd":"0.000122","budget_usd":"0.00","input_tokens":305,"output_tokens":25},"target":"skyclaw_agent::budget"}
-{"timestamp":"2026-03-11T03:48:54.579439Z","level":"INFO","fields":{"message":"V2: LLM classified message","category":"Chat","difficulty":"Simple"},"target":"skyclaw_agent::runtime"}
+{"timestamp":"2026-03-11T03:48:53.708309Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-11T03:48:54.579402Z","level":"INFO","fields":{"message":"LLM classify: message classified","category":"Chat","difficulty":"Simple","chat_text_len":30},"target":"temm1e_agent::llm_classifier"}
+{"timestamp":"2026-03-11T03:48:54.579431Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.000061","total_spend_usd":"0.000122","budget_usd":"0.00","input_tokens":305,"output_tokens":25},"target":"temm1e_agent::budget"}
+{"timestamp":"2026-03-11T03:48:54.579439Z","level":"INFO","fields":{"message":"V2: LLM classified message","category":"Chat","difficulty":"Simple"},"target":"temm1e_agent::runtime"}
 
 The result of 42 * 99 is 4158.
 
-skyclaw> 
+temm1e> 
 Model: gpt-4o-mini
 API Calls: 1
 Input Tokens: 305
@@ -45,15 +45,15 @@ Output Tokens: 25
 Tools Used: 0
 Combined Tokens: 330
 Total Cost: $0.0001
-{"timestamp":"2026-03-11T03:49:13.714099Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-11T03:49:14.493687Z","level":"WARN","fields":{"message":"Failed to parse classification JSON","error":"expected value at line 1 column 1","raw":"Your first question was, \"Hello! What model are you using right now?\""},"target":"skyclaw_agent::llm_classifier"}
-{"timestamp":"2026-03-11T03:49:14.494449Z","level":"WARN","fields":{"message":"LLM classification failed, using rule-based fallback","error":"Provider error: Classification parse error: expected value at line 1 column 1"},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-11T03:49:14.494886Z","level":"INFO","fields":{"message":"V2: Rule-based fallback classification","complexity":"Simple","prompt_tier":"Basic","max_iterations":2},"target":"skyclaw_agent::runtime"}
-{"timestamp":"2026-03-11T03:49:15.764100Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.000839","total_spend_usd":"0.000961","budget_usd":"0.00","input_tokens":5534,"output_tokens":15},"target":"skyclaw_agent::budget"}
+{"timestamp":"2026-03-11T03:49:13.714099Z","level":"INFO","fields":{"message":"Processing inbound message","channel":"cli","chat_id":"cli","user_id":"local"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-11T03:49:14.493687Z","level":"WARN","fields":{"message":"Failed to parse classification JSON","error":"expected value at line 1 column 1","raw":"Your first question was, \"Hello! What model are you using right now?\""},"target":"temm1e_agent::llm_classifier"}
+{"timestamp":"2026-03-11T03:49:14.494449Z","level":"WARN","fields":{"message":"LLM classification failed, using rule-based fallback","error":"Provider error: Classification parse error: expected value at line 1 column 1"},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-11T03:49:14.494886Z","level":"INFO","fields":{"message":"V2: Rule-based fallback classification","complexity":"Simple","prompt_tier":"Basic","max_iterations":2},"target":"temm1e_agent::runtime"}
+{"timestamp":"2026-03-11T03:49:15.764100Z","level":"INFO","fields":{"message":"API cost recorded","call_cost_usd":"0.000839","total_spend_usd":"0.000961","budget_usd":"0.00","input_tokens":5534,"output_tokens":15},"target":"temm1e_agent::budget"}
 
 Your first question was, "What model are you using right now?"
 
-skyclaw> 
+temm1e> 
 Model: gpt-4o-mini
 API Calls: 1
 Input Tokens: 5,534
@@ -61,4 +61,4 @@ Output Tokens: 15
 Tools Used: 0
 Combined Tokens: 5,549
 Total Cost: $0.0008
-{"timestamp":"2026-03-11T03:49:33.721179Z","level":"INFO","fields":{"message":"CLI session ended by user"},"target":"skyclaw_channels::cli"}
+{"timestamp":"2026-03-11T03:49:33.721179Z","level":"INFO","fields":{"message":"CLI session ended by user"},"target":"temm1e_channels::cli"}

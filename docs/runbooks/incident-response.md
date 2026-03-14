@@ -1,6 +1,6 @@
-# SkyClaw Incident Response Playbook
+# TEMM1E Incident Response Playbook
 
-> Incident response procedures for the SkyClaw AI agent runtime.
+> Incident response procedures for the TEMM1E AI agent runtime.
 > Owner: SRE | Last updated: 2026-03-08
 > Review cadence: quarterly
 
@@ -134,7 +134,7 @@
    git diff HEAD~5 config/
 
    # Check deployment history
-   kubectl rollout history deployment/skyclaw
+   kubectl rollout history deployment/temm1e
    ```
 
 4. **Narrow the blast radius:**
@@ -151,7 +151,7 @@
 2. **If the cause is a recent deployment, rollback:**
    ```bash
    # Kubernetes
-   kubectl rollout undo deployment/skyclaw
+   kubectl rollout undo deployment/temm1e
 
    # Docker
    docker run -d <previous-image-tag>
@@ -163,8 +163,8 @@
 
 3. **If the cause is a configuration change, revert:**
    ```bash
-   git checkout HEAD~1 -- config/skyclaw.toml
-   systemctl restart skyclaw
+   git checkout HEAD~1 -- config/temm1e.toml
+   systemctl restart temm1e
    ```
 
 4. **If the cause is external (provider outage, network issue):**
@@ -400,16 +400,16 @@ Post-incident reviews are required for all SEV1 and SEV2 incidents, and recommen
 
 ```bash
 # Restart the service
-systemctl restart skyclaw
+systemctl restart temm1e
 
 # Rollback deployment (Kubernetes)
-kubectl rollout undo deployment/skyclaw
+kubectl rollout undo deployment/temm1e
 
 # Check process status
-systemctl status skyclaw
+systemctl status temm1e
 
 # View recent logs
-journalctl -u skyclaw --since "10 minutes ago" -f
+journalctl -u temm1e --since "10 minutes ago" -f
 
 # Health check
 curl http://localhost:8080/health
@@ -428,19 +428,19 @@ curl http://localhost:8080/metrics | grep -E "error|total" | head -20
 
 | File | Path | Purpose |
 |------|------|---------|
-| Configuration | `~/.skyclaw/skyclaw.toml` or `/etc/skyclaw/skyclaw.toml` | Runtime configuration |
-| Vault key | `~/.skyclaw/vault.key` | 32-byte encryption key (permissions: 0600) |
-| Vault data | `~/.skyclaw/vault.enc` | Encrypted secrets (JSON) |
-| Memory DB | `~/.skyclaw/memory.db` | SQLite memory store |
-| Logs | `journalctl -u skyclaw` or container logs | Structured JSON logs |
+| Configuration | `~/.temm1e/temm1e.toml` or `/etc/temm1e/temm1e.toml` | Runtime configuration |
+| Vault key | `~/.temm1e/vault.key` | 32-byte encryption key (permissions: 0600) |
+| Vault data | `~/.temm1e/vault.enc` | Encrypted secrets (JSON) |
+| Memory DB | `~/.temm1e/memory.db` | SQLite memory store |
+| Logs | `journalctl -u temm1e` or container logs | Structured JSON logs |
 
 ### Key Metrics for Triage
 
 | Metric | Healthy Value | Check Command |
 |--------|--------------|---------------|
-| `up{job="skyclaw"}` | 1 | `curl -s localhost:8080/metrics \| grep ^up` |
-| `skyclaw_gateway_up` | 1 | Health endpoint returns 200 |
-| `skyclaw_provider_health_check_success` | 1 | Provider health passing |
-| `process_resident_memory_bytes` | < 20 MB (idle) | `ps -o rss= -p $(pgrep skyclaw)` |
-| `skyclaw_active_sessions` | < 50 | Session count within limits |
-| `skyclaw_vault_decryption_failures_total` | 0 | No decryption failures ever |
+| `up{job="temm1e"}` | 1 | `curl -s localhost:8080/metrics \| grep ^up` |
+| `temm1e_gateway_up` | 1 | Health endpoint returns 200 |
+| `temm1e_provider_health_check_success` | 1 | Provider health passing |
+| `process_resident_memory_bytes` | < 20 MB (idle) | `ps -o rss= -p $(pgrep temm1e)` |
+| `temm1e_active_sessions` | < 50 | Session count within limits |
+| `temm1e_vault_decryption_failures_total` | 0 | No decryption failures ever |

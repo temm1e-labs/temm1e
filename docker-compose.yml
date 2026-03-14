@@ -1,22 +1,22 @@
 version: "3.9"
 
 services:
-  skyclaw:
+  temm1e:
     build:
       context: .
       dockerfile: Dockerfile
-    image: skyclaw:latest
-    container_name: skyclaw
+    image: temm1e:latest
+    container_name: temm1e
     ports:
       - "8080:8080"
     environment:
-      - SKYCLAW_MODE=auto
+      - TEMM1E_MODE=auto
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - RUST_LOG=info
     volumes:
-      - skyclaw-data:/var/lib/skyclaw
-      - ${HOME}/.skyclaw:/home/skyclaw/.skyclaw
+      - temm1e-data:/var/lib/temm1e
+      - ${HOME}/.temm1e:/home/temm1e/.temm1e
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -31,21 +31,21 @@ services:
   # -----------------------------------------------
   # postgres:
   #   image: postgres:16-alpine
-  #   container_name: skyclaw-postgres
+  #   container_name: temm1e-postgres
   #   environment:
-  #     POSTGRES_DB: skyclaw
-  #     POSTGRES_USER: skyclaw
+  #     POSTGRES_DB: temm1e
+  #     POSTGRES_USER: temm1e
   #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
   #   ports:
   #     - "5432:5432"
   #   volumes:
   #     - pgdata:/var/lib/postgresql/data
   #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U skyclaw"]
+  #     test: ["CMD-SHELL", "pg_isready -U temm1e"]
   #     interval: 10s
   #     timeout: 5s
   #     retries: 5
 
 volumes:
-  skyclaw-data:
+  temm1e-data:
   # pgdata:

@@ -1,4 +1,4 @@
-# SkyClaw Chaos Experiment Plan
+# TEMM1E Chaos Experiment Plan
 
 > Chaos engineering experiments to validate SLO resilience and failure recovery.
 > Owner: SRE | Last updated: 2026-03-08
@@ -22,7 +22,7 @@
 
 ### Steady State Hypothesis
 
-- `skyclaw_gateway_up == 1`
+- `temm1e_gateway_up == 1`
 - `/health` returns HTTP 200 with `{"status":"ok"}` within 10ms p99
 - All channels are receiving and processing messages normally
 - Cold start completes in < 50ms
@@ -31,7 +31,7 @@
 
 ```bash
 # Method A: Kill the process
-kill -9 $(pgrep skyclaw)
+kill -9 $(pgrep temm1e)
 
 # Method B: Block the listening port (simulate network partition)
 iptables -A INPUT -p tcp --dport 8080 -j DROP
@@ -47,11 +47,11 @@ done
 
 | Phase | Expected Outcome | Metric to Verify |
 |-------|-----------------|-----------------|
-| Injection (kill) | Process terminates immediately | `up{job="skyclaw"} == 0` |
+| Injection (kill) | Process terminates immediately | `up{job="temm1e"} == 0` |
 | Detection | `GatewayDown` alert fires within 1 minute | PagerDuty incident created |
-| Recovery (systemd) | systemd restarts process automatically | `up{job="skyclaw"} == 1` within 5s of restart |
-| Cold start | New process binds port and serves `/health` in < 50ms | `skyclaw_gateway_cold_start_seconds < 0.050` |
-| Steady state restored | All channels reconnect and resume processing | `skyclaw_message_processing_duration_seconds_count` incrementing |
+| Recovery (systemd) | systemd restarts process automatically | `up{job="temm1e"} == 1` within 5s of restart |
+| Cold start | New process binds port and serves `/health` in < 50ms | `temm1e_gateway_cold_start_seconds < 0.050` |
+| Steady state restored | All channels reconnect and resume processing | `temm1e_message_processing_duration_seconds_count` incrementing |
 
 ### Abort Conditions
 
@@ -76,8 +76,8 @@ done
 
 ### Steady State Hypothesis
 
-- `skyclaw_provider_health_check_success == 1` for all configured providers
-- `skyclaw_provider_request_total{status="success"}` rate is stable
+- `temm1e_provider_health_check_success == 1` for all configured providers
+- `temm1e_provider_request_total{status="success"}` rate is stable
 - Provider p99 latency < 30s
 - Messages are processed with provider completions returning valid responses
 
@@ -94,7 +94,7 @@ echo "127.0.0.1 api.anthropic.com" >> /etc/hosts
 
 # Method C: Invalidate API key in vault
 # Store an invalid key
-echo -n "sk-ant-INVALID" | skyclaw vault store anthropic-api-key
+echo -n "sk-ant-INVALID" | temm1e vault store anthropic-api-key
 # Restart to pick up the new key
 
 # Method D: Inject latency via tc (simulate slow responses)
@@ -105,12 +105,12 @@ tc qdisc add dev eth0 root netem delay 35000ms
 
 | Phase | Expected Outcome | Metric to Verify |
 |-------|-----------------|-----------------|
-| Injection | Provider requests begin failing | `skyclaw_provider_request_total{status="error"}` incrementing |
+| Injection | Provider requests begin failing | `temm1e_provider_request_total{status="error"}` incrementing |
 | Detection | `ProviderDown` alert fires within 2 minutes | Health check gauge drops to 0 |
-| Error handling | `SkyclawError::Provider` returned to callers | Error responses sent to users (not crashes) |
-| Fallback (if configured) | Traffic shifts to fallback provider | `skyclaw_provider_request_total{provider="openai_compat"}` incrementing |
+| Error handling | `Temm1eError::Provider` returned to callers | Error responses sent to users (not crashes) |
+| Fallback (if configured) | Traffic shifts to fallback provider | `temm1e_provider_request_total{provider="openai_compat"}` incrementing |
 | Budget tracking | Error budget burn rate reflected in SLO dashboard | Budget < 50% triggers deployment freeze |
-| Recovery | After removing injection, health check recovers within 30s | `skyclaw_provider_health_check_success == 1` |
+| Recovery | After removing injection, health check recovers within 30s | `temm1e_provider_health_check_success == 1` |
 
 ### Abort Conditions
 
@@ -135,8 +135,8 @@ tc qdisc add dev eth0 root netem delay 35000ms
 
 ### Steady State Hypothesis
 
-- `skyclaw_vault_decryption_failures_total == 0`
-- `skyclaw_vault_operation_total{status="success"}` rate is stable
+- `temm1e_vault_decryption_failures_total == 0`
+- `temm1e_vault_operation_total{status="success"}` rate is stable
 - Vault operation p99 < 10ms
 - `vault.key` is 32 bytes with permissions 0600
 
@@ -146,31 +146,31 @@ tc qdisc add dev eth0 root netem delay 35000ms
 
 ```bash
 # Method A: Corrupt vault.key (append extra bytes)
-cp ~/.skyclaw/vault.key ~/.skyclaw/vault.key.backup
-echo "CORRUPT" >> ~/.skyclaw/vault.key
+cp ~/.temm1e/vault.key ~/.temm1e/vault.key.backup
+echo "CORRUPT" >> ~/.temm1e/vault.key
 
 # Method B: Corrupt vault.enc (invalid JSON)
-cp ~/.skyclaw/vault.enc ~/.skyclaw/vault.enc.backup
-echo "INVALID{{{" >> ~/.skyclaw/vault.enc
+cp ~/.temm1e/vault.enc ~/.temm1e/vault.enc.backup
+echo "INVALID{{{" >> ~/.temm1e/vault.enc
 
 # Method C: Change vault.key permissions
-chmod 644 ~/.skyclaw/vault.key
+chmod 644 ~/.temm1e/vault.key
 
 # Method D: Replace vault.key with wrong key (valid 32 bytes but different)
-cp ~/.skyclaw/vault.key ~/.skyclaw/vault.key.backup
-dd if=/dev/urandom of=~/.skyclaw/vault.key bs=32 count=1
+cp ~/.temm1e/vault.key ~/.temm1e/vault.key.backup
+dd if=/dev/urandom of=~/.temm1e/vault.key bs=32 count=1
 ```
 
 ### Expected Behavior
 
 | Phase | Expected Outcome | Metric to Verify |
 |-------|-----------------|-----------------|
-| Injection (key corrupt) | Next vault read fails with "vault key must be exactly 32 bytes" | `skyclaw_vault_operation_total{status="error"}` increments |
-| Injection (wrong key) | Decryption fails with ChaCha20-Poly1305 AEAD error | `skyclaw_vault_decryption_failures_total` increments |
+| Injection (key corrupt) | Next vault read fails with "vault key must be exactly 32 bytes" | `temm1e_vault_operation_total{status="error"}` increments |
+| Injection (wrong key) | Decryption fails with ChaCha20-Poly1305 AEAD error | `temm1e_vault_decryption_failures_total` increments |
 | Detection | `VaultDecryptionFailure` alert fires immediately (any increment) | PagerDuty P1 incident |
-| Cascade | Provider calls fail because API key cannot be resolved from vault | `skyclaw_provider_request_total{status="error"}` incrementing |
-| Injection (perms) | `VaultKeyPermissionDrift` warning fires within 1 minute | `skyclaw_vault_key_permissions != 384` |
-| Recovery (backup restore) | Restoring backup key immediately fixes vault operations | `skyclaw_vault_decryption_failures_total` stops incrementing |
+| Cascade | Provider calls fail because API key cannot be resolved from vault | `temm1e_provider_request_total{status="error"}` incrementing |
+| Injection (perms) | `VaultKeyPermissionDrift` warning fires within 1 minute | `temm1e_vault_key_permissions != 384` |
+| Recovery (backup restore) | Restoring backup key immediately fixes vault operations | `temm1e_vault_decryption_failures_total` stops incrementing |
 
 ### Abort Conditions
 
@@ -195,10 +195,10 @@ dd if=/dev/urandom of=~/.skyclaw/vault.key bs=32 count=1
 
 ### Steady State Hypothesis
 
-- `skyclaw_memory_operation_total{status="success"}` rate is stable
+- `temm1e_memory_operation_total{status="success"}` rate is stable
 - Search p99 < 50ms, store p99 < 20ms
-- `skyclaw_memory_entries_total` is below 100k
-- `skyclaw_memory_pool_active_connections` < 4 (pool not saturated)
+- `temm1e_memory_entries_total` is below 100k
+- `temm1e_memory_pool_active_connections` < 4 (pool not saturated)
 
 ### Injection Method
 
@@ -206,7 +206,7 @@ dd if=/dev/urandom of=~/.skyclaw/vault.key bs=32 count=1
 # Method A: Flood the memory store with entries to push past 100k
 python3 -c "
 import sqlite3, random, string
-conn = sqlite3.connect('$HOME/.skyclaw/memory.db')
+conn = sqlite3.connect('$HOME/.temm1e/memory.db')
 cursor = conn.cursor()
 for i in range(100000):
     content = ''.join(random.choices(string.ascii_letters, k=500))
@@ -220,7 +220,7 @@ conn.close()
 "
 
 # Method B: Lock the SQLite database to simulate contention
-sqlite3 ~/.skyclaw/memory.db "BEGIN EXCLUSIVE; SELECT sleep(30);"
+sqlite3 ~/.temm1e/memory.db "BEGIN EXCLUSIVE; SELECT sleep(30);"
 # (This blocks all other connections for 30s)
 
 # Method C: Fill disk to prevent writes
@@ -235,13 +235,13 @@ dd if=/dev/zero of=/tmp/fillfile bs=1M count=10000
 
 | Phase | Expected Outcome | Metric to Verify |
 |-------|-----------------|-----------------|
-| Injection (100k entries) | Search p99 approaches 50ms SLO boundary | `skyclaw_memory_operation_duration_seconds{operation="search"}` |
+| Injection (100k entries) | Search p99 approaches 50ms SLO boundary | `temm1e_memory_operation_duration_seconds{operation="search"}` |
 | Detection | `MemoryEntriesHigh` warning fires after 1 hour | Entry count > 100k |
-| Injection (DB lock) | Memory operations queue behind lock | `skyclaw_memory_pool_active_connections >= 5` |
+| Injection (DB lock) | Memory operations queue behind lock | `temm1e_memory_pool_active_connections >= 5` |
 | Detection | `MemoryBackendDown` fires if error rate > 10% for 2 minutes | Pool saturation -> timeouts -> errors |
 | Cascade | Message processing slows (memory store/search in critical path) | `MessageProcessingLatencyHigh` may fire |
 | Recovery (unlock) | Operations resume immediately after lock released | Latencies return to baseline |
-| Recovery (cleanup) | Deleting flood entries restores search performance | `skyclaw_memory_entries_total` decreases |
+| Recovery (cleanup) | Deleting flood entries restores search performance | `temm1e_memory_entries_total` decreases |
 
 ### Abort Conditions
 
@@ -265,7 +265,7 @@ dd if=/dev/zero of=/tmp/fillfile bs=1M count=10000
 
 ### Steady State Hypothesis
 
-- `skyclaw_active_sessions` < 10
+- `temm1e_active_sessions` < 10
 - `process_resident_memory_bytes` < 20 MB (idle)
 - Session operations (get_or_create, update, remove) complete in < 5ms p99
 - `SessionManager` RwLock contention is negligible
@@ -298,12 +298,12 @@ done
 
 | Phase | Expected Outcome | Metric to Verify |
 |-------|-----------------|-----------------|
-| Injection (200 sessions) | Sessions created, RSS grows proportionally | `skyclaw_active_sessions == 200` |
+| Injection (200 sessions) | Sessions created, RSS grows proportionally | `temm1e_active_sessions == 200` |
 | Memory impact | RSS increases by ~8-16 MB (200 x 40-80 KB) | `process_resident_memory_bytes` |
 | Detection | `SessionCountHigh` fires if count > 50 | Warning alert |
 | LRU eviction | At `MAX_SESSIONS = 1000`, oldest sessions are evicted | Log messages: "Evicted LRU session" |
 | History truncation | At `MAX_HISTORY_PER_SESSION = 200`, oldest messages trimmed | Session history length capped |
-| RwLock contention | Under heavy concurrent access, write lock may cause brief stalls | `skyclaw_session_operation_duration_seconds` |
+| RwLock contention | Under heavy concurrent access, write lock may cause brief stalls | `temm1e_session_operation_duration_seconds` |
 | Recovery | After traffic stops, sessions persist but memory is stable | RSS stabilizes |
 
 ### Abort Conditions
@@ -329,9 +329,9 @@ done
 
 ### Steady State Hypothesis
 
-- `skyclaw_tool_execution_total{status="success"}` rate is stable
-- `skyclaw_tool_execution_total{status="sandbox_violation"} == 0`
-- `skyclaw_tool_rounds_per_message` p95 < 8
+- `temm1e_tool_execution_total{status="success"}` rate is stable
+- `temm1e_tool_execution_total{status="sandbox_violation"} == 0`
+- `temm1e_tool_rounds_per_message` p95 < 8
 - Tool execution p99 < 30s
 
 ### Injection Method
@@ -358,12 +358,12 @@ curl -X POST http://localhost:8080/webhook/cli \
 
 | Phase | Expected Outcome | Metric to Verify |
 |-------|-----------------|-----------------|
-| Injection (missing dep) | Tool execution returns `SkyclawError::Tool` | `skyclaw_tool_execution_total{status="error"}` |
+| Injection (missing dep) | Tool execution returns `Temm1eError::Tool` | `temm1e_tool_execution_total{status="error"}` |
 | Detection | `ToolHighFailureRate` fires if rate > 5% for 10 minutes | Warning alert |
 | Injection (read-only dir) | File write tools fail, read tools succeed | Error rate increase for write-dependent tools only |
-| Injection (max rounds) | Agent hits `MAX_TOOL_ROUNDS = 10` and stops | `skyclaw_tool_rounds_per_message` histogram shows value at 10 |
+| Injection (max rounds) | Agent hits `MAX_TOOL_ROUNDS = 10` and stops | `temm1e_tool_rounds_per_message` histogram shows value at 10 |
 | Detection | `ExcessiveToolRounds` fires if p95 > 8 | Warning alert |
-| Injection (sandbox) | `validate_sandbox()` rejects path traversal | `skyclaw_tool_execution_total{status="sandbox_violation"}` |
+| Injection (sandbox) | `validate_sandbox()` rejects path traversal | `temm1e_tool_execution_total{status="sandbox_violation"}` |
 | Detection | `SandboxViolations` fires immediately | Warning alert |
 
 ### Abort Conditions
@@ -388,7 +388,7 @@ curl -X POST http://localhost:8080/webhook/cli \
 
 ### Steady State Hypothesis
 
-- `skyclaw_file_transfer_total{status="success"}` rate is stable
+- `temm1e_file_transfer_total{status="success"}` rate is stable
 - Transfer p99 < 5s for files under 10 MB
 - No file transfer errors in logs
 
@@ -417,8 +417,8 @@ done
 | Phase | Expected Outcome | Metric to Verify |
 |-------|-----------------|-----------------|
 | Injection (oversize) | `max_file_size()` check rejects the file | Rejection counter increments, not counted as SLO error |
-| Injection (latency) | Transfer duration increases, may breach p99 SLO | `skyclaw_file_transfer_duration_seconds` |
-| Injection (disk full) | `save_received_file()` fails with I/O error | `skyclaw_file_transfer_total{status="error"}` |
+| Injection (latency) | Transfer duration increases, may breach p99 SLO | `temm1e_file_transfer_duration_seconds` |
+| Injection (disk full) | `save_received_file()` fails with I/O error | `temm1e_file_transfer_total{status="error"}` |
 | Detection | `FileTransferHighErrors` fires if rate > 5% for 10 minutes | Warning alert |
 | Concurrent transfers | All transfers complete (possibly slower) | Throughput metrics |
 | Recovery | Removing latency/freeing disk restores normal operation | Latency returns to baseline |
@@ -482,13 +482,13 @@ iptables -D OUTPUT -d api.anthropic.com -j DROP
 
 | Phase | Expected Cascade | Metrics to Watch |
 |-------|-----------------|-----------------|
-| Session flood | RSS increases, `SessionCountHigh` fires | `skyclaw_active_sessions`, `process_resident_memory_bytes` |
-| Provider block | All completions fail, error rate spikes | `skyclaw_provider_health_check_success == 0` |
-| Combined impact | `MessageProcessingHighErrors` fires, users get errors | `skyclaw_message_processing_duration_seconds_count{status="error"}` |
-| Gateway stays up | Gateway continues serving `/health` even during provider/message errors | `skyclaw_gateway_up == 1` |
+| Session flood | RSS increases, `SessionCountHigh` fires | `temm1e_active_sessions`, `process_resident_memory_bytes` |
+| Provider block | All completions fail, error rate spikes | `temm1e_provider_health_check_success == 0` |
+| Combined impact | `MessageProcessingHighErrors` fires, users get errors | `temm1e_message_processing_duration_seconds_count{status="error"}` |
+| Gateway stays up | Gateway continues serving `/health` even during provider/message errors | `temm1e_gateway_up == 1` |
 | Error budget burn | Multiple SLO budgets burning simultaneously | Dashboard shows multi-SLO breach |
 | Recovery | After provider restored, error rate returns to normal | All health check gauges return to 1 |
-| Session drain | Sessions remain, RSS stays elevated until idle timeout | `skyclaw_active_sessions` slowly decreases |
+| Session drain | Sessions remain, RSS stays elevated until idle timeout | `temm1e_active_sessions` slowly decreases |
 
 ### Abort Conditions
 

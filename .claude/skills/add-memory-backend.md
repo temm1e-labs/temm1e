@@ -1,37 +1,37 @@
-# Skill: Add a new memory backend to SkyClaw
+# Skill: Add a new memory backend to TEMM1E
 
 ## When to use
 
-Use this skill when the user asks to add a new memory/storage backend (e.g., PostgreSQL, Redis, DynamoDB, Qdrant, ChromaDB, Pinecone) to SkyClaw.
+Use this skill when the user asks to add a new memory/storage backend (e.g., PostgreSQL, Redis, DynamoDB, Qdrant, ChromaDB, Pinecone) to TEMM1E.
 
 ## Reference implementation
 
 Study the existing backends:
-- `crates/skyclaw-memory/src/sqlite.rs` -- full Memory trait implementation with SQLite via sqlx
-- `crates/skyclaw-memory/src/markdown.rs` -- file-based Memory implementation for OpenClaw compatibility
-- `crates/skyclaw-core/src/traits/memory.rs` -- the `Memory` trait definition plus `MemoryEntry`, `SearchOpts`, `MemoryEntryType`
+- `crates/temm1e-memory/src/sqlite.rs` -- full Memory trait implementation with SQLite via sqlx
+- `crates/temm1e-memory/src/markdown.rs` -- file-based Memory implementation for OpenClaw compatibility
+- `crates/temm1e-core/src/traits/memory.rs` -- the `Memory` trait definition plus `MemoryEntry`, `SearchOpts`, `MemoryEntryType`
 
 ## Steps
 
 ### 1. Create the backend source file
 
-Create `crates/skyclaw-memory/src/<backend_name>.rs` using the template below.
+Create `crates/temm1e-memory/src/<backend_name>.rs` using the template below.
 
 ### 2. Add the module to lib.rs
 
-Edit `crates/skyclaw-memory/src/lib.rs`:
+Edit `crates/temm1e-memory/src/lib.rs`:
 - Add `pub mod <backend_name>;`
 - Add `pub use <backend_name>::<BackendName>Memory;`
 - Add a match arm in `create_memory_backend()` for the new backend name
 
 ### 3. Add dependencies
 
-Edit `crates/skyclaw-memory/Cargo.toml`:
+Edit `crates/temm1e-memory/Cargo.toml`:
 - Add the backend's client library as a dependency
 - If it should be feature-gated, add it as optional and create a feature flag
 
 If feature-gated, also edit root `Cargo.toml`:
-- Add the feature flag: `<backend_name> = ["skyclaw-memory/<backend_name>"]`
+- Add the feature flag: `<backend_name> = ["temm1e-memory/<backend_name>"]`
 
 ### 4. Write tests
 
@@ -51,9 +51,9 @@ Include tests in the backend source file:
 ### 5. Verify
 
 ```bash
-cargo check -p skyclaw-memory
-cargo test -p skyclaw-memory
-cargo clippy -p skyclaw-memory -- -D warnings
+cargo check -p temm1e-memory
+cargo test -p temm1e-memory
+cargo clippy -p temm1e-memory -- -D warnings
 ```
 
 ## Template
@@ -62,8 +62,8 @@ cargo clippy -p skyclaw-memory -- -D warnings
 //! <BackendName>-backed memory implementation.
 
 use async_trait::async_trait;
-use skyclaw_core::{Memory, MemoryEntry, MemoryEntryType, SearchOpts};
-use skyclaw_core::error::SkyclawError;
+use temm1e_core::{Memory, MemoryEntry, MemoryEntryType, SearchOpts};
+use temm1e_core::error::Temm1eError;
 use tracing::{debug, info};
 
 /// A memory backend backed by <BackendName>.
@@ -76,7 +76,7 @@ impl <BackendName>Memory {
     /// Create a new <BackendName>Memory and initialize the schema.
     ///
     /// `connection_url` is the connection string for the backend.
-    pub async fn new(connection_url: &str) -> Result<Self, SkyclawError> {
+    pub async fn new(connection_url: &str) -> Result<Self, Temm1eError> {
         // TODO: Establish connection, create tables/collections if needed
         info!("<BackendName> memory backend initialised");
         todo!("Implement connection setup")
@@ -85,7 +85,7 @@ impl <BackendName>Memory {
 
 #[async_trait]
 impl Memory for <BackendName>Memory {
-    async fn store(&self, entry: MemoryEntry) -> Result<(), SkyclawError> {
+    async fn store(&self, entry: MemoryEntry) -> Result<(), Temm1eError> {
         // TODO: Upsert the entry (INSERT OR REPLACE / PUT)
         // Fields to persist:
         //   entry.id          -- primary key (String)
@@ -102,7 +102,7 @@ impl Memory for <BackendName>Memory {
         &self,
         query: &str,
         opts: SearchOpts,
-    ) -> Result<Vec<MemoryEntry>, SkyclawError> {
+    ) -> Result<Vec<MemoryEntry>, Temm1eError> {
         // TODO: Implement search
         // - Keyword matching on content (at minimum, LIKE '%query%')
         // - Apply opts.session_filter if set
@@ -114,18 +114,18 @@ impl Memory for <BackendName>Memory {
         todo!("Implement search")
     }
 
-    async fn get(&self, id: &str) -> Result<Option<MemoryEntry>, SkyclawError> {
+    async fn get(&self, id: &str) -> Result<Option<MemoryEntry>, Temm1eError> {
         // TODO: Fetch by primary key, return None if not found
         todo!("Implement get")
     }
 
-    async fn delete(&self, id: &str) -> Result<(), SkyclawError> {
+    async fn delete(&self, id: &str) -> Result<(), Temm1eError> {
         // TODO: Delete by primary key (no error if not found)
         debug!(id = %id, "Deleted memory entry");
         todo!("Implement delete")
     }
 
-    async fn list_sessions(&self) -> Result<Vec<String>, SkyclawError> {
+    async fn list_sessions(&self) -> Result<Vec<String>, Temm1eError> {
         // TODO: SELECT DISTINCT session_id WHERE session_id IS NOT NULL
         todo!("Implement list_sessions")
     }
@@ -134,7 +134,7 @@ impl Memory for <BackendName>Memory {
         &self,
         session_id: &str,
         limit: usize,
-    ) -> Result<Vec<MemoryEntry>, SkyclawError> {
+    ) -> Result<Vec<MemoryEntry>, Temm1eError> {
         // TODO: Fetch entries for session, ORDER BY timestamp ASC, LIMIT
         todo!("Implement get_session_history")
     }
@@ -157,13 +157,13 @@ fn entry_type_to_str(et: &MemoryEntryType) -> &'static str {
     }
 }
 
-fn str_to_entry_type(s: &str) -> Result<MemoryEntryType, SkyclawError> {
+fn str_to_entry_type(s: &str) -> Result<MemoryEntryType, Temm1eError> {
     match s {
         "conversation" => Ok(MemoryEntryType::Conversation),
         "long_term" => Ok(MemoryEntryType::LongTerm),
         "daily_log" => Ok(MemoryEntryType::DailyLog),
         "skill" => Ok(MemoryEntryType::Skill),
-        other => Err(SkyclawError::Memory(format!(
+        other => Err(Temm1eError::Memory(format!(
             "Unknown entry type: {other}"
         ))),
     }
@@ -243,7 +243,7 @@ mod tests {
 
 ## Key conventions
 
-- **Error types**: Use `SkyclawError::Memory(...)` for all memory backend errors.
+- **Error types**: Use `Temm1eError::Memory(...)` for all memory backend errors.
 - **Upsert semantics**: `store()` must replace existing entries with the same ID (INSERT OR REPLACE behavior).
 - **Delete idempotency**: `delete()` must not error if the entry does not exist.
 - **Timestamp format**: Store as RFC 3339 string for portability.

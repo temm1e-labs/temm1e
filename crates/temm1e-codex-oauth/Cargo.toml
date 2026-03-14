@@ -1,0 +1,28 @@
+[package]
+name = "temm1e-codex-oauth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "OpenAI Codex OAuth + Responses API provider for TEMM1E"
+
+[dependencies]
+temm1e-core.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+futures.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+sha2.workspace = true
+base64.workspace = true
+rand.workspace = true
+dirs.workspace = true
+url.workspace = true
+chacha20poly1305.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+temm1e-test-utils.workspace = true

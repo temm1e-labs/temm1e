@@ -4,7 +4,7 @@
 > **Date**: 2026-03-12
 > **Prerequisite**: Read `BLUEPRINT_SYSTEM.md` for the vision, design decisions, and examples.
 
-This document specifies **exactly** how to implement the Blueprint system in the SkyClaw codebase. Every file touched, every struct added, every function written — with risk analysis for each change.
+This document specifies **exactly** how to implement the Blueprint system in the TEMM1E codebase. Every file touched, every struct added, every function written — with risk analysis for each change.
 
 ## Risk Philosophy
 
@@ -23,7 +23,7 @@ The Blueprint system is **purely additive**. It:
 
 ### Step 1: Add `Blueprint` variant to `MemoryEntryType`
 
-**File**: `crates/skyclaw-core/src/traits/memory.rs`
+**File**: `crates/temm1e-core/src/traits/memory.rs`
 
 **Change**: Add one variant to the enum.
 
@@ -52,7 +52,7 @@ pub enum MemoryEntryType {
 
 ### Step 2: Create `blueprint.rs` module
 
-**File**: `crates/skyclaw-agent/src/blueprint.rs` (NEW FILE)
+**File**: `crates/temm1e-agent/src/blueprint.rs` (NEW FILE)
 
 **Risk**: ZERO. New file, no existing code touched.
 
@@ -152,7 +152,7 @@ pub fn should_create_blueprint(
 #### 2.3 Authoring prompt
 
 ```rust
-use skyclaw_core::types::message::ChatMessage;
+use temm1e_core::types::message::ChatMessage;
 
 /// Build the LLM prompt for authoring a new Blueprint from conversation history.
 ///
@@ -343,10 +343,10 @@ pub const BLUEPRINT_MATCH_THRESHOLD: f64 = 0.4;
 
 /// Search memory for blueprints and return the best match above threshold.
 pub async fn find_matching_blueprint(
-    memory: &dyn skyclaw_core::Memory,
+    memory: &dyn temm1e_core::Memory,
     task_text: &str,
 ) -> Option<Blueprint> {
-    use skyclaw_core::{SearchOpts, MemoryEntryType};
+    use temm1e_core::{SearchOpts, MemoryEntryType};
 
     let opts = SearchOpts {
         limit: 20,
@@ -474,7 +474,7 @@ pub fn format_blueprint_context(blueprint: &Blueprint) -> String {
 pub fn to_memory_entry(
     blueprint: &Blueprint,
     session_id: Option<String>,
-) -> skyclaw_core::MemoryEntry {
+) -> temm1e_core::MemoryEntry {
     // Reconstruct the full content: YAML frontmatter + body
     let trigger_yaml: String = blueprint.trigger_patterns
         .iter()
@@ -504,7 +504,7 @@ pub fn to_memory_entry(
         blueprint.body,
     );
 
-    skyclaw_core::MemoryEntry {
+    temm1e_core::MemoryEntry {
         id: format!("blueprint:{}", blueprint.id),
         content,
         metadata: serde_json::json!({
@@ -522,7 +522,7 @@ pub fn to_memory_entry(
         }),
         timestamp: blueprint.updated,
         session_id,
-        entry_type: skyclaw_core::MemoryEntryType::Blueprint,
+        entry_type: temm1e_core::MemoryEntryType::Blueprint,
     }
 }
 ```
@@ -541,7 +541,7 @@ Full unit test suite covering:
 
 ### Step 3: Register the module
 
-**File**: `crates/skyclaw-agent/src/lib.rs`
+**File**: `crates/temm1e-agent/src/lib.rs`
 
 **Change**: Add one `pub mod` line and one `pub use` line.
 
@@ -557,9 +557,9 @@ pub use blueprint::Blueprint;  // NEW — add after `pub use budget::BudgetTrack
 
 ### Step 4: Add `serde_yaml` dependency
 
-**File**: `crates/skyclaw-agent/Cargo.toml`
+**File**: `crates/temm1e-agent/Cargo.toml`
 
-**Change**: Add `serde_yaml` to dependencies (it's already a transitive dependency via `skyclaw-skills`, so this adds no new code to the binary — just makes it a direct dependency for blueprint parsing).
+**Change**: Add `serde_yaml` to dependencies (it's already a transitive dependency via `temm1e-skills`, so this adds no new code to the binary — just makes it a direct dependency for blueprint parsing).
 
 ```toml
 serde_yaml = "0.9"
@@ -567,13 +567,13 @@ serde_yaml = "0.9"
 
 **Risk**: ZERO. Already in the dependency tree. No version conflicts. No new binary size.
 
-**Verification**: Check that `skyclaw-skills` already uses `serde_yaml` — if so, Cargo deduplicates automatically.
+**Verification**: Check that `temm1e-skills` already uses `serde_yaml` — if so, Cargo deduplicates automatically.
 
 ---
 
 ### Step 5: Wire into runtime — Post-DONE Blueprint Authoring
 
-**File**: `crates/skyclaw-agent/src/runtime.rs`
+**File**: `crates/temm1e-agent/src/runtime.rs`
 
 **Change**: After the existing Learning phase (line ~895), add Blueprint authoring. This is **appended after** the learning code, not modifying it.
 
@@ -695,7 +695,7 @@ async fn author_blueprint(
     model: &str,
     prompt: &str,
     user_id: &str,
-) -> Result<Blueprint, SkyclawError> {
+) -> Result<Blueprint, Temm1eError> {
     // Build a minimal CompletionRequest — no tools, no history, just the prompt
     let request = CompletionRequest {
         model: model.to_string(),
@@ -711,11 +711,11 @@ async fn author_blueprint(
 
     let response = provider.complete(request).await?;
     let text = response.text.ok_or_else(||
-        SkyclawError::Provider("Blueprint authoring returned no text".into())
+        Temm1eError::Provider("Blueprint authoring returned no text".into())
     )?;
 
     let mut bp = crate::blueprint::parse_blueprint(&text)
-        .map_err(|e| SkyclawError::Provider(format!("Failed to parse authored blueprint: {e}")))?;
+        .map_err(|e| Temm1eError::Provider(format!("Failed to parse authored blueprint: {e}")))?;
     bp.owner_user_id = user_id.to_string();
     Ok(bp)
 }
@@ -726,7 +726,7 @@ async fn refine_blueprint(
     model: &str,
     prompt: &str,
     blueprint: &mut Blueprint,
-) -> Result<(), SkyclawError> {
+) -> Result<(), Temm1eError> {
     let request = CompletionRequest {
         model: model.to_string(),
         messages: vec![ChatMessage {
@@ -741,11 +741,11 @@ async fn refine_blueprint(
 
     let response = provider.complete(request).await?;
     let text = response.text.ok_or_else(||
-        SkyclawError::Provider("Blueprint refinement returned no text".into())
+        Temm1eError::Provider("Blueprint refinement returned no text".into())
     )?;
 
     let refined = crate::blueprint::parse_blueprint(&text)
-        .map_err(|e| SkyclawError::Provider(format!("Failed to parse refined blueprint: {e}")))?;
+        .map_err(|e| Temm1eError::Provider(format!("Failed to parse refined blueprint: {e}")))?;
     blueprint.body = refined.body;
     Ok(())
 }
@@ -768,7 +768,7 @@ async fn refine_blueprint(
 
 ### Step 6: Wire into runtime — Pre-Loop Blueprint Matching
 
-**File**: `crates/skyclaw-agent/src/runtime.rs`
+**File**: `crates/temm1e-agent/src/runtime.rs`
 
 **Change**: After the DONE criteria injection (line ~510) and before the tool-use loop (line ~547), add blueprint matching.
 
@@ -798,7 +798,7 @@ let active_blueprint: Option<crate::blueprint::Blueprint> = if is_compound
 
 ### Step 7: Wire into context builder — Blueprint Injection
 
-**File**: `crates/skyclaw-agent/src/context.rs`
+**File**: `crates/temm1e-agent/src/context.rs`
 
 **Change**: Add a new parameter to `build_context()` and a new budget category between system prompt and memory.
 
@@ -905,7 +905,7 @@ debug!(
 
 ### Step 8: Update call sites
 
-**File**: `crates/skyclaw-agent/src/runtime.rs` (the `build_context` call in the tool loop)
+**File**: `crates/temm1e-agent/src/runtime.rs` (the `build_context` call in the tool loop)
 
 ```rust
 // Before:
@@ -924,7 +924,7 @@ let mut request = build_context(
 ).await;
 ```
 
-**File**: `crates/skyclaw-agent/src/context.rs` (tests)
+**File**: `crates/temm1e-agent/src/context.rs` (tests)
 
 Every test that calls `build_context` gets `None` appended:
 
@@ -944,13 +944,13 @@ build_context(&session, &memory, &tools, "model", None, 6, 30_000, None, None).a
 
 | File | Change Type | Risk |
 |---|---|---|
-| `crates/skyclaw-core/src/traits/memory.rs` | Add `Blueprint` variant to enum | ZERO — additive, backwards-compatible |
-| `crates/skyclaw-agent/src/blueprint.rs` | **NEW FILE** — all blueprint logic | ZERO — new code, nothing touched |
-| `crates/skyclaw-agent/src/lib.rs` | Add `pub mod blueprint` + `pub use` | ZERO — additive |
-| `crates/skyclaw-agent/Cargo.toml` | Add `serde_yaml` dep | ZERO — already transitive |
-| `crates/skyclaw-agent/src/runtime.rs` | Add blueprint matching (pre-loop) + authoring (post-DONE) | ZERO — appended code, existing code untouched |
-| `crates/skyclaw-agent/src/context.rs` | Add `active_blueprint` param + injection block | LOW — signature change requires call-site updates, but all pass `None` |
-| `crates/skyclaw-agent/src/context.rs` (tests) | Add `None` to `build_context` calls | ZERO — identical behavior |
+| `crates/temm1e-core/src/traits/memory.rs` | Add `Blueprint` variant to enum | ZERO — additive, backwards-compatible |
+| `crates/temm1e-agent/src/blueprint.rs` | **NEW FILE** — all blueprint logic | ZERO — new code, nothing touched |
+| `crates/temm1e-agent/src/lib.rs` | Add `pub mod blueprint` + `pub use` | ZERO — additive |
+| `crates/temm1e-agent/Cargo.toml` | Add `serde_yaml` dep | ZERO — already transitive |
+| `crates/temm1e-agent/src/runtime.rs` | Add blueprint matching (pre-loop) + authoring (post-DONE) | ZERO — appended code, existing code untouched |
+| `crates/temm1e-agent/src/context.rs` | Add `active_blueprint` param + injection block | LOW — signature change requires call-site updates, but all pass `None` |
+| `crates/temm1e-agent/src/context.rs` (tests) | Add `None` to `build_context` calls | ZERO — identical behavior |
 
 **Total existing lines modified**: ~15 (call-site parameter additions + debug log field)
 **Total new lines**: ~500 (blueprint.rs) + ~50 (runtime additions) + ~30 (context additions)
@@ -1038,8 +1038,8 @@ User sends complex task
 These are documented for completeness but are NOT part of this implementation:
 
 1. **Config field**: `[agent] blueprints = true` — feature flag (add in follow-up)
-2. **Blueprint CLI commands**: `skyclaw blueprints list`, `skyclaw blueprints show <id>`, `skyclaw blueprints delete <id>` — user management (add in follow-up)
-3. **Filesystem cache**: `~/.skyclaw/blueprints/*.md` — human-readable copies (add in follow-up)
+2. **Blueprint CLI commands**: `temm1e blueprints list`, `temm1e blueprints show <id>`, `temm1e blueprints delete <id>` — user management (add in follow-up)
+3. **Filesystem cache**: `~/.temm1e/blueprints/*.md` — human-readable copies (add in follow-up)
 4. **Phase-aware loading**: Load only the current phase to reduce context cost (add if blueprints prove too large)
 5. **Blueprint → TaskGraph integration**: Use blueprint phases as task decomposition input (add after validation)
-6. **SkyHub distribution**: Share blueprints across users (distant future)
+6. **TemHub distribution**: Share blueprints across users (distant future)

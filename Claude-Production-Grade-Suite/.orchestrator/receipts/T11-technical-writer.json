@@ -14,7 +14,7 @@
     },
     {
       "file": "docs/api/types.md",
-      "description": "API reference for key types: InboundMessage, OutboundMessage, CompletionRequest, CompletionResponse, StreamChunk, ChatMessage, ContentPart, Role, ReceivedFile, OutboundFile, FileMetadata, SessionContext, SkyclawConfig, SkyclawError with all fields documented"
+      "description": "API reference for key types: InboundMessage, OutboundMessage, CompletionRequest, CompletionResponse, StreamChunk, ChatMessage, ContentPart, Role, ReceivedFile, OutboundFile, FileMetadata, SessionContext, Temm1eConfig, Temm1eError with all fields documented"
     },
     {
       "file": "docs/api/config.md",
@@ -42,7 +42,7 @@
     },
     {
       "file": "docs/ops/configuration.md",
-      "description": "Operational configuration guide: configuration hierarchy, SKYCLAW_* environment variable mapping, ${ENV_VAR} expansion, vault:// URI scheme, cloud/local/auto mode settings, ZeroClaw/OpenClaw compatibility, validation commands"
+      "description": "Operational configuration guide: configuration hierarchy, TEMM1E_* environment variable mapping, ${ENV_VAR} expansion, vault:// URI scheme, cloud/local/auto mode settings, ZeroClaw/OpenClaw compatibility, validation commands"
     },
     {
       "file": "docs/ops/monitoring.md",
@@ -55,8 +55,8 @@
     "docs/architecture/adr/001-006 (all 6 ADRs)",
     "config/default.toml",
     "src/main.rs",
-    "crates/skyclaw-core/src/traits/ (all 12 trait files + mod.rs)",
-    "crates/skyclaw-core/src/types/ (message.rs, file.rs, config.rs, session.rs, error.rs)",
+    "crates/temm1e-core/src/traits/ (all 12 trait files + mod.rs)",
+    "crates/temm1e-core/src/types/ (message.rs, file.rs, config.rs, session.rs, error.rs)",
     "Cargo.toml (workspace root)",
     "Dockerfile",
     "infrastructure/terraform/fly.toml",
@@ -64,5 +64,5 @@
     "infrastructure/terraform/variables.tf",
     "infrastructure/terraform/outputs.tf"
   ],
-  "notes": "All documentation written from source code and architecture documents. Trait signatures match the actual Rust code exactly. Configuration tables cover every field in the SkyclawConfig struct. Deployment guides reference the actual Dockerfile and Terraform configs in the repository."
+  "notes": "All documentation written from source code and architecture documents. Trait signatures match the actual Rust code exactly. Configuration tables cover every field in the Temm1eConfig struct. Deployment guides reference the actual Dockerfile and Terraform configs in the repository."
 }

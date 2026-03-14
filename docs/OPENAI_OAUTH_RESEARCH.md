@@ -3,13 +3,13 @@
 **Branch:** `oauth_openai`
 **Date:** 2026-03-11
 **Status:** Research / Exploration
-**Goal:** Enable SkyClaw users to authenticate with their ChatGPT Plus/Pro subscription via OAuth instead of API keys — same as OpenClaw does.
+**Goal:** Enable TEMM1E users to authenticate with their ChatGPT Plus/Pro subscription via OAuth instead of API keys — same as OpenClaw does.
 
 ---
 
 ## Why This Matters
 
-Currently SkyClaw requires users to have an OpenAI API key (pay-per-token billing). With Codex OAuth, users with a **ChatGPT Plus ($20/mo) or Pro ($200/mo) subscription** can use their subscription's included API access — no separate API billing needed. This is how OpenClaw works today.
+Currently TEMM1E requires users to have an OpenAI API key (pay-per-token billing). With Codex OAuth, users with a **ChatGPT Plus ($20/mo) or Pro ($200/mo) subscription** can use their subscription's included API access — no separate API billing needed. This is how OpenClaw works today.
 
 ---
 
@@ -138,7 +138,7 @@ The Responses API has a different request/response shape than Chat Completions:
 - **Cost:** 40-80% better cache utilization than Chat Completions
 - **Built-in tools:** Web search, file search, code interpreter, MCP
 
-> **SkyClaw impact:** Our `OpenAICompatProvider` currently uses `/v1/chat/completions`. For OAuth/Codex models, we need a **separate Responses API adapter** or modify the provider to support both wire protocols. This reinforces the isolation requirement.
+> **TEMM1E impact:** Our `OpenAICompatProvider` currently uses `/v1/chat/completions`. For OAuth/Codex models, we need a **separate Responses API adapter** or modify the provider to support both wire protocols. This reinforces the isolation requirement.
 
 ### Available Codex Models (as of March 2026)
 
@@ -219,34 +219,34 @@ OpenClaw's UI groups "OpenAI (API key)" and "OpenAI Codex (OAuth)" under a singl
 
 **Root cause:** The two authentication methods are not visually or conceptually separated.
 
-### Design Rules for SkyClaw (Learned from OpenClaw)
+### Design Rules for TEMM1E (Learned from OpenClaw)
 
 1. **Provider names MUST be distinct:** `openai` (API key) and `openai-codex` (OAuth) are separate providers with separate configs, separate credentials, separate model lists.
 
 2. **Model names MUST NOT encode provider routing:** Never auto-route based on model name substrings. The user's config (`provider.name`) decides the auth path, not the model string.
 
-3. **Model IDs are passed through verbatim:** SkyClaw sends whatever model string the user configured directly to the API. No normalization, no rewriting. `gpt-5.3-codex` is a valid model ID for both API key and OAuth paths — the difference is authentication, not the model name.
+3. **Model IDs are passed through verbatim:** TEMM1E sends whatever model string the user configured directly to the API. No normalization, no rewriting. `gpt-5.3-codex` is a valid model ID for both API key and OAuth paths — the difference is authentication, not the model name.
 
 4. **Clean removal path:** All OAuth code must be behind a feature flag (`codex-oauth`) and in a separate crate or module. If OpenAI blocks third-party OAuth, we `cargo build` without the flag and everything works exactly as before.
 
 ---
 
-## Proposed SkyClaw Implementation Plan
+## Proposed TEMM1E Implementation Plan
 
 ### Architecture: Isolation-First Design
 
 ```
 crates/
-  skyclaw-codex-oauth/           ← NEW CRATE (behind feature flag "codex-oauth")
+  temm1e-codex-oauth/           ← NEW CRATE (behind feature flag "codex-oauth")
     src/
       lib.rs                     ← Public API: login(), refresh(), token_store()
       pkce.rs                    ← PKCE verifier/challenge generation
       callback_server.rs         ← Temporary axum server for OAuth redirect
-      token_store.rs             ← Read/write ~/.skyclaw/oauth.json
+      token_store.rs             ← Read/write ~/.temm1e/oauth.json
       responses_provider.rs      ← Provider trait impl using Responses API
 ```
 
-**Why a separate crate, not a module in skyclaw-providers:**
+**Why a separate crate, not a module in temm1e-providers:**
 - **Clean removal:** `Cargo.toml` drops the dep, `#[cfg(feature = "codex-oauth")]` gates vanish, zero residue
 - **Dependency isolation:** `jsonwebtoken` (if used) only pulled in when feature is enabled
 - **No contamination:** `OpenAICompatProvider` stays unchanged — it's a different API shape entirely (Chat Completions vs Responses)
@@ -254,10 +254,10 @@ crates/
 
 ### Phase 1: OAuth Flow
 
-**New crate:** `crates/skyclaw-codex-oauth/`
+**New crate:** `crates/temm1e-codex-oauth/`
 
 ```rust
-/// OAuth token set — stored in ~/.skyclaw/oauth.json
+/// OAuth token set — stored in ~/.temm1e/oauth.json
 #[derive(Serialize, Deserialize)]
 pub struct CodexOAuthTokens {
     pub access_token: String,
@@ -268,7 +268,7 @@ pub struct CodexOAuthTokens {
 }
 
 /// PKCE + OAuth flow
-pub async fn login(headless: bool) -> Result<CodexOAuthTokens, SkyclawError> {
+pub async fn login(headless: bool) -> Result<CodexOAuthTokens, Temm1eError> {
     // 1. Generate PKCE verifier (32 random bytes → base64url)
     // 2. Generate code_challenge = base64url(sha256(verifier))
     // 3. Generate random state
@@ -279,7 +279,7 @@ pub async fn login(headless: bool) -> Result<CodexOAuthTokens, SkyclawError> {
     // 7. POST to token endpoint with code + verifier
     // 8. Decode id_token JWT payload (base64, no signature verification)
     // 9. Extract email + accountId (org) from JWT claims
-    // 10. Store tokens to ~/.skyclaw/oauth.json
+    // 10. Store tokens to ~/.temm1e/oauth.json
     // 11. Scope probe: make test API call to /v1/responses
     //     If 403 → fail with clear error about missing scopes
 }
@@ -333,7 +333,7 @@ Key differences:
 
 ### Phase 3: Token Management
 
-**Storage:** `~/.skyclaw/oauth.json` (separate from `credentials.toml`)
+**Storage:** `~/.temm1e/oauth.json` (separate from `credentials.toml`)
 ```json
 {
   "access_token": "eyJhb...",
@@ -367,12 +367,12 @@ impl TokenStore {
 
 ### Phase 4: User Experience
 
-**Config (`skyclaw.toml`) — completely separate provider block:**
+**Config (`temm1e.toml`) — completely separate provider block:**
 ```toml
 [provider]
 name = "openai-codex"         # ← Distinct provider name
 model = "gpt-5.3-codex"       # ← Model ID passed through verbatim
-# No api_key needed — uses OAuth tokens from ~/.skyclaw/oauth.json
+# No api_key needed — uses OAuth tokens from ~/.temm1e/oauth.json
 ```
 
 vs the existing API key path (unchanged):
@@ -390,7 +390,7 @@ match provider_name {
         #[cfg(feature = "codex-oauth")]
         return Ok(Arc::new(CodexResponsesProvider::new(model, token_store)));
         #[cfg(not(feature = "codex-oauth"))]
-        return Err(SkyclawError::Config(
+        return Err(Temm1eError::Config(
             "OpenAI Codex OAuth requires the 'codex-oauth' feature. \
              Build with: cargo build --features codex-oauth".to_string()
         ));
@@ -403,9 +403,9 @@ match provider_name {
 
 **CLI commands:**
 ```
-skyclaw auth login                    # Opens browser for OAuth (or headless flow)
-skyclaw auth status                   # Shows: email, account, token expiry
-skyclaw auth logout                   # Deletes ~/.skyclaw/oauth.json
+temm1e auth login                    # Opens browser for OAuth (or headless flow)
+temm1e auth status                   # Shows: email, account, token expiry
+temm1e auth logout                   # Deletes ~/.temm1e/oauth.json
 ```
 
 **Telegram (headless):**
@@ -426,7 +426,7 @@ Bot:  Authenticated! Connected as user@example.com.
 
 For environments where neither browser redirect nor URL pasting works:
 ```
-skyclaw auth login --device-code
+temm1e auth login --device-code
 ```
 Uses OpenAI's device code flow (beta) — user gets a code, enters it at openai.com/device.
 
@@ -438,7 +438,7 @@ If OpenAI blocks third-party OAuth usage:
 2. Users: Switch `provider.name` from `"openai-codex"` to `"openai"` + add API key
 3. Code: All OAuth code is behind `#[cfg(feature = "codex-oauth")]` — compiles away to nothing
 4. No migration needed for API key users — they were never affected
-5. `crates/skyclaw-codex-oauth/` can be deleted entirely with zero impact on other crates
+5. `crates/temm1e-codex-oauth/` can be deleted entirely with zero impact on other crates
 
 ---
 
@@ -458,7 +458,7 @@ If OpenAI blocks third-party OAuth usage:
 
 7. **Legal/TOS:** No clear answer. OpenAI hasn't blocked third-party usage of the Codex client ID despite widespread use. **Mitigation:** Feature flag makes it removable in one commit.
 
-8. **Responses API adapter complexity:** The Responses API has a different request/response shape than Chat Completions. Need to translate SkyClaw's `CompletionRequest` (messages-based) to Responses API format (input/instructions-based). Tool call schemas also differ. This is the biggest implementation effort.
+8. **Responses API adapter complexity:** The Responses API has a different request/response shape than Chat Completions. Need to translate TEMM1E's `CompletionRequest` (messages-based) to Responses API format (input/instructions-based). Tool call schemas also differ. This is the biggest implementation effort.
 
 9. **Chat Completions deprecation:** Codex CLI fully deprecated `/v1/chat/completions` in Feb 2026. If OAuth tokens only work with the Responses API endpoint, we MUST implement the Responses API adapter — no shortcut of reusing `OpenAICompatProvider`.
 
@@ -481,7 +481,7 @@ All major dependencies already exist in the workspace. Only `jsonwebtoken` would
 
 ## Competitive Analysis
 
-| Feature | OpenClaw | Codex CLI | SkyClaw (Proposed) |
+| Feature | OpenClaw | Codex CLI | TEMM1E (Proposed) |
 |---------|----------|-----------|-------------------|
 | OAuth PKCE | ✓ | ✓ | Planned |
 | Device code flow | ✗ | ✓ (beta) | Stretch goal |
