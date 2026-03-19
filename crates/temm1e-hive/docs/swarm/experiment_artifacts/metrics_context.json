@@ -1,0 +1,192 @@
+[
+  {
+    "mode": "single",
+    "wall_ms": 102849,
+    "tokens": 7379,
+    "calls": 12,
+    "cost": 0.00243507,
+    "passed": 12,
+    "total": 12,
+    "results": [
+      {
+        "name": "reverse_words",
+        "passed": true,
+        "tokens": 108,
+        "latency_ms": 4610,
+        "context_size": 115
+      },
+      {
+        "name": "flatten_list",
+        "passed": true,
+        "tokens": 225,
+        "latency_ms": 5386,
+        "context_size": 369
+      },
+      {
+        "name": "is_palindrome",
+        "passed": true,
+        "tokens": 273,
+        "latency_ms": 6325,
+        "context_size": 552
+      },
+      {
+        "name": "chunk_list",
+        "passed": true,
+        "tokens": 342,
+        "latency_ms": 5630,
+        "context_size": 693
+      },
+      {
+        "name": "caesar_cipher",
+        "passed": true,
+        "tokens": 449,
+        "latency_ms": 12490,
+        "context_size": 966
+      },
+      {
+        "name": "merge_sorted",
+        "passed": true,
+        "tokens": 584,
+        "latency_ms": 7968,
+        "context_size": 1330
+      },
+      {
+        "name": "most_frequent",
+        "passed": true,
+        "tokens": 658,
+        "latency_ms": 12965,
+        "context_size": 1570
+      },
+      {
+        "name": "matrix_transpose",
+        "passed": true,
+        "tokens": 704,
+        "latency_ms": 6833,
+        "context_size": 1708
+      },
+      {
+        "name": "run_length_encode",
+        "passed": true,
+        "tokens": 851,
+        "latency_ms": 8684,
+        "context_size": 2173
+      },
+      {
+        "name": "deep_get",
+        "passed": true,
+        "tokens": 940,
+        "latency_ms": 8310,
+        "context_size": 2431
+      },
+      {
+        "name": "validate_brackets",
+        "passed": true,
+        "tokens": 1028,
+        "latency_ms": 8298,
+        "context_size": 2810
+      },
+      {
+        "name": "int_to_roman",
+        "passed": true,
+        "tokens": 1217,
+        "latency_ms": 12554,
+        "context_size": 3253
+      }
+    ]
+  },
+  {
+    "mode": "swarm",
+    "wall_ms": 17551,
+    "tokens": 2149,
+    "calls": 12,
+    "cost": 0.00070917,
+    "passed": 12,
+    "total": 12,
+    "results": [
+      {
+        "name": "reverse_words",
+        "passed": true,
+        "tokens": 108,
+        "latency_ms": 4701,
+        "context_size": 160
+      },
+      {
+        "name": "flatten_list",
+        "passed": true,
+        "tokens": 160,
+        "latency_ms": 5588,
+        "context_size": 179
+      },
+      {
+        "name": "is_palindrome",
+        "passed": true,
+        "tokens": 137,
+        "latency_ms": 6604,
+        "context_size": 205
+      },
+      {
+        "name": "chunk_list",
+        "passed": true,
+        "tokens": 149,
+        "latency_ms": 6643,
+        "context_size": 190
+      },
+      {
+        "name": "caesar_cipher",
+        "passed": true,
+        "tokens": 226,
+        "latency_ms": 10985,
+        "context_size": 223
+      },
+      {
+        "name": "merge_sorted",
+        "passed": true,
+        "tokens": 226,
+        "latency_ms": 7798,
+        "context_size": 190
+      },
+      {
+        "name": "most_frequent",
+        "passed": true,
+        "tokens": 165,
+        "latency_ms": 17519,
+        "context_size": 190
+      },
+      {
+        "name": "matrix_transpose",
+        "passed": true,
+        "tokens": 128,
+        "latency_ms": 6605,
+        "context_size": 174
+      },
+      {
+        "name": "run_length_encode",
+        "passed": true,
+        "tokens": 233,
+        "latency_ms": 7891,
+        "context_size": 186
+      },
+      {
+        "name": "deep_get",
+        "passed": true,
+        "tokens": 177,
+        "latency_ms": 11313,
+        "context_size": 205
+      },
+      {
+        "name": "validate_brackets",
+        "passed": true,
+        "tokens": 178,
+        "latency_ms": 9859,
+        "context_size": 189
+      },
+      {
+        "name": "int_to_roman",
+        "passed": true,
+        "tokens": 262,
+        "latency_ms": 10705,
+        "context_size": 147
+      }
+    ]
+  }
+]

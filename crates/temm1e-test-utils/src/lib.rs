@@ -62,6 +62,7 @@ impl MockProvider {
                     id: tool_id.to_string(),
                     name: tool_name.to_string(),
                     input,
+                    thought_signature: None,
                 }],
                 stop_reason: Some("tool_use".to_string()),
                 usage: Usage {

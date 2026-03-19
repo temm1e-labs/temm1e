@@ -1,0 +1,194 @@
+============================================================
+  EIGEN-TUNE: FULL PIPELINE PROOF
+  2026-03-18 16:47:05 UTC
+  Hardware: Apple M2
+  RAM: 16 GB
+============================================================
+
+=== STAGE 1: DATA COLLECTION ===
+Source: /tmp/eigentune_training_data.jsonl
+Lines:       10
+Size: 5118 bytes
+Format: ChatML JSONL (messages with role/content)
+
+--- Line-by-line validation ---
+Valid ChatML lines: 0/10
+
+=== STAGE 2: DATASET PREPARATION ===
+Train split:        8 conversations
+Valid split:        2 conversations
+
+=== STAGE 3: BASE MODEL INFO ===
+Model: HuggingFaceTB/SmolLM2-135M-Instruct
+Parameters: 134,515,200
+Architecture: SmolLM2 (Transformer decoder-only)
+
+=== STAGE 4: FINE-TUNING (LoRA via MLX) ===
+Method: LoRA (Low-Rank Adaptation)
+Trainable params: 0.242% (326K / 134.5M)
+Config: iters=100, batch=1, layers=4, lr=1e-5
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+AttributeError: module 'mlx' has no attribute '__version__'
+Backend: MLX 
+GPU: Metal (Apple M2)
+
+--- Training log ---
+Loading pretrained model
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 41120.63it/s]
+Loading datasets
+Training
+Trainable parameters: 0.242% (0.326M/134.515M)
+Starting training..., iters: 100
+Calculating loss...:   0%|          | 0/2 [00:00<?, ?it/s]Calculating loss...: 100%|██████████| 2/2 [00:00<00:00, 17.74it/s]Calculating loss...: 100%|██████████| 2/2 [00:00<00:00, 17.72it/s]
+Iter 1: Val loss 2.395, Val took 0.115s
+Iter 10: Train loss 2.450, Learning Rate 1.000e-05, It/sec 24.929, Tokens/sec 2712.246, Trained Tokens 1088, Peak mem 0.501 GB
+Iter 20: Train loss 2.416, Learning Rate 1.000e-05, It/sec 27.978, Tokens/sec 2881.728, Trained Tokens 2118, Peak mem 0.509 GB
+Iter 30: Train loss 2.178, Learning Rate 1.000e-05, It/sec 25.630, Tokens/sec 3231.934, Trained Tokens 3379, Peak mem 0.509 GB
+Iter 40: Train loss 1.890, Learning Rate 1.000e-05, It/sec 29.675, Tokens/sec 3074.308, Trained Tokens 4415, Peak mem 0.509 GB
+Iter 50: Train loss 1.711, Learning Rate 1.000e-05, It/sec 27.236, Tokens/sec 3205.679, Trained Tokens 5592, Peak mem 0.509 GB
+Iter 60: Train loss 1.561, Learning Rate 1.000e-05, It/sec 27.636, Tokens/sec 3136.662, Trained Tokens 6727, Peak mem 0.509 GB
+Iter 70: Train loss 1.733, Learning Rate 1.000e-05, It/sec 31.987, Tokens/sec 2811.641, Trained Tokens 7606, Peak mem 0.509 GB
+Iter 80: Train loss 1.419, Learning Rate 1.000e-05, It/sec 26.243, Tokens/sec 3212.085, Trained Tokens 8830, Peak mem 0.509 GB
+Iter 90: Train loss 1.532, Learning Rate 1.000e-05, It/sec 25.773, Tokens/sec 3249.993, Trained Tokens 10091, Peak mem 0.509 GB
+Calculating loss...:   0%|          | 0/2 [00:00<?, ?it/s]Calculating loss...: 100%|██████████| 2/2 [00:00<00:00, 31.39it/s]
+Iter 100: Val loss 1.954, Val took 0.066s
+Iter 100: Train loss 1.242, Learning Rate 1.000e-05, It/sec 34.128, Tokens/sec 2924.797, Trained Tokens 10948, Peak mem 0.509 GB
+Iter 100: Saved adapter weights to /tmp/eigentune-adapters-proof/adapters.safetensors and /tmp/eigentune-adapters-proof/0000100_adapters.safetensors.
+Saved final weights to /tmp/eigentune-adapters-proof/adapters.safetensors.
+
+--- Adapter artifacts ---
+total 5128
+drwxr-xr-x@   5 quanduong  wheel      160 Mar 18 23:47 .
+drwxrwxrwt  172 root       wheel     5504 Mar 18 23:47 ..
+-rw-r--r--@   1 quanduong  wheel  1308381 Mar 18 23:47 0000100_adapters.safetensors
+-rw-r--r--@   1 quanduong  wheel      946 Mar 18 23:47 adapter_config.json
+-rw-r--r--@   1 quanduong  wheel  1308381 Mar 18 23:47 adapters.safetensors
+
+=== STAGE 5: INFERENCE TESTS ===
+
+--- Test 1: Temperature conversion (factual recall) ---
+Query: What is 72°F in Celsius?
+
+Base model (no fine-tune):
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 108942.96it/s]
+==========
+To convert 72°F to Celsius, you can use the following formula:
+
+Celsius = (72°F - 32°F) × 5/9
+
+Plugging in the values, you get:
+
+Celsius = (72 - 32) × 5/9
+Celsius = 30 × 5/9
+Celsius = 150°C
+
+So, 72°F
+==========
+Prompt: 40 tokens, 948.457 tokens-per-sec
+Generation: 100 tokens, 214.843 tokens-per-sec
+Peak memory: 0.303 GB
+
+Fine-tuned model:
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 101680.10it/s]
+==========
+72°F is equivalent to 21.2°C
+==========
+Prompt: 40 tokens, 1050.290 tokens-per-sec
+Generation: 15 tokens, 205.935 tokens-per-sec
+Peak memory: 0.306 GB
+
+--- Test 2: Code generation ---
+Query: Write a function to check if a number is prime
+
+Base model:
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 139810.13it/s]
+==========
+Here is a simple Rust function that checks if a number is prime:
+
+```rust
+fn is_prime(n: u32) -> bool {
+    if n <= 1 {
+        return false
+    }
+    for i in 2 to n {
+        if n % i == 0 {
+            return false
+        }
+    }
+    return true
+}
+```
+
+This function works by checking if the input number `n` is divisible by any number from 2 to the square root of `n`. If `n` is divisible by any of these numbers, it's not prime, and the function immediately returns `false`. If `n` is not divisible by any of these numbers, it's prime, and
+==========
+Prompt: 42 tokens, 917.119 tokens-per-sec
+Generation: 150 tokens, 213.115 tokens-per-sec
+Peak memory: 0.304 GB
+
+Fine-tuned model:
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 48164.26it/s]
+==========
+Here is a simple Rust function that checks if a number is prime:
+
+```rust
+fn is_prime(n: u32) -> bool {
+    if n <= 1 {
+        return false
+    }
+    for i in 2 to n {
+        if n % i == 0 {
+            return false
+        }
+    }
+    return true
+}
+```
+
+This function works by checking divisibility from 2 up to the square root of the number. If the number is divisible by any of these values, it's not prime. Otherwise, it's prime.
+
+You can use this function like this:
+
+```rust
+fn main() {
+    let num = 23;
+    assert
+==========
+Prompt: 42 tokens, 769.430 tokens-per-sec
+Generation: 150 tokens, 191.674 tokens-per-sec
+Peak memory: 0.307 GB
+
+--- Test 3: Creative ---
+Query: Write a haiku about cloud computing
+
+Fine-tuned model:
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 49981.78it/s]
+==========
+In twilight's hush,
+Cloud computing reigns,
+A tapestry woven with threads of light,
+A canvas of possibilities.
+==========
+Prompt: 38 tokens, 732.680 tokens-per-sec
+Generation: 27 tokens, 201.022 tokens-per-sec
+Peak memory: 0.305 GB
+
+--- Test 4: Math ---
+Query: What is 123 * 456?
+
+Fine-tuned model:
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 43314.67it/s]
+==========
+123 * 456 = 53080
+==========
+Prompt: 42 tokens, 834.236 tokens-per-sec
+Generation: 16 tokens, 198.495 tokens-per-sec
+Peak memory: 0.307 GB
+
+=== STAGE 6: STATISTICAL PIPELINE ===
+Tests: 128 passing
+
+============================================================
+  PIPELINE COMPLETE
+  2026-03-18 16:47:24 UTC
+============================================================

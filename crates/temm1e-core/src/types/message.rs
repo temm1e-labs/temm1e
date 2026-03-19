@@ -83,6 +83,10 @@ pub enum ContentPart {
         id: String,
         name: String,
         input: serde_json::Value,
+        /// Gemini 3 thought signature — opaque blob that must be echoed back
+        /// with the corresponding tool result. None for non-Gemini providers.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        thought_signature: Option<String>,
     },
     #[serde(rename = "tool_result")]
     ToolResult {
@@ -265,11 +269,14 @@ mod tests {
             id: "tu-1".to_string(),
             name: "shell".to_string(),
             input: serde_json::json!({"command": "ls"}),
+            thought_signature: None,
         };
         let json = serde_json::to_string(&part).unwrap();
         let restored: ContentPart = serde_json::from_str(&json).unwrap();
         match restored {
-            ContentPart::ToolUse { id, name, input } => {
+            ContentPart::ToolUse {
+                id, name, input, ..
+            } => {
                 assert_eq!(id, "tu-1");
                 assert_eq!(name, "shell");
                 assert_eq!(input["command"], "ls");

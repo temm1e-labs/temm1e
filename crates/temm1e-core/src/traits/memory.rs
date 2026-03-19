@@ -2,6 +2,51 @@ use crate::types::error::Temm1eError;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+// ── λ-Memory Types ─────────────────────────────────────────────
+
+/// A single λ-memory entry with three fidelity layers.
+///
+/// Created with full/summary/essence at write time.
+/// Decay score is computed lazily at read time — never stored.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LambdaMemoryEntry {
+    /// Unique hash identifier (first 12 hex chars of SHA-256).
+    pub hash: String,
+    /// Unix epoch seconds when created.
+    pub created_at: u64,
+    /// Unix epoch seconds when last accessed (recalled or created).
+    pub last_accessed: u64,
+    /// Number of times recalled via lambda_recall tool.
+    pub access_count: u32,
+    /// Importance score assigned by LLM at creation (1.0–5.0).
+    pub importance: f32,
+    /// Whether the user explicitly asked to remember this.
+    pub explicit_save: bool,
+    /// Full-fidelity content (user message + assistant core response).
+    pub full_text: String,
+    /// One-sentence summary (LLM-generated at creation).
+    pub summary_text: String,
+    /// Five-word-max essence (LLM-generated at creation).
+    pub essence_text: String,
+    /// Up to 5 tags (LLM-generated at creation).
+    pub tags: Vec<String>,
+    /// Whether this is a conversation memory, knowledge, or learning.
+    pub memory_type: LambdaMemoryType,
+    /// Session that created this memory.
+    pub session_id: String,
+}
+
+/// Classification of λ-memory entries.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum LambdaMemoryType {
+    /// Normal conversation turn memory.
+    Conversation,
+    /// Persistent knowledge (replaces old MemoryEntryType::Knowledge in context).
+    Knowledge,
+    /// Cross-task learning (replaces old learnings in context).
+    Learning,
+}
+
 /// A single memory entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryEntry {
@@ -72,4 +117,46 @@ pub trait Memory: Send + Sync {
 
     /// Backend name (e.g., "sqlite", "postgres", "markdown")
     fn backend_name(&self) -> &str;
+
+    // ── λ-Memory methods (default no-op for backends that don't support it) ──
+
+    /// Store a λ-memory entry.
+    async fn lambda_store(&self, _entry: LambdaMemoryEntry) -> Result<(), Temm1eError> {
+        Ok(())
+    }
+
+    /// Query λ-memory candidates ordered by importance DESC, limited to `limit`.
+    async fn lambda_query_candidates(
+        &self,
+        _limit: usize,
+    ) -> Result<Vec<LambdaMemoryEntry>, Temm1eError> {
+        Ok(Vec::new())
+    }
+
+    /// Look up a λ-memory by hash prefix.
+    async fn lambda_recall(
+        &self,
+        _hash_prefix: &str,
+    ) -> Result<Option<LambdaMemoryEntry>, Temm1eError> {
+        Ok(None)
+    }
+
+    /// Update last_accessed and increment access_count for a recalled memory.
+    async fn lambda_touch(&self, _hash: &str) -> Result<(), Temm1eError> {
+        Ok(())
+    }
+
+    /// FTS5 search returning (hash, bm25_rank) pairs.
+    async fn lambda_fts_search(
+        &self,
+        _query: &str,
+        _limit: usize,
+    ) -> Result<Vec<(String, f64)>, Temm1eError> {
+        Ok(Vec::new())
+    }
+
+    /// Garbage collect expired λ-memories. Returns count of deleted entries.
+    async fn lambda_gc(&self, _now_epoch: u64, _max_age_secs: u64) -> Result<usize, Temm1eError> {
+        Ok(0)
+    }
 }

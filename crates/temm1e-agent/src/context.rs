@@ -85,6 +85,7 @@ pub async fn build_context(
     max_context_tokens: usize,
     prompt_tier: Option<PromptTier>,
     matched_blueprints: &[crate::blueprint::Blueprint],
+    lambda_enabled: bool,
 ) -> CompletionRequest {
     let budget = max_context_tokens;
 
@@ -216,67 +217,94 @@ pub async fn build_context(
     let available_after_fixed_and_recent =
         budget.saturating_sub(fixed_tokens + recent_tokens + blueprint_tokens_used);
 
-    // ── Category 5: Memory search results (up to 15% of budget) ────
-    let memory_budget = ((budget as f32) * MEMORY_BUDGET_FRACTION) as usize;
-    let memory_budget = memory_budget.min(available_after_fixed_and_recent);
-
+    // ── Category 5: λ-Memory (dynamic budget, replaces old Cat 5/5b/6) ──
     let query = extract_latest_query(history);
-    let mut memory_messages: Vec<ChatMessage> = Vec::new();
-    let mut memory_tokens_used = 0;
+    let mut lambda_messages: Vec<ChatMessage> = Vec::new();
+    let mut lambda_tokens_used = 0;
 
-    if !query.is_empty() {
-        let opts = SearchOpts {
-            limit: 5,
-            session_filter: Some(session.session_id.clone()),
+    // Also run legacy memory search + knowledge + learnings as fallback
+    // (λ-Memory unifies these, but legacy entries still exist in memory_entries)
+    let mut memory_tokens_used = 0;
+    let mut knowledge_tokens_used = 0;
+    let mut learning_tokens_used = 0;
+
+    {
+        // Get model skull size for dynamic budgeting
+        let (skull, max_output) = model_registry::model_limits(model);
+        let bone = fixed_tokens + blueprint_tokens_used;
+        let lambda_max =
+            crate::lambda_memory::lambda_budget(skull, max_output, bone, recent_tokens);
+        let lambda_current = lambda_max.min(available_after_fixed_and_recent);
+
+        let lambda_config = temm1e_core::types::config::LambdaMemoryConfig {
+            enabled: lambda_enabled,
             ..Default::default()
         };
 
-        if let Ok(entries) = memory.search(&query, opts).await {
-            if !entries.is_empty() {
-                let memory_text: String = entries
-                    .iter()
-                    .map(|e| format!("[{}] {}", e.timestamp.format("%Y-%m-%d %H:%M"), e.content))
-                    .collect::<Vec<_>>()
-                    .join("\n");
+        let (lambda_text, tokens) = crate::lambda_memory::assemble_lambda_context(
+            memory,
+            lambda_current,
+            lambda_max,
+            &lambda_config,
+            &query,
+        )
+        .await;
 
-                let tokens = estimate_tokens(&memory_text) + 10; // +10 for prefix
-                if tokens <= memory_budget {
-                    memory_messages.push(ChatMessage {
-                        role: Role::System,
-                        content: MessageContent::Text(format!(
-                            "Relevant context from memory:\n{}",
-                            memory_text
-                        )),
-                    });
-                    memory_tokens_used = tokens;
-                }
-            }
+        if !lambda_text.is_empty() {
+            lambda_messages.push(ChatMessage {
+                role: Role::System,
+                content: MessageContent::Text(lambda_text),
+            });
+            lambda_tokens_used = tokens;
         }
     }
 
-    // ── Category 5b: Persistent knowledge entries (auto-inject) ────
-    // Inject top knowledge entries so the agent has context from previous
-    // conversations without needing to explicitly recall them.
-    let mut knowledge_messages: Vec<ChatMessage> = Vec::new();
-    let mut knowledge_tokens_used = 0;
-    {
-        let knowledge_budget = memory_budget.saturating_sub(memory_tokens_used).min(2000);
-        let knowledge_opts = SearchOpts {
-            limit: 10,
-            entry_type_filter: Some(MemoryEntryType::Knowledge),
-            ..Default::default()
-        };
+    // Legacy fallback: if λ-Memory produced nothing, try old Category 5 search
+    if lambda_tokens_used == 0 {
+        let memory_budget = ((budget as f32) * MEMORY_BUDGET_FRACTION) as usize;
+        let memory_budget = memory_budget.min(available_after_fixed_and_recent);
 
-        match memory.search("", knowledge_opts).await {
-            Err(e) => {
-                debug!(error = %e, "Knowledge search failed");
+        if !query.is_empty() {
+            let opts = SearchOpts {
+                limit: 5,
+                session_filter: Some(session.session_id.clone()),
+                ..Default::default()
+            };
+
+            if let Ok(entries) = memory.search(&query, opts).await {
+                if !entries.is_empty() {
+                    let memory_text: String = entries
+                        .iter()
+                        .map(|e| {
+                            format!("[{}] {}", e.timestamp.format("%Y-%m-%d %H:%M"), e.content)
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                    let tokens = estimate_tokens(&memory_text) + 10;
+                    if tokens <= memory_budget {
+                        lambda_messages.push(ChatMessage {
+                            role: Role::System,
+                            content: MessageContent::Text(format!(
+                                "Relevant context from memory:\n{memory_text}",
+                            )),
+                        });
+                        memory_tokens_used = tokens;
+                    }
+                }
             }
-            Ok(entries) => {
-                debug!(
-                    count = entries.len(),
-                    knowledge_budget = knowledge_budget,
-                    "Knowledge search returned entries"
-                );
+        }
+
+        // Legacy Category 5b: knowledge entries
+        {
+            let knowledge_budget = memory_budget.saturating_sub(memory_tokens_used).min(2000);
+            let knowledge_opts = SearchOpts {
+                limit: 10,
+                entry_type_filter: Some(MemoryEntryType::Knowledge),
+                ..Default::default()
+            };
+
+            if let Ok(entries) = memory.search("", knowledge_opts).await {
                 let knowledge_entries: Vec<_> = entries
                     .iter()
                     .filter(|e| matches!(e.entry_type, MemoryEntryType::Knowledge))
@@ -290,21 +318,20 @@ pub async fn build_context(
                                 .get("user_key")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("?");
-                            format!("- {}: {}", key, e.content)
+                            format!("- {key}: {}", e.content)
                         })
                         .collect::<Vec<_>>()
                         .join("\n");
 
                     let tokens = estimate_tokens(&knowledge_text) + 10;
                     if tokens <= knowledge_budget && !knowledge_text.is_empty() {
-                        knowledge_messages.push(ChatMessage {
+                        lambda_messages.push(ChatMessage {
                             role: Role::System,
                             content: MessageContent::Text(format!(
                                 "=== YOUR PERSISTENT KNOWLEDGE ===\n\
-                             These are facts you previously saved with memory_manage:\n\
-                             {}\n\
-                             === END KNOWLEDGE ===",
-                                knowledge_text
+                                 These are facts you previously saved with memory_manage:\n\
+                                 {knowledge_text}\n\
+                                 === END KNOWLEDGE ===",
                             )),
                         });
                         knowledge_tokens_used = tokens;
@@ -312,28 +339,21 @@ pub async fn build_context(
                 }
             }
         }
-    }
 
-    // ── Category 6: Cross-task learnings (up to 5% of budget) ──────
-    let learning_budget = ((budget as f32) * LEARNING_BUDGET_FRACTION) as usize;
-    let remaining_for_learnings =
-        available_after_fixed_and_recent.saturating_sub(memory_tokens_used + knowledge_tokens_used);
-    let learning_budget = learning_budget.min(remaining_for_learnings);
+        // Legacy Category 6: learnings
+        if !query.is_empty() {
+            let learning_budget = ((budget as f32) * LEARNING_BUDGET_FRACTION) as usize;
+            let remaining_for_learnings = available_after_fixed_and_recent
+                .saturating_sub(memory_tokens_used + knowledge_tokens_used);
+            let learning_budget = learning_budget.min(remaining_for_learnings);
 
-    let mut learning_messages: Vec<ChatMessage> = Vec::new();
-    let mut learning_tokens_used = 0;
+            let learning_opts = SearchOpts {
+                limit: 5,
+                session_filter: None,
+                ..Default::default()
+            };
 
-    if !query.is_empty() {
-        // Search for past learnings stored with the "learning:" prefix
-        let learning_opts = SearchOpts {
-            limit: 5,
-            session_filter: None, // learnings are cross-session
-            ..Default::default()
-        };
-
-        if let Ok(entries) = memory.search("learning:", learning_opts).await {
-            if !entries.is_empty() {
-                // Parse learnings and format them
+            if let Ok(entries) = memory.search("learning:", learning_opts).await {
                 let learnings: Vec<learning::TaskLearning> = entries
                     .iter()
                     .filter_map(|e| serde_json::from_str(&e.content).ok())
@@ -343,7 +363,7 @@ pub async fn build_context(
                     let formatted = learning::format_learnings_context(&learnings);
                     let tokens = estimate_tokens(&formatted);
                     if tokens <= learning_budget && !formatted.is_empty() {
-                        learning_messages.push(ChatMessage {
+                        lambda_messages.push(ChatMessage {
                             role: Role::System,
                             content: MessageContent::Text(formatted),
                         });
@@ -358,6 +378,7 @@ pub async fn build_context(
     let used_tokens = fixed_tokens
         + recent_tokens
         + blueprint_tokens_used
+        + lambda_tokens_used
         + memory_tokens_used
         + knowledge_tokens_used
         + learning_tokens_used;
@@ -434,29 +455,28 @@ pub async fn build_context(
     let chat_digest = build_chat_digest(&all_messages_for_digest);
 
     // ── Assemble final message list ────────────────────────────────
-    // Order: summary → chat digest → blueprint → knowledge → memory → learnings → older history → recent messages
+    // Order: summary → chat digest → blueprint → λ-memory → older history → recent messages
     let mut messages: Vec<ChatMessage> = Vec::new();
     messages.extend(summary_messages);
     if let Some(digest_msg) = chat_digest {
         messages.push(digest_msg);
     }
     messages.extend(blueprint_messages);
-    messages.extend(knowledge_messages);
-    messages.extend(memory_messages);
-    messages.extend(learning_messages);
+    messages.extend(lambda_messages);
     messages.extend(kept_older);
     messages.extend(recent_messages);
 
     let total_tokens = fixed_tokens + messages.iter().map(estimate_message_tokens).sum::<usize>();
 
+    let combined_memory_tokens =
+        lambda_tokens_used + memory_tokens_used + knowledge_tokens_used + learning_tokens_used;
     debug!(
         system = system_tokens,
         tools = tool_def_tokens,
         blueprint = blueprint_tokens_used,
         recent = recent_tokens,
-        memory = memory_tokens_used,
-        knowledge = knowledge_tokens_used,
-        learnings = learning_tokens_used,
+        lambda_memory = lambda_tokens_used,
+        legacy_memory = memory_tokens_used + knowledge_tokens_used + learning_tokens_used,
         history = older_tokens_used,
         total = total_tokens,
         budget = budget,
@@ -475,8 +495,8 @@ pub async fn build_context(
         system_tokens,
         tool_def_tokens,
         blueprint_tokens_used,
-        memory_tokens_used + knowledge_tokens_used,
-        learning_tokens_used,
+        combined_memory_tokens,
+        0, // learnings now part of λ-memory
         older_tokens_used + recent_tokens,
         bp_budget_remaining,
         bp_budget_total,
@@ -871,6 +891,7 @@ mod tests {
             30_000,
             None,
             &[],
+            true, // lambda_enabled
         )
         .await;
         // System prompt now includes the budget dashboard appended
@@ -894,6 +915,7 @@ mod tests {
             30_000,
             None,
             &[],
+            true, // lambda_enabled
         )
         .await;
         assert!(req.system.is_some());
@@ -919,6 +941,7 @@ mod tests {
             30_000,
             None,
             &[],
+            true, // lambda_enabled
         )
         .await;
         assert_eq!(req.tools.len(), 2);
@@ -950,6 +973,7 @@ mod tests {
             30_000,
             None,
             &[],
+            true, // lambda_enabled
         )
         .await;
         // Messages should include the history
@@ -985,6 +1009,7 @@ mod tests {
             2_000,
             None,
             &[],
+            true, // lambda_enabled
         )
         .await;
 
@@ -1027,6 +1052,7 @@ mod tests {
             2_000,
             None,
             &[],
+            true, // lambda_enabled
         )
         .await;
 
@@ -1054,6 +1080,7 @@ mod tests {
                     id: "t1".to_string(),
                     name: "shell".to_string(),
                     input: serde_json::json!({}),
+                    thought_signature: None,
                 }]),
             },
         ];
@@ -1081,6 +1108,7 @@ mod tests {
                 id: "t1".to_string(),
                 name: "shell".to_string(),
                 input: serde_json::json!({"command": "docker build ."}),
+                thought_signature: None,
             }]),
         };
         let m3 = ChatMessage {
@@ -1139,6 +1167,7 @@ mod tests {
                 id: "t1".to_string(),
                 name: "shell".to_string(),
                 input: serde_json::json!({"command": "ls"}),
+                thought_signature: None,
             }]),
         };
         let m3 = ChatMessage {
@@ -1224,6 +1253,7 @@ mod tests {
                     id: format!("t{i}"),
                     name: "shell".to_string(),
                     input: serde_json::json!({"command": format!("cmd {i}")}),
+                    thought_signature: None,
                 }]),
             });
             session.history.push(ChatMessage {
@@ -1250,6 +1280,7 @@ mod tests {
             100_000,
             None,
             &[],
+            true, // lambda_enabled
         )
         .await;
 
@@ -1273,6 +1304,7 @@ mod tests {
                 id: id.to_string(),
                 name: name.to_string(),
                 input: serde_json::json!({"cmd": "ls"}),
+                thought_signature: None,
             }]),
         }
     }
@@ -1313,6 +1345,7 @@ mod tests {
                     id: tool_id.to_string(),
                     name: tool_name.to_string(),
                     input: serde_json::json!({}),
+                    thought_signature: None,
                 },
             ]),
         }
@@ -1423,6 +1456,7 @@ mod tests {
                     id: "t1".to_string(),
                     name: "shell".to_string(),
                     input: serde_json::json!({}),
+                    thought_signature: None,
                 },
                 ContentPart::Image {
                     media_type: "image/png".to_string(),

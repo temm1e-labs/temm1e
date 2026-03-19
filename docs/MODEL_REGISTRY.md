@@ -1,6 +1,6 @@
 # TEMM1E Model Registry
 
-**Last verified: 2026-03-11** — All values sourced from official provider documentation and OpenRouter.
+**Last verified: 2026-03-16** — All values sourced from official provider documentation and OpenRouter.
 
 This registry defines context window and max output token limits for every known model. TEMM1E uses these values to set `max_context_tokens` and `max_output_tokens` automatically per model, so users get the full capability of their chosen model without manual tuning.
 
@@ -27,7 +27,7 @@ Notes:
 
 | Model ID | Context Window | Max Output | Pricing (In/Out per 1M) |
 |----------|---------------|------------|--------------------------|
-| `gpt-5.4` | 1,050,000 | 128,000 | $2.00 / $8.00 |
+| `gpt-5.4` | 1,050,000 | 128,000 | $2.50 / $15.00 |
 | `gpt-5.2` | 400,000 | 128,000 | $2.00 / $8.00 |
 | `gpt-4.1` | 1,047,576 | 32,768 | $2.00 / $8.00 |
 | `gpt-4.1-mini` | 1,047,576 | 32,768 | $0.40 / $1.60 |
@@ -37,7 +37,7 @@ Notes:
 
 | Model ID | Context Window | Max Output | Notes |
 |----------|---------------|------------|-------|
-| `gpt-5.4` | 1,050,000 | 128,000 | Recommended for general agent use |
+| `gpt-5.4` | 1,050,000 | 128,000 | Recommended for general agent use; $2.50/$15.00 |
 | `gpt-5.3-codex` | 400,000 | 128,000 | Coding-specialized |
 | `gpt-5.3-codex-spark` | 128,000 | 128,000 | Research preview (Cerebras) |
 | `gpt-5.2-codex` | 400,000 | 128,000 | Coding-specialized |
@@ -52,6 +52,7 @@ Notes:
 |----------|---------------|------------|--------------------------|
 | `gemini-3-flash-preview` | 1,048,576 | 65,536 | $0.15 / $0.60 |
 | `gemini-3.1-pro-preview` | 1,048,576 | 65,536 | $1.25 / $10.00 |
+| `gemini-3.1-flash-lite-preview` | 1,048,576 | 65,536 | $0.25 / $1.50 |
 | `gemini-2.5-flash` | 1,048,576 | 65,536 | $0.15 / $0.60 |
 | `gemini-2.5-pro` | 1,048,576 | 65,536 | $1.25 / $10.00 |
 
@@ -133,6 +134,15 @@ These models are commonly used through OpenRouter and other OpenAI-compatible pr
 | `cohere/command-r-plus-08-2024` | 128,000 | 4,096 | $2.50 / $10.00 |
 | `command-a` | 256,000 | 4,096 | Alias |
 | `command-r-plus` | 128,000 | 4,096 | Alias |
+
+### OpenRouter Stealth
+
+| Model ID | Context Window | Max Output | Pricing (In/Out per 1M) |
+|----------|---------------|------------|--------------------------|
+| `openrouter/hunter-alpha` | 1,048,576 | 32,000 | Free / Free |
+| `hunter-alpha` | 1,048,576 | 32,000 | Alias |
+
+Note: Hunter Alpha is a 1T-parameter stealth model optimized for agentic use. All prompts and completions are logged by the provider.
 
 ### Microsoft
 

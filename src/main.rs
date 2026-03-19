@@ -86,7 +86,7 @@ enum Commands {
         /// Log file path when running as daemon (default: ~/.temm1e/temm1e.log)
         #[arg(long)]
         log: Option<String>,
-        /// Temm1e personality mode: play (warm, chaotic :3), work (sharp, precise >:3), or pro (professional, no emoticons)
+        /// Temm1e personality mode: play (warm, chaotic :3), work (sharp, precise >:3), pro (professional, no emoticons), or none (no personality, minimal identity)
         #[arg(long, default_value = "play")]
         personality: String,
     },
@@ -922,14 +922,46 @@ async fn send_with_retry(
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .json()
-        .init();
+    // Initialize logging — TUI mode writes to a file instead of stderr
+    #[cfg(feature = "tui")]
+    let _is_tui = matches!(cli.command, Commands::Tui);
+    #[cfg(not(feature = "tui"))]
+    let _is_tui = false;
+
+    if _is_tui {
+        // TUI mode: write logs to ~/.temm1e/tui.log so they don't corrupt the display
+        let log_dir = dirs::home_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join(".temm1e");
+        std::fs::create_dir_all(&log_dir).ok();
+        if let Ok(log_file) = std::fs::File::create(log_dir.join("tui.log")) {
+            tracing_subscriber::fmt()
+                .with_env_filter(
+                    tracing_subscriber::EnvFilter::try_from_default_env()
+                        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+                )
+                .with_writer(std::sync::Mutex::new(log_file))
+                .with_ansi(false)
+                .json()
+                .init();
+        }
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+            )
+            .json()
+            .init();
+    }
+
+    // ── TUI fast path — skip all other init, go straight to TUI ──
+    #[cfg(feature = "tui")]
+    if _is_tui {
+        let config_path = cli.config.as_deref().map(std::path::Path::new);
+        let config = temm1e_core::config::load_config(config_path)?;
+        return temm1e_tui::launch_tui(config).await;
+    }
 
     // Initialize health endpoint uptime clock
     temm1e_gateway::health::init_start_time();
@@ -1062,7 +1094,9 @@ async fn main() -> Result<()> {
     let config_path = cli.config.as_ref().map(std::path::Path::new);
     let mut config = temm1e_core::config::load_config(config_path)?;
 
-    tracing::info!(mode = %cli.mode, "TEMM1E starting");
+    if !_is_tui {
+        tracing::info!(mode = %cli.mode, "TEMM1E starting");
+    }
 
     match cli.command {
         Commands::Stop => {
@@ -1124,10 +1158,12 @@ async fn main() -> Result<()> {
             let temm1e_mode = match personality.to_lowercase().as_str() {
                 "work" => temm1e_core::types::config::Temm1eMode::Work,
                 "pro" => temm1e_core::types::config::Temm1eMode::Pro,
+                "none" => temm1e_core::types::config::Temm1eMode::None,
                 _ => temm1e_core::types::config::Temm1eMode::Play,
             };
-            // Lock mode when user explicitly chose work/pro — disables mode_switch tool
-            let personality_locked = !matches!(temm1e_mode, temm1e_core::types::config::Temm1eMode::Play);
+            // Lock mode when user explicitly chose work/pro/none — disables mode_switch tool
+            let personality_locked =
+                !matches!(temm1e_mode, temm1e_core::types::config::Temm1eMode::Play);
             config.mode = temm1e_mode;
             tracing::info!(personality = %temm1e_mode, locked = personality_locked, "Temm1e personality mode");
 
@@ -1337,6 +1373,11 @@ async fn main() -> Result<()> {
                 .map(|ch| Arc::new(SecretCensorChannel { inner: ch }) as Arc<dyn Channel>);
             let shared_mode: temm1e_tools::SharedMode =
                 Arc::new(tokio::sync::RwLock::new(config.mode));
+            let shared_memory_strategy: Arc<
+                tokio::sync::RwLock<temm1e_core::types::config::MemoryStrategy>,
+            > = Arc::new(tokio::sync::RwLock::new(
+                temm1e_core::types::config::MemoryStrategy::Lambda,
+            ));
             let mut tools = temm1e_tools::create_tools(
                 &config.tools,
                 censored_channel,
@@ -1345,7 +1386,11 @@ async fn main() -> Result<()> {
                 Some(Arc::new(setup_tokens.clone()) as Arc<dyn temm1e_core::SetupLinkGenerator>),
                 Some(usage_store.clone()),
                 // Don't register mode_switch tool when personality is locked (work/pro)
-                if personality_locked { None } else { Some(shared_mode.clone()) },
+                if personality_locked {
+                    None
+                } else {
+                    Some(shared_mode.clone())
+                },
             );
             tracing::info!(count = tools.len(), "Tools initialized");
 
@@ -1381,6 +1426,32 @@ async fn main() -> Result<()> {
             };
 
             let system_prompt = Some(build_system_prompt());
+
+            // Quick check: is [hive] enabled in config? (just the boolean, full init later)
+            let hive_enabled_early = {
+                #[derive(serde::Deserialize, Default)]
+                struct HiveCheck {
+                    #[serde(default)]
+                    hive: HiveEnabled,
+                }
+                #[derive(serde::Deserialize, Default)]
+                struct HiveEnabled {
+                    #[serde(default)]
+                    enabled: bool,
+                }
+
+                config_path
+                    .and_then(|p| std::fs::read_to_string(p).ok())
+                    .or_else(|| {
+                        dirs::home_dir().and_then(|h| {
+                            std::fs::read_to_string(h.join(".temm1e/config.toml")).ok()
+                        })
+                    })
+                    .or_else(|| std::fs::read_to_string("temm1e.toml").ok())
+                    .and_then(|content| toml::from_str::<HiveCheck>(&content).ok())
+                    .map(|c| c.hive.enabled)
+                    .unwrap_or(false)
+            };
 
             // ── Agent state (None during onboarding) ───────────
             let agent_state: Arc<tokio::sync::RwLock<Option<Arc<temm1e_agent::AgentRuntime>>>> =
@@ -1451,7 +1522,9 @@ async fn main() -> Result<()> {
                         )
                         .with_v2_optimizations(config.agent.v2_optimizations)
                         .with_parallel_phases(config.agent.parallel_phases)
-                        .with_shared_mode(shared_mode.clone()),
+                        .with_hive_enabled(hive_enabled_early)
+                        .with_shared_mode(shared_mode.clone())
+                        .with_shared_memory_strategy(shared_memory_strategy.clone()),
                     );
                     *agent_state.write().await = Some(agent);
                     tracing::info!(provider = %pname, model = %model, "Agent initialized");
@@ -1486,7 +1559,8 @@ async fn main() -> Result<()> {
                                     )
                                     .with_v2_optimizations(config.agent.v2_optimizations)
                                     .with_parallel_phases(config.agent.parallel_phases)
-                                    .with_shared_mode(shared_mode.clone()),
+                                    .with_shared_mode(shared_mode.clone())
+                                    .with_shared_memory_strategy(shared_memory_strategy.clone()),
                                 );
                                 *agent_state.write().await = Some(agent);
                                 tracing::info!(provider = "openai-codex", model = %model, "Agent initialized via Codex OAuth");
@@ -1556,6 +1630,56 @@ async fn main() -> Result<()> {
                 );
             }
 
+            // ── Hive pack initialization (if enabled) ────────
+            let hive_config: temm1e_hive::HiveConfig = {
+                // Parse [hive] section from the same config file.
+                // If absent or malformed, defaults to enabled=false (inert).
+                let hive_toml = config_path
+                    .and_then(|p| std::fs::read_to_string(p).ok())
+                    .or_else(|| {
+                        let home = dirs::home_dir()?;
+                        std::fs::read_to_string(home.join(".temm1e/config.toml")).ok()
+                    })
+                    .or_else(|| std::fs::read_to_string("temm1e.toml").ok());
+                if let Some(ref content) = hive_toml {
+                    #[derive(serde::Deserialize, Default)]
+                    struct HiveWrapper {
+                        #[serde(default)]
+                        hive: temm1e_hive::HiveConfig,
+                    }
+                    toml::from_str::<HiveWrapper>(content)
+                        .map(|w| w.hive)
+                        .unwrap_or_default()
+                } else {
+                    temm1e_hive::HiveConfig::default()
+                }
+            };
+
+            let hive_instance: Option<Arc<temm1e_hive::Hive>> = if hive_config.enabled {
+                let hive_db = dirs::home_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from("."))
+                    .join(".temm1e/hive.db");
+                let hive_url = format!("sqlite:{}?mode=rwc", hive_db.display());
+                match temm1e_hive::Hive::new(&hive_config, &hive_url).await {
+                    Ok(h) => {
+                        tracing::info!(
+                            max_workers = hive_config.max_workers,
+                            threshold = hive_config.swarm_threshold_speedup,
+                            "Many Tems initialized (Swarm Intelligence)"
+                        );
+                        Some(Arc::new(h))
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Hive init failed — pack disabled");
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+            let hive_enabled_flag = hive_instance.is_some();
+
             // ── Per-chat serial executor ───────────────────────
 
             /// Tracks the active task state for a single chat.
@@ -1588,6 +1712,7 @@ async fn main() -> Result<()> {
                 let setup_tokens_clone = setup_tokens.clone();
                 let pending_raw_keys_clone = pending_raw_keys.clone();
                 let usage_store_clone = usage_store.clone();
+                let hive_clone = hive_instance.clone();
 
                 let chat_slots: Arc<Mutex<HashMap<String, ChatSlot>>> =
                     Arc::new(Mutex::new(HashMap::new()));
@@ -1672,7 +1797,7 @@ async fn main() -> Result<()> {
                                             system: Some(format!(
                                                 "{}\n\n\
                                                  === INTERCEPTOR MODE ===\n\
-                                                 You are running as Temm1e's INTERCEPTOR right now. Your main self is busy \
+                                                 You are running as Tem's INTERCEPTOR right now. Your main self is busy \
                                                  working on a task. The user sent a message while that task is running.\n\n\
                                                  Current task: \"{}\"\n\n\
                                                  Interceptor rules:\n\
@@ -1755,6 +1880,7 @@ async fn main() -> Result<()> {
 
                         // Ensure a worker exists for this chat_id
                         let shared_mode_for_worker = shared_mode.clone();
+                        let shared_memory_strategy_for_worker = shared_memory_strategy.clone();
                         let slot = slots.entry(chat_id.clone()).or_insert_with(|| {
                             let (chat_tx, mut chat_rx) =
                                 tokio::sync::mpsc::channel::<temm1e_core::types::message::InboundMessage>(4);
@@ -1781,6 +1907,7 @@ async fn main() -> Result<()> {
                             let max_spend = agent_max_spend_usd;
                             let v2_opt = agent_v2_opt;
                             let pp_opt = agent_parallel_phases;
+                            let hive_on = hive_enabled_flag;
                             let base_url = provider_base_url.clone();
                             let sender = sender.clone();
                             let workspace_path = ws_path.clone();
@@ -1789,9 +1916,11 @@ async fn main() -> Result<()> {
                             let cancel_token_clone = cancel_token.clone();
                             let pending_for_worker = pending_clone.clone();
                             let shared_mode = shared_mode_for_worker;
+                            let shared_memory_strategy = shared_memory_strategy_for_worker;
                             let setup_tokens_worker = setup_tokens_clone.clone();
                             let pending_raw_keys_worker = pending_raw_keys_clone.clone();
                             let usage_store_worker = usage_store_clone.clone();
+                            let hive_worker = hive_clone.clone();
                             let worker_chat_id = chat_id.clone();
 
                             tokio::spawn(async move {
@@ -1962,7 +2091,7 @@ async fn main() -> Result<()> {
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             tracing::info!(
                                                                 provider = "openai-codex",
@@ -2006,7 +2135,7 @@ async fn main() -> Result<()> {
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             tracing::info!(
                                                                 provider = %creds.active,
@@ -2121,6 +2250,9 @@ Available commands:\n\n\
 /model <name> — Switch to a different model\n\
 /removekey <provider> — Remove a provider's API key\n\
 /usage — Show token usage and cost summary\n\
+/memory — Show current memory strategy\n\
+/memory lambda — Switch to λ-Memory (decay + persistence)\n\
+/memory echo — Switch to Echo Memory (context window only)\n\
 /mcp — List connected MCP servers and tools\n\
 /mcp add <name> <command-or-url> — Connect a new MCP server\n\
 /mcp remove <name> — Disconnect an MCP server\n\
@@ -2136,6 +2268,39 @@ Just type a message to chat with the AI agent.",
                                         let reply = temm1e_core::types::message::OutboundMessage {
                                             chat_id: msg.chat_id.clone(),
                                             text: help_text.to_string(),
+                                            reply_to: Some(msg.id.clone()),
+                                            parse_mode: None,
+                                        };
+                                        send_with_retry(&*sender, reply).await;
+                                        is_heartbeat_clone.store(false, Ordering::Relaxed);
+                                        return;
+                                    }
+
+                                    // /memory — switch memory strategy
+                                    if cmd_lower == "/memory" || cmd_lower.starts_with("/memory ") {
+                                        let args = if cmd_lower == "/memory" { "" } else { msg_text_cmd.trim()["/memory".len()..].trim() };
+                                        let args_lower = args.to_lowercase();
+                                        let response = if args_lower.is_empty() || args_lower == "status" {
+                                            let current = shared_memory_strategy.read().await;
+                                            format!(
+                                                "Memory Strategy: {}\n\n\
+                                                 Available strategies:\n\
+                                                 • /memory lambda — λ-Memory: decay-scored, cross-session persistence, hash-based recall (default)\n\
+                                                 • /memory echo — Echo Memory: keyword search over current context window, no persistence",
+                                                *current,
+                                            )
+                                        } else if args_lower == "lambda" || args_lower == "λ" {
+                                            *shared_memory_strategy.write().await = temm1e_core::types::config::MemoryStrategy::Lambda;
+                                            "Switched to λ-Memory\nDecay-scored fidelity tiers • cross-session persistence • hash-based recall".to_string()
+                                        } else if args_lower == "echo" {
+                                            *shared_memory_strategy.write().await = temm1e_core::types::config::MemoryStrategy::Echo;
+                                            "Switched to Echo Memory\nKeyword search over context window • no persistence between sessions".to_string()
+                                        } else {
+                                            "Unknown strategy. Use: /memory lambda or /memory echo".to_string()
+                                        };
+                                        let reply = temm1e_core::types::message::OutboundMessage {
+                                            chat_id: msg.chat_id.clone(),
+                                            text: response,
                                             reply_to: Some(msg.id.clone()),
                                             parse_mode: None,
                                         };
@@ -2226,7 +2391,7 @@ Just type a message to chat with the AI agent.",
                                                                     agent.model().to_string(),
                                                                     Some(build_system_prompt()),
                                                                     max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                                                ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                                ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                                 *agent_state.write().await = Some(new_agent);
                                                             }
                                                             mcp_mgr.take_tools_changed();
@@ -2255,7 +2420,7 @@ Just type a message to chat with the AI agent.",
                                                             agent.model().to_string(),
                                                             Some(build_system_prompt()),
                                                             max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                                        ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                        ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                         *agent_state.write().await = Some(new_agent);
                                                     }
                                                     mcp_mgr.take_tools_changed();
@@ -2282,7 +2447,7 @@ Just type a message to chat with the AI agent.",
                                                             agent.model().to_string(),
                                                             Some(build_system_prompt()),
                                                             max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                                        ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                        ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                         *agent_state.write().await = Some(new_agent);
                                                     }
                                                     mcp_mgr.take_tools_changed();
@@ -2359,7 +2524,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             tracing::info!(
                                                                 provider = %prov.name,
@@ -2561,7 +2726,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             let reply = temm1e_core::types::message::OutboundMessage {
                                                                 chat_id: msg.chat_id.clone(),
@@ -2673,7 +2838,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             let key_count = keys.len();
                                                             let reply = temm1e_core::types::message::OutboundMessage {
@@ -2841,6 +3006,181 @@ Just type a message to chat with the AI agent.",
                                                     }
                                                 }
                                             }
+                                            Ok(Err(temm1e_core::types::error::Temm1eError::HiveRoute(hive_msg))) => {
+                                                // ── Classifier said Order+Complex, hive enabled → pack ──
+                                                if let Some(ref hive) = hive_worker {
+                                                    if let Some(ref agent) = agent_state.read().await.as_ref().cloned() {
+                                                        let provider = agent.provider_arc();
+                                                        let model = agent.model().to_string();
+                                                        let hive = Arc::clone(hive);
+                                                        let chat_id = msg.chat_id.clone();
+
+                                                        tracing::info!(chat = %chat_id, "Many Tems: classifier routed Order+Complex to pack");
+
+                                                        // Send immediate ack so the user knows pack is working
+                                                        let ack = temm1e_core::types::message::OutboundMessage {
+                                                            chat_id: msg.chat_id.clone(),
+                                                            text: "Alpha decomposing into pack tasks...".to_string(),
+                                                            reply_to: Some(msg.id.clone()),
+                                                            parse_mode: None,
+                                                        };
+                                                        send_with_retry(&*sender, ack).await;
+
+                                                        let decompose_result = hive.maybe_decompose(
+                                                            &hive_msg, &chat_id,
+                                                            |prompt| {
+                                                                let p = provider.clone();
+                                                                let m = model.clone();
+                                                                async move {
+                                                                    let resp = p.complete(temm1e_core::types::message::CompletionRequest {
+                                                                        model: m,
+                                                                        messages: vec![temm1e_core::types::message::ChatMessage {
+                                                                            role: temm1e_core::types::message::Role::User,
+                                                                            content: temm1e_core::types::message::MessageContent::Text(prompt),
+                                                                        }],
+                                                                        tools: vec![],
+                                                                        max_tokens: None,
+                                                                        temperature: Some(0.3),
+                                                                        system: None,
+                                                                    }).await?;
+                                                                    let text: String = resp.content.iter().filter_map(|p| match p {
+                                                                        temm1e_core::types::message::ContentPart::Text { text } => Some(text.clone()),
+                                                                        _ => None,
+                                                                    }).collect();
+                                                                    let tokens = (resp.usage.input_tokens + resp.usage.output_tokens) as u64;
+                                                                    Ok((text, tokens))
+                                                                }
+                                                            },
+                                                        ).await;
+
+                                                        if let Ok(Some(order_id)) = decompose_result {
+                                                            tracing::info!(order_id = %order_id, "Pack: executing order");
+                                                            let swarm_ack = temm1e_core::types::message::OutboundMessage {
+                                                                chat_id: msg.chat_id.clone(),
+                                                                text: "Pack activated — Tems working in parallel...".to_string(),
+                                                                reply_to: None,
+                                                                parse_mode: None,
+                                                            };
+                                                            send_with_retry(&*sender, swarm_ack).await;
+                                                            let cancel = cancel_token_clone.clone();
+                                                            let provider = agent.provider_arc();
+                                                            let tools_h = tools_template.clone();
+                                                            let memory_h = memory.clone();
+                                                            let model_h = agent.model().to_string();
+
+                                                            let swarm_result = hive.execute_order(
+                                                                &order_id, cancel,
+                                                                move |task, deps| {
+                                                                    let p = provider.clone();
+                                                                    let t = tools_h.clone();
+                                                                    let m_clone = memory_h.clone();
+                                                                    let mdl = model_h.clone();
+                                                                    async move {
+                                                                        let scoped = temm1e_hive::worker::build_scoped_context(&task, &deps);
+                                                                        let mini = temm1e_agent::AgentRuntime::with_limits(
+                                                                            p, m_clone, t, mdl, None, 10, 30000, 50, 300, 0.0,
+                                                                        );
+                                                                        let mini_msg = temm1e_core::types::message::InboundMessage {
+                                                                            id: uuid::Uuid::new_v4().to_string(),
+                                                                            chat_id: "hive".into(), user_id: "hive".into(),
+                                                                            username: None, channel: "hive".into(),
+                                                                            text: Some(scoped), attachments: vec![],
+                                                                            reply_to: None, timestamp: chrono::Utc::now(),
+                                                                        };
+                                                                        let mut s = temm1e_core::types::session::SessionContext {
+                                                                            session_id: format!("hive-{}", task.id),
+                                                                            user_id: "hive".into(), channel: "hive".into(),
+                                                                            chat_id: "hive".into(), history: vec![],
+                                                                            workspace_path: std::path::PathBuf::from("."),
+                                                                        };
+                                                                        match mini.process_message(&mini_msg, &mut s, None, None, None, None, None).await {
+                                                                            Ok((r, u)) => Ok(temm1e_hive::worker::TaskResult {
+                                                                                summary: r.text, tokens_used: u.combined_tokens(),
+                                                                                artifacts: vec![], success: true, error: None,
+                                                                            }),
+                                                                            Err(e) => Ok(temm1e_hive::worker::TaskResult {
+                                                                                summary: String::new(), tokens_used: 0,
+                                                                                artifacts: vec![], success: false, error: Some(e.to_string()),
+                                                                            }),
+                                                                        }
+                                                                    }
+                                                                },
+                                                            ).await;
+
+                                                            match swarm_result {
+                                                                Ok(result) => {
+                                                                    let full_text = censor_secrets(&format!(
+                                                                        "{}\n\n---\nPack: {} tasks, {} Tems, {}ms, {} tokens",
+                                                                        result.text, result.tasks_completed,
+                                                                        result.workers_used, result.wall_clock_ms,
+                                                                        result.total_tokens,
+                                                                    ));
+
+                                                                    // Split into chunks for Telegram's 4096 char limit
+                                                                    let max_chunk = 4000; // leave margin
+                                                                    let chunks: Vec<&str> = if full_text.len() <= max_chunk {
+                                                                        vec![&full_text]
+                                                                    } else {
+                                                                        // Split on double-newlines (task boundaries) or at max_chunk
+                                                                        let mut parts = Vec::new();
+                                                                        let mut remaining = full_text.as_str();
+                                                                        while !remaining.is_empty() {
+                                                                            if remaining.len() <= max_chunk {
+                                                                                parts.push(remaining);
+                                                                                break;
+                                                                            }
+                                                                            // Find a good split point (double newline near the limit)
+                                                                            let search_end = remaining.len().min(max_chunk);
+                                                                            let split_at = remaining[..search_end]
+                                                                                .rfind("\n\n")
+                                                                                .unwrap_or_else(|| {
+                                                                                    // Find safe char boundary near max_chunk
+                                                                                    remaining.char_indices()
+                                                                                        .take_while(|(i, _)| *i <= max_chunk)
+                                                                                        .last()
+                                                                                        .map(|(i, c)| i + c.len_utf8())
+                                                                                        .unwrap_or(max_chunk)
+                                                                                });
+                                                                            parts.push(&remaining[..split_at]);
+                                                                            remaining = remaining[split_at..].trim_start();
+                                                                        }
+                                                                        parts
+                                                                    };
+
+                                                                    for (i, chunk) in chunks.iter().enumerate() {
+                                                                        let reply = temm1e_core::types::message::OutboundMessage {
+                                                                            chat_id: msg.chat_id.clone(),
+                                                                            text: chunk.to_string(),
+                                                                            reply_to: if i == 0 { Some(msg.id.clone()) } else { None },
+                                                                            parse_mode: None,
+                                                                        };
+                                                                        send_with_retry(&*sender, reply).await;
+                                                                    }
+                                                                }
+                                                                Err(e) => {
+                                                                    tracing::error!(error = %e, "Hive execution failed");
+                                                                    let reply = temm1e_core::types::message::OutboundMessage {
+                                                                        chat_id: msg.chat_id.clone(),
+                                                                        text: format!("Pack execution failed: {e}"),
+                                                                        reply_to: Some(msg.id.clone()),
+                                                                        parse_mode: None,
+                                                                    };
+                                                                    send_with_retry(&*sender, reply).await;
+                                                                }
+                                                            }
+                                                        } else {
+                                                            tracing::info!("Alpha: decomposition failed or not worth it, no pack");
+                                                            let reply = temm1e_core::types::message::OutboundMessage {
+                                                                chat_id: msg.chat_id.clone(),
+                                                                text: "Task classified as complex but decomposition wasn't viable. Please try rephrasing or breaking it down.".into(),
+                                                                reply_to: Some(msg.id.clone()),
+                                                                parse_mode: None,
+                                                            };
+                                                            send_with_retry(&*sender, reply).await;
+                                                        }
+                                                    }
+                                                }
+                                            }
                                             Ok(Err(e)) => {
                                                 tracing::error!(error = %e, "Agent processing error");
                                                 let user_msg = format_user_error(&e);
@@ -2952,7 +3292,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             tracing::info!(provider = %new_name, model = %new_model, "Agent hot-reloaded (key validated)");
                                                         }
@@ -3001,7 +3341,7 @@ Just type a message to chat with the AI agent.",
                                                 agent.model().to_string(),
                                                 Some(build_system_prompt()),
                                                 max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                             *agent_state.write().await = Some(new_agent);
                                             tracing::info!("Agent rebuilt with updated MCP tools");
                                         }
@@ -3032,7 +3372,7 @@ Just type a message to chat with the AI agent.",
                                                 agent.model().to_string(),
                                                 Some(build_system_prompt()),
                                                 max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                             *agent_state.write().await = Some(new_agent);
                                             tracing::info!("Agent rebuilt with updated custom tools");
                                         }
@@ -3083,7 +3423,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()));
                                                             *agent_state.write().await = Some(new_agent);
 
                                                             if let Err(e) = save_credentials(provider_name, &api_key, &model, custom_base_url.as_deref()).await {
@@ -3321,6 +3661,31 @@ Just type a message to chat with the AI agent.",
             println!("TEMM1E interactive chat");
             println!("Type '/quit' or '/exit' to quit.\n");
 
+            // Check hive config for CLI chat path
+            let hive_enabled_early = {
+                #[derive(serde::Deserialize, Default)]
+                struct HC {
+                    #[serde(default)]
+                    hive: HE,
+                }
+                #[derive(serde::Deserialize, Default)]
+                struct HE {
+                    #[serde(default)]
+                    enabled: bool,
+                }
+                config_path
+                    .and_then(|p| std::fs::read_to_string(p).ok())
+                    .or_else(|| {
+                        dirs::home_dir().and_then(|h| {
+                            std::fs::read_to_string(h.join(".temm1e/config.toml")).ok()
+                        })
+                    })
+                    .or_else(|| std::fs::read_to_string("temm1e.toml").ok())
+                    .and_then(|c| toml::from_str::<HC>(&c).ok())
+                    .map(|c| c.hive.enabled)
+                    .unwrap_or(false)
+            };
+
             // ── Resolve API credentials ────────────────────────
             let credentials: Option<(String, String, String)> = {
                 if let Some(ref key) = config.provider.api_key {
@@ -3386,6 +3751,11 @@ Just type a message to chat with the AI agent.",
             });
             let shared_mode: temm1e_tools::SharedMode =
                 Arc::new(tokio::sync::RwLock::new(config.mode));
+            let shared_memory_strategy: Arc<
+                tokio::sync::RwLock<temm1e_core::types::config::MemoryStrategy>,
+            > = Arc::new(tokio::sync::RwLock::new(
+                temm1e_core::types::config::MemoryStrategy::Lambda,
+            ));
             let mut tools_template = temm1e_tools::create_tools(
                 &config.tools,
                 Some(censored_cli),
@@ -3509,7 +3879,9 @@ Just type a message to chat with the AI agent.",
                                 )
                                 .with_v2_optimizations(v2_opt)
                                 .with_parallel_phases(pp_opt)
-                                .with_shared_mode(shared_mode.clone()),
+                                .with_hive_enabled(hive_enabled_early)
+                                .with_shared_mode(shared_mode.clone())
+                                .with_shared_memory_strategy(shared_memory_strategy.clone()),
                             );
                             println!("Connected to {} (model: {})", pname, model);
                             if max_spend > 0.0 {
@@ -3556,7 +3928,8 @@ Just type a message to chat with the AI agent.",
                                     )
                                     .with_v2_optimizations(v2_opt)
                                     .with_parallel_phases(pp_opt)
-                                    .with_shared_mode(shared_mode.clone()),
+                                    .with_shared_mode(shared_mode.clone())
+                                    .with_shared_memory_strategy(shared_memory_strategy.clone()),
                                 );
                                 println!(
                                     "Connected to openai-codex via Codex OAuth (model: {})",
@@ -3693,6 +4066,9 @@ Just type a message to chat with the AI agent.",
                          /model <name> — Switch to a different model\n\
                          /removekey <provider> — Remove a provider's API key\n\
                          /usage — Show token usage and cost summary\n\
+                         /memory — Show current memory strategy\n\
+                         /memory lambda — Switch to λ-Memory (decay + persistence)\n\
+                         /memory echo — Switch to Echo Memory (context window only)\n\
                          /mcp — List connected MCP servers and tools\n\
                          /mcp add <name> <command-or-url> — Connect a new MCP server\n\
                          /mcp remove <name> — Disconnect an MCP server\n\
@@ -3703,6 +4079,38 @@ Just type a message to chat with the AI agent.",
                         env!("GIT_HASH"),
                         env!("BUILD_DATE"),
                     );
+                    eprint!("temm1e> ");
+                    continue;
+                }
+
+                // /memory — switch memory strategy
+                if cmd_lower == "/memory" || cmd_lower.starts_with("/memory ") {
+                    let args = if cmd_lower == "/memory" {
+                        ""
+                    } else {
+                        msg_text.trim()["/memory".len()..].trim()
+                    };
+                    let args_lower = args.to_lowercase();
+                    if args_lower.is_empty() || args_lower == "status" {
+                        let current = shared_memory_strategy.read().await;
+                        println!(
+                            "\nMemory Strategy: {}\n\n\
+                             Available strategies:\n\
+                             • /memory lambda — λ-Memory: decay-scored, cross-session persistence, hash-based recall (default)\n\
+                             • /memory echo — Echo Memory: keyword search over current context window, no persistence\n",
+                            *current,
+                        );
+                    } else if args_lower == "lambda" || args_lower == "λ" {
+                        *shared_memory_strategy.write().await =
+                            temm1e_core::types::config::MemoryStrategy::Lambda;
+                        println!("\nSwitched to λ-Memory\nDecay-scored fidelity tiers • cross-session persistence • hash-based recall\n");
+                    } else if args_lower == "echo" {
+                        *shared_memory_strategy.write().await =
+                            temm1e_core::types::config::MemoryStrategy::Echo;
+                        println!("\nSwitched to Echo Memory\nKeyword search over context window • no persistence between sessions\n");
+                    } else {
+                        println!("\nUnknown strategy. Use: /memory lambda or /memory echo\n");
+                    }
                     eprint!("temm1e> ");
                     continue;
                 }
@@ -3794,7 +4202,10 @@ Just type a message to chat with the AI agent.",
                                                 )
                                                 .with_v2_optimizations(v2_opt)
                                                 .with_parallel_phases(pp_opt)
-                                                .with_shared_mode(shared_mode.clone()),
+                                                .with_shared_mode(shared_mode.clone())
+                                                .with_shared_memory_strategy(
+                                                    shared_memory_strategy.clone(),
+                                                ),
                                             );
                                         }
                                         mcp_manager.take_tools_changed();
@@ -3841,7 +4252,10 @@ Just type a message to chat with the AI agent.",
                                         )
                                         .with_v2_optimizations(v2_opt)
                                         .with_parallel_phases(pp_opt)
-                                        .with_shared_mode(shared_mode.clone()),
+                                        .with_shared_mode(shared_mode.clone())
+                                        .with_shared_memory_strategy(
+                                            shared_memory_strategy.clone(),
+                                        ),
                                     );
                                 }
                                 mcp_manager.take_tools_changed();
@@ -3883,7 +4297,10 @@ Just type a message to chat with the AI agent.",
                                         )
                                         .with_v2_optimizations(v2_opt)
                                         .with_parallel_phases(pp_opt)
-                                        .with_shared_mode(shared_mode.clone()),
+                                        .with_shared_mode(shared_mode.clone())
+                                        .with_shared_memory_strategy(
+                                            shared_memory_strategy.clone(),
+                                        ),
                                     );
                                 }
                                 mcp_manager.take_tools_changed();
@@ -3964,7 +4381,10 @@ Just type a message to chat with the AI agent.",
                                             )
                                             .with_v2_optimizations(v2_opt)
                                             .with_parallel_phases(pp_opt)
-                                            .with_shared_mode(shared_mode.clone()),
+                                            .with_shared_mode(shared_mode.clone())
+                                            .with_shared_memory_strategy(
+                                                shared_memory_strategy.clone(),
+                                            ),
                                         );
                                         println!(
                                             "\nAPI key securely received and verified! Configured {} with model {}.",
@@ -4033,7 +4453,9 @@ Just type a message to chat with the AI agent.",
                                 )
                                 .with_v2_optimizations(v2_opt)
                                 .with_parallel_phases(pp_opt)
-                                .with_shared_mode(shared_mode.clone()),
+                                .with_hive_enabled(hive_enabled_early)
+                                .with_shared_mode(shared_mode.clone())
+                                .with_shared_memory_strategy(shared_memory_strategy.clone()),
                             );
                             println!(
                                 "\nAPI key verified! Configured {} with model {}.",
@@ -4120,6 +4542,60 @@ Just type a message to chat with the AI agent.",
                                     }
                                 }
                             }
+                        }
+                        Ok(Err(temm1e_core::types::error::Temm1eError::HiveRoute(hive_msg))) => {
+                            // CLI pack path — simplified version
+                            println!("  [Many Tems: Alpha decomposing into pack tasks...]");
+                            // For CLI, fall back to single-agent since the hive
+                            // infrastructure needs the full dispatcher (Start command).
+                            // Re-process as a normal message without hive.
+                            if let Some(ref mut agent) = agent_opt {
+                                let non_hive = temm1e_agent::AgentRuntime::with_limits(
+                                    agent.provider_arc(),
+                                    agent.memory_arc(),
+                                    agent.tools().to_vec(),
+                                    agent.model().to_string(),
+                                    None,
+                                    max_turns,
+                                    max_ctx,
+                                    max_rounds,
+                                    max_task_duration,
+                                    max_spend,
+                                )
+                                .with_v2_optimizations(v2_opt)
+                                .with_parallel_phases(pp_opt);
+                                let re_msg = temm1e_core::types::message::InboundMessage {
+                                    id: uuid::Uuid::new_v4().to_string(),
+                                    channel: "cli".into(),
+                                    chat_id: "cli".into(),
+                                    user_id: "local".into(),
+                                    username: None,
+                                    text: Some(hive_msg),
+                                    attachments: vec![],
+                                    reply_to: None,
+                                    timestamp: chrono::Utc::now(),
+                                };
+                                match non_hive
+                                    .process_message(
+                                        &re_msg,
+                                        &mut session,
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                    )
+                                    .await
+                                {
+                                    Ok((reply, _usage)) => {
+                                        if !reply.text.trim().is_empty() {
+                                            println!("\n{}\n", reply.text);
+                                        }
+                                    }
+                                    Err(e) => eprintln!("  [{}]", format_user_error(&e)),
+                                }
+                            }
+                            eprint!("temm1e> ");
                         }
                         Ok(Err(e)) => {
                             tracing::error!(error = %e, "CLI agent processing error");

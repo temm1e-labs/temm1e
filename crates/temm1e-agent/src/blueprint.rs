@@ -1354,6 +1354,7 @@ Engage on Reddit naturally.
                     id: "t1".to_string(),
                     name: "shell".to_string(),
                     input: serde_json::json!({}),
+                    thought_signature: None,
                 }]),
             },
             ChatMessage {
@@ -1362,6 +1363,7 @@ Engage on Reddit naturally.
                     id: "t2".to_string(),
                     name: "browser".to_string(),
                     input: serde_json::json!({}),
+                    thought_signature: None,
                 }]),
             },
             ChatMessage {
@@ -1370,6 +1372,7 @@ Engage on Reddit naturally.
                     id: "t3".to_string(),
                     name: "shell".to_string(), // duplicate
                     input: serde_json::json!({}),
+                    thought_signature: None,
                 }]),
             },
         ];

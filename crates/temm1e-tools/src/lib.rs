@@ -7,6 +7,7 @@ pub mod custom_tools;
 mod file;
 mod git;
 mod key_manage;
+mod lambda_recall;
 mod memory_manage;
 mod mode_switch;
 mod send_file;
@@ -22,6 +23,7 @@ pub use custom_tools::{CustomToolRegistry, SelfCreateTool};
 pub use file::{FileListTool, FileReadTool, FileWriteTool};
 pub use git::GitTool;
 pub use key_manage::KeyManageTool;
+pub use lambda_recall::LambdaRecallTool;
 pub use memory_manage::MemoryManageTool;
 pub use mode_switch::{ModeSwitchTool, SharedMode};
 pub use send_file::SendFileTool;
@@ -86,8 +88,10 @@ pub fn create_tools(
     }
 
     // memory_manage: persistent knowledge store for the agent
+    // lambda_recall: recall faded λ-memories by hash prefix
     if let Some(mem) = memory {
-        tools.push(Arc::new(MemoryManageTool::new(mem)));
+        tools.push(Arc::new(MemoryManageTool::new(Arc::clone(&mem))));
+        tools.push(Arc::new(LambdaRecallTool::new(mem)));
     }
 
     // key_manage: generates setup links and guides users through key operations

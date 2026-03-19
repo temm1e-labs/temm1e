@@ -1,0 +1,41 @@
+{
+  "lambda": {
+    "name": "\u03bb-Memory v2",
+    "turns": 100,
+    "errors": 0,
+    "in_tok": 99294,
+    "out_tok": 3283,
+    "memories_created": 18,
+    "explicit_saves": 13,
+    "auto_generated": 13,
+    "memory_count": 18
+  },
+  "current": {
+    "name": "Current Memory",
+    "turns": 100,
+    "errors": 0,
+    "in_tok": 82758,
+    "out_tok": 3732,
+    "memories_created": 100,
+    "explicit_saves": 0,
+    "memory_count": 100
+  },
+  "naive": {
+    "name": "Naive Summary",
+    "turns": 100,
+    "errors": 0,
+    "in_tok": 69952,
+    "out_tok": 3929,
+    "memories_created": 100,
+    "explicit_saves": 0,
+    "summaries_generated": 9,
+    "memory_count": 9
+  },
+  "meta": {
+    "date": "2026-03-15T16:35:05.091414",
+    "model": "gemini-2.0-flash",
+    "turns": 100,
+    "elapsed_seconds": 145,
+    "version": "v2"
+  }
+}

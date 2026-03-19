@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = ["docs/swarm/experiment_artifacts"]
 members = [
     "crates/temm1e-core",
     "crates/temm1e-gateway",
@@ -16,10 +17,13 @@ members = [
     "crates/temm1e-test-utils",
     "crates/temm1e-mcp",
     "crates/temm1e-codex-oauth",
+    "crates/temm1e-tui",
+    "crates/temm1e-hive",
+    "crates/temm1e-distill",
 ]
 
 [workspace.package]
-version = "2.6.0"
+version = "3.0.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/nagisanzenin/temm1e"
@@ -115,6 +119,9 @@ temm1e-filestore = { path = "crates/temm1e-filestore" }
 temm1e-test-utils = { path = "crates/temm1e-test-utils" }
 temm1e-mcp = { path = "crates/temm1e-mcp" }
 temm1e-codex-oauth = { path = "crates/temm1e-codex-oauth" }
+temm1e-tui = { path = "crates/temm1e-tui" }
+temm1e-hive = { path = "crates/temm1e-hive" }
+temm1e-distill = { path = "crates/temm1e-distill" }
 
 [package]
 name = "temm1e"
@@ -143,6 +150,8 @@ temm1e-observable.workspace = true
 temm1e-filestore.workspace = true
 temm1e-mcp = { workspace = true, optional = true }
 temm1e-codex-oauth = { workspace = true, optional = true }
+temm1e-tui = { workspace = true, optional = true }
+temm1e-hive.workspace = true
 tokio.workspace = true
 clap.workspace = true
 dirs.workspace = true
@@ -171,6 +180,7 @@ browser = ["temm1e-tools/browser"]
 postgres = ["temm1e-memory/postgres"]
 mcp = ["dep:temm1e-mcp"]
 codex-oauth = ["dep:temm1e-codex-oauth"]
+tui = ["dep:temm1e-tui"]
 
 [profile.release]
 opt-level = "z"

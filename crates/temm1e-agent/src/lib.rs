@@ -10,6 +10,7 @@ pub mod delegation;
 pub mod done_criteria;
 pub mod executor;
 pub mod history_pruning;
+pub mod lambda_memory;
 pub mod learning;
 pub mod llm_classifier;
 pub mod model_router;

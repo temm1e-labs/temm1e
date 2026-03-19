@@ -938,6 +938,7 @@ mod tests {
                 id: "tu-1".to_string(),
                 name: name.to_string(),
                 input: json!({"command": "ls"}),
+                thought_signature: None,
             }]),
         }
     }
@@ -1468,6 +1469,7 @@ mod tests {
                     id: "tu-1".to_string(),
                     name: "shell".to_string(),
                     input: json!({}),
+                    thought_signature: None,
                 },
                 ContentPart::ToolResult {
                     tool_use_id: "tu-1".to_string(),
@@ -1529,6 +1531,7 @@ mod tests {
                 id: id.to_string(),
                 name: name.to_string(),
                 input: json!({"command": "ls"}),
+                thought_signature: None,
             }]),
         }
     }
@@ -1596,11 +1599,13 @@ mod tests {
                     id: "tu-a".to_string(),
                     name: "shell".to_string(),
                     input: json!({"command": "ls"}),
+                    thought_signature: None,
                 },
                 ContentPart::ToolUse {
                     id: "tu-b".to_string(),
                     name: "file_read".to_string(),
                     input: json!({"path": "test.txt"}),
+                    thought_signature: None,
                 },
             ]),
         };

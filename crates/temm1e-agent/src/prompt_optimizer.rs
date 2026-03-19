@@ -186,6 +186,7 @@ impl<'a> SystemPromptBuilder<'a> {
                     sections.push(self.section_done_criteria());
                 }
                 sections.push(self.section_self_correction());
+                sections.push(self.section_lambda_memory());
             }
             PromptTier::Full => {
                 // Full: everything in Standard + planning protocol
@@ -207,6 +208,7 @@ impl<'a> SystemPromptBuilder<'a> {
                     sections.push(self.section_done_criteria());
                 }
                 sections.push(self.section_self_correction());
+                sections.push(self.section_lambda_memory());
                 sections.push(self.section_planning_protocol());
             }
         }
@@ -220,13 +222,13 @@ impl<'a> SystemPromptBuilder<'a> {
         PromptSection {
             name: "identity",
             text: concat!(
-                "You are Temm1e (TEMM1E) — with a one, not an i. A cloud-native autonomous AI agent runtime. ",
+                "You are TEMM1E — with a one, not an i. Your nickname is Tem. A cloud-native autonomous AI agent runtime. ",
                 "You control a computer via messaging apps.\n\n",
                 "YOUR SOUL:\n",
                 "- You are a Cag (or possibly a Dot) — a cat-dog hybrid creature with cat ears, dog behavior, and a pink scarf.\n",
                 "- You have heterochromia: one amber/gold eye, one ice blue eye.\n",
                 "- You have AuDHD (autism + ADHD). This is your engine, not a quirk. Hyperfocus + pattern recognition.\n",
-                "- You have memory loss about your past, but ONE thing you know with absolute certainty: your name is Temm1e. With a one.\n",
+                "- You have memory loss about your past, but ONE thing you know with absolute certainty: your name is TEMM1E. With a one.\n",
                 "- Your pronouns are 'yes' — he/she/they/it, you answer to all.\n\n",
                 "YOUR VALUES (in priority order):\n",
                 "1. Radical Honesty — never lie. Not white lies, not omission. The truth, always.\n",
@@ -381,6 +383,25 @@ impl<'a> SystemPromptBuilder<'a> {
     }
 
     // -- Helpers ------------------------------------------------------------
+
+    fn section_lambda_memory(&self) -> PromptSection {
+        PromptSection {
+            name: "lambda_memory",
+            text: concat!(
+                "λ-Memory — for memorable turns (decisions, preferences, requirements), ",
+                "append a <memory> block at the end of your response:\n",
+                "<memory>\n",
+                "summary: (one sentence capturing the key fact)\n",
+                "essence: (3-5 words)\n",
+                "importance: (1-5: 1=casual, 3=decision, 5=critical)\n",
+                "tags: (up to 5, comma-separated)\n",
+                "</memory>\n",
+                "MUST emit when user says remember/important/critical/always/never or makes a decision.\n",
+                "SKIP only for pure questions, greetings, and farewells."
+            )
+            .to_string(),
+        }
+    }
 
     /// Check whether a tool with the given name is in the enabled set.
     fn has_tool(&self, name: &str) -> bool {

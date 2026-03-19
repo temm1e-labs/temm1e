@@ -28,7 +28,9 @@ use chromiumoxide::page::Page;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use temm1e_core::types::error::Temm1eError;
-use temm1e_core::{PathAccess, Tool, ToolContext, ToolDeclarations, ToolInput, ToolOutput, ToolOutputImage};
+use temm1e_core::{
+    PathAccess, Tool, ToolContext, ToolDeclarations, ToolInput, ToolOutput, ToolOutputImage,
+};
 use tokio::sync::Mutex;
 
 /// Default idle timeout (seconds). Overridden by `ToolsConfig.browser_timeout_secs`.

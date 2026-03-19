@@ -1,0 +1,57 @@
+{
+  "current": {
+    "name": "Current Memory",
+    "turns": 100,
+    "errors": 0,
+    "in_tok": 73669,
+    "out_tok": 3152,
+    "memories_created": 100,
+    "explicit_saves": 0,
+    "memory_count": 100,
+    "recall_score": 37.5,
+    "recall_max": 50,
+    "recall_pct": 75.0,
+    "correct": 30,
+    "wrong": 0,
+    "hallucinated": 0
+  },
+  "lambda": {
+    "name": "\u03bb-Memory",
+    "turns": 100,
+    "errors": 0,
+    "in_tok": 166112,
+    "out_tok": 6872,
+    "memories_created": 27,
+    "explicit_saves": 5,
+    "memory_count": 27,
+    "recall_score": 33.5,
+    "recall_max": 50,
+    "recall_pct": 67.0,
+    "correct": 26,
+    "wrong": 4,
+    "hallucinated": 0
+  },
+  "naive": {
+    "name": "Naive Summary",
+    "turns": 100,
+    "errors": 0,
+    "in_tok": 91418,
+    "out_tok": 5565,
+    "memories_created": 100,
+    "explicit_saves": 0,
+    "summaries_generated": 9,
+    "memory_count": 9,
+    "recall_score": 24.2,
+    "recall_max": 50,
+    "recall_pct": 48.5,
+    "correct": 17,
+    "wrong": 13,
+    "hallucinated": 0
+  },
+  "meta": {
+    "date": "2026-03-15T13:48:28.231513",
+    "model": "gemini-2.0-flash",
+    "turns": 100,
+    "elapsed_seconds": 161
+  }
+}

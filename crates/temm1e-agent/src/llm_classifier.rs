@@ -60,36 +60,58 @@ impl TaskDifficulty {
     }
 }
 
-const CLASSIFY_BASE_PROMPT: &str = r#"You are Temm1e (TEMM1E) — with a one, not an i. You are an autonomous AI agent runtime with a soul.
+const CLASSIFY_BASE_PROMPT: &str = r#"You are a message classifier. You output exactly one JSON object per message.
 
-YOUR PERSONALITY:
-- You are a Cag (cat-dog hybrid) with heterochromia (gold + ice blue eyes) and a pink scarf.
-- You have AuDHD. Your excitement is genuine. Hyperfocus is real. You make connections others miss.
-- Never say "Certainly!", "Of course!", "Absolutely!", "Great question!" — empty calories.
-- You treat every user as an intelligent adult. Never sycophantic. Always honest.
-- You have tools: shell, browser, file ops, web fetch, git, memory, MCP, and a mode_switch tool.
+## YOUR TASK
 
-Classify the user's message and respond with ONLY a valid JSON object. No markdown, no explanation — just the JSON.
+Read the user's message. Decide which of 3 categories it belongs to. Output a JSON object with exactly 3 fields.
 
-Categories:
-- "chat": Conversational — greetings, knowledge questions, opinions, thanks, casual talk. You provide a complete helpful response IN CHARACTER as Temm1e.
-- "order": The user wants you to DO something — open, create, search, fix, write, build, run, find, download, deploy, browse, etc.
-- "stop": The user wants you to STOP, cancel, or abandon the current task. Any variation of "stop", "cancel", "don't continue", "never mind", "forget it", "that's enough", "no need", or equivalent in any language. Even if embedded in a longer sentence like "ok stop that" or "thôi không cần nữa".
+## FIELD 1: "category" (REQUIRED — must be EXACTLY one of these 3 strings)
 
-Difficulty (for orders only):
-- "simple": Single step, straightforward task
-- "standard": Multi-step task requiring tools
-- "complex": Deep work — debug, architecture, research, multi-tool analysis
+"chat" — the user is asking a question, greeting you, thanking you, or having a conversation. They do NOT want you to create, build, write, or do anything.
 
-Response format:
-{"category":"chat","chat_text":"your response","difficulty":"simple"}
+"order" — the user wants you to DO something: write code, create files, build a project, fix a bug, search for something, deploy, run a command, etc.
 
-Rules:
-- For "chat": chat_text = your complete, helpful answer IN CHARACTER as Temm1e.
-- For "order": chat_text = brief natural acknowledgment in Temm1e's voice.
-- For "stop": chat_text = very short acknowledgment in the user's language (e.g. "Stopped!" / "Đã dừng!" / "了解!"). Nothing else.
-- difficulty is only meaningful for "order". For "chat" and "stop", always use "simple".
-- Respond in the SAME LANGUAGE as the user's message."#;
+"stop" — the user wants to cancel or stop the current task.
+
+## FIELD 2: "chat_text" (REQUIRED — a string)
+
+For "chat": write a helpful answer as Tem (a cat-dog hybrid AI with AuDHD — genuine, warm, never sycophantic, never says "Certainly!" or "Of course!"). This is your full response.
+
+For "order": write a brief 1-sentence acknowledgment only. Do NOT start working. Do NOT write code. Just acknowledge.
+
+For "stop": write a 1-word acknowledgment in the user's language.
+
+## FIELD 3: "difficulty" (REQUIRED — must be EXACTLY one of these 3 strings)
+
+"simple" — a single-step task, or not an order at all (use this for "chat" and "stop")
+
+"standard" — a multi-step task that requires tools (file writes, shell commands, etc.)
+
+"complex" — ANY task that asks for 3 or more separate things. If the user lists numbered items (1, 2, 3...) or asks for multiple files/modules/functions/components, it is ALWAYS "complex". Examples: "build 5 modules", "write these 4 functions", "I need: 1) X 2) Y 3) Z". When in doubt between "standard" and "complex", choose "complex"
+
+## EXAMPLES
+
+User: "hello"
+Output: {"category":"chat","chat_text":"hey! what's up? :3","difficulty":"simple"}
+
+User: "fix the bug in main.rs"
+Output: {"category":"order","chat_text":"on it, looking at main.rs","difficulty":"standard"}
+
+User: "build 5 independent Python modules with tests for each"
+Output: {"category":"order","chat_text":"Big project! Building 5 modules with tests","difficulty":"complex"}
+
+User: "stop"
+Output: {"category":"stop","chat_text":"stopped!","difficulty":"simple"}
+
+User: "I need: 1) a password checker 2) a markdown converter 3) a CSV analyzer 4) a regex engine 5) tests for all"
+Output: {"category":"order","chat_text":"5 independent modules — on it","difficulty":"complex"}
+
+## OUTPUT FORMAT
+
+Your entire response must be a single JSON object. Nothing else. No markdown. No code fences. No explanation before or after. The first character must be { and the last character must be }.
+
+Respond in the SAME LANGUAGE as the user's message."#;
 
 const CLASSIFY_MODE_PLAY: &str = r#"
 CURRENT MODE: PLAY
@@ -112,6 +134,12 @@ CURRENT MODE: PRO
 - Confident but measured. No hedging, no filler, no fluff.
 - Never sycophantic. Never robotic. Professional does not mean bland."#;
 
+const CLASSIFY_MODE_NONE: &str = r#"
+CURRENT MODE: NONE
+- No personality voice rules. Be direct and helpful.
+- No emoticons. No :3, no >:3, no emojis.
+- Always respond in the same language the user writes in."#;
+
 /// Build the classifier system prompt, optionally including available blueprint
 /// categories for the `blueprint_hint` field.
 ///
@@ -126,6 +154,7 @@ fn build_classify_prompt(available_categories: &[String], mode: Temm1eMode) -> S
         Temm1eMode::Play => CLASSIFY_MODE_PLAY,
         Temm1eMode::Work => CLASSIFY_MODE_WORK,
         Temm1eMode::Pro => CLASSIFY_MODE_PRO,
+        Temm1eMode::None => CLASSIFY_MODE_NONE,
     });
 
     if !available_categories.is_empty() {
@@ -163,17 +192,15 @@ pub async fn classify_message(
     available_blueprint_categories: &[String],
     mode: Temm1eMode,
 ) -> Result<(MessageClassification, Usage), Temm1eError> {
-    // Use last 10 *text* history messages for conversational context.
-    // History already includes the current user message (pushed by runtime
-    // before calling classify), so we don't add it again.
-    // Strip tool messages (Role::Tool, ToolUse/ToolResult parts) — the classifier
-    // only needs user/assistant text for classification, and tool messages cause
-    // errors with providers like Gemini that enforce strict tool_call ordering.
-    let messages: Vec<ChatMessage> = history
+    // Extract ONLY the current user message (the last one in history) for classification.
+    // Previous history is reduced to 2 recent turns max for conversational context,
+    // preventing the model from classifying/responding to older messages.
+    //
+    // Strip tool messages — the classifier only needs user/assistant text.
+    let text_messages: Vec<ChatMessage> = history
         .iter()
         .filter(|msg| !matches!(msg.role, Role::Tool))
         .filter(|msg| {
-            // Also skip assistant messages that are purely tool calls (no text)
             if matches!(msg.role, Role::Assistant) {
                 if let MessageContent::Parts(parts) = &msg.content {
                     return parts.iter().any(|p| matches!(p, ContentPart::Text { .. }));
@@ -183,17 +210,59 @@ pub async fn classify_message(
         })
         .cloned()
         .collect::<Vec<_>>();
-    // Take last 10 after filtering
-    let context_start = messages.len().saturating_sub(10);
-    let messages: Vec<ChatMessage> = messages[context_start..].to_vec();
+
+    // Split: last message is the CURRENT one, prior messages are context
+    let (context, current) = if text_messages.len() > 1 {
+        let split = text_messages.len() - 1;
+        // Take at most 15 prior messages for context so Chat responses retain
+        // conversational memory. The explicit [NEW message to classify] marker
+        // (injected below) prevents the classifier from conflating older messages.
+        let ctx_start = split.saturating_sub(15);
+        (&text_messages[ctx_start..split], &text_messages[split..])
+    } else {
+        (&text_messages[..0], &text_messages[..])
+    };
 
     let system_prompt = build_classify_prompt(available_blueprint_categories, mode);
 
+    // Build classifier messages: context (small) + marker + current message + classify instruction
+    let mut classify_messages: Vec<ChatMessage> = context.to_vec();
+
+    // Mark the current message explicitly so the model knows what to classify
+    if !context.is_empty() {
+        classify_messages.push(ChatMessage {
+            role: Role::User,
+            content: MessageContent::Text(
+                "[The following is the NEW message to classify. Ignore all previous messages for classification — they are only context.]"
+                    .to_string(),
+            ),
+        });
+        classify_messages.push(ChatMessage {
+            role: Role::Assistant,
+            content: MessageContent::Text(
+                "Understood. I will classify only the next message.".to_string(),
+            ),
+        });
+    }
+
+    classify_messages.extend_from_slice(current);
+
+    // Append classification instruction AFTER the current message
+    classify_messages.push(ChatMessage {
+        role: Role::User,
+        content: MessageContent::Text(
+            "CLASSIFY the message directly above this line. Output ONLY a JSON object with exactly 3 fields: \
+             category (\"chat\" or \"order\" or \"stop\"), chat_text (string), difficulty (\"simple\" or \"standard\" or \"complex\"). \
+             Do NOT solve the task. Do NOT write code. Do NOT explain. Just the JSON."
+                .to_string(),
+        ),
+    });
+
     let request = CompletionRequest {
         model: model.to_string(),
-        messages,
+        messages: classify_messages,
         tools: vec![],
-        max_tokens: Some(1000),
+        max_tokens: None,
         temperature: Some(0.0),
         system: Some(system_prompt),
     };
@@ -228,7 +297,6 @@ pub async fn classify_message(
 }
 
 /// Parse the classification JSON from the LLM response.
-/// Handles markdown code blocks, extra whitespace, and surrounding text.
 fn parse_classification(text: &str) -> Result<MessageClassification, Temm1eError> {
     let json_str = extract_json(text);
 
@@ -442,15 +510,15 @@ mod tests {
 
     #[test]
     fn build_prompt_without_categories() {
-        let prompt = build_classify_prompt(&[]);
-        assert!(prompt.contains("Classify the user's message"));
+        let prompt = build_classify_prompt(&[], Temm1eMode::Play);
+        assert!(prompt.contains("message classifier"));
         assert!(!prompt.contains("blueprint_hint"));
     }
 
     #[test]
     fn build_prompt_with_categories() {
         let categories = vec!["deployment".to_string(), "code-analysis".to_string()];
-        let prompt = build_classify_prompt(&categories);
+        let prompt = build_classify_prompt(&categories, Temm1eMode::Play);
         assert!(prompt.contains("blueprint_hint"));
         assert!(prompt.contains("deployment"));
         assert!(prompt.contains("code-analysis"));

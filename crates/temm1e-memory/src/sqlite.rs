@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use std::time::Duration;
 use temm1e_core::error::Temm1eError;
-use temm1e_core::{Memory, MemoryEntry, MemoryEntryType, SearchOpts};
+use temm1e_core::{
+    LambdaMemoryEntry, LambdaMemoryType, Memory, MemoryEntry, MemoryEntryType, SearchOpts,
+};
 use tokio::time::{sleep, timeout};
 use tracing::{debug, info, warn};
 
@@ -57,6 +59,58 @@ impl SqliteMemory {
             .execute(&self.pool)
             .await
             .map_err(|e| Temm1eError::Memory(format!("Failed to create index: {e}")))?;
+
+        // ── λ-Memory tables ───────────────────────────────────────────
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS lambda_memories (
+                hash            TEXT PRIMARY KEY,
+                created_at      INTEGER NOT NULL,
+                last_accessed   INTEGER NOT NULL,
+                access_count    INTEGER NOT NULL DEFAULT 0,
+                importance      REAL NOT NULL DEFAULT 1.0,
+                explicit_save   INTEGER NOT NULL DEFAULT 0,
+                full_text       TEXT NOT NULL,
+                summary_text    TEXT NOT NULL,
+                essence_text    TEXT NOT NULL,
+                tags            TEXT NOT NULL DEFAULT '[]',
+                memory_type     TEXT NOT NULL DEFAULT 'conversation',
+                session_id      TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("Failed to create lambda_memories: {e}")))?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_lm_importance ON lambda_memories(importance)")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Temm1eError::Memory(format!("Failed to create lambda index: {e}")))?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_lm_last_accessed ON lambda_memories(last_accessed)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("Failed to create lambda index: {e}")))?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_lm_explicit ON lambda_memories(explicit_save)")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Temm1eError::Memory(format!("Failed to create lambda index: {e}")))?;
+
+        // FTS5 virtual table for BM25 search on summary/essence/tags.
+        // content='' makes it an external content table (we manage sync ourselves).
+        sqlx::query(
+            r#"
+            CREATE VIRTUAL TABLE IF NOT EXISTS lambda_memories_fts
+            USING fts5(summary_text, essence_text, tags, content='')
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("Failed to create lambda FTS5: {e}")))?;
 
         Ok(())
     }
@@ -256,6 +310,185 @@ impl Memory for SqliteMemory {
     fn backend_name(&self) -> &str {
         "sqlite"
     }
+
+    // ── λ-Memory implementations ──────────────────────────────────
+
+    async fn lambda_store(&self, entry: LambdaMemoryEntry) -> Result<(), Temm1eError> {
+        let tags_json = serde_json::to_string(&entry.tags).unwrap_or_else(|_| "[]".to_string());
+        let memory_type = lambda_type_to_str(&entry.memory_type);
+        sqlx::query(
+            "INSERT OR REPLACE INTO lambda_memories \
+             (hash, created_at, last_accessed, access_count, importance, explicit_save, \
+              full_text, summary_text, essence_text, tags, memory_type, session_id) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&entry.hash)
+        .bind(entry.created_at as i64)
+        .bind(entry.last_accessed as i64)
+        .bind(entry.access_count as i32)
+        .bind(entry.importance)
+        .bind(entry.explicit_save as i32)
+        .bind(&entry.full_text)
+        .bind(&entry.summary_text)
+        .bind(&entry.essence_text)
+        .bind(&tags_json)
+        .bind(memory_type)
+        .bind(&entry.session_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("lambda_store failed: {e}")))?;
+
+        // Sync FTS5: insert the searchable fields with the hash as the rowid substitute.
+        // We use the hash's rowid from the main table.
+        let rowid: Option<(i64,)> =
+            sqlx::query_as("SELECT rowid FROM lambda_memories WHERE hash = ?")
+                .bind(&entry.hash)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| Temm1eError::Memory(format!("lambda_store FTS rowid lookup: {e}")))?;
+
+        if let Some((rid,)) = rowid {
+            // Delete old FTS entry if exists (for REPLACE case)
+            let _ = sqlx::query(
+                "INSERT INTO lambda_memories_fts(lambda_memories_fts, rowid, summary_text, essence_text, tags) \
+                 VALUES ('delete', ?, ?, ?, ?)",
+            )
+            .bind(rid)
+            .bind(&entry.summary_text)
+            .bind(&entry.essence_text)
+            .bind(&tags_json)
+            .execute(&self.pool)
+            .await;
+
+            sqlx::query(
+                "INSERT INTO lambda_memories_fts(rowid, summary_text, essence_text, tags) \
+                 VALUES (?, ?, ?, ?)",
+            )
+            .bind(rid)
+            .bind(&entry.summary_text)
+            .bind(&entry.essence_text)
+            .bind(&tags_json)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Temm1eError::Memory(format!("lambda_store FTS insert: {e}")))?;
+        }
+
+        debug!(hash = %entry.hash, importance = entry.importance, "Stored λ-memory");
+        Ok(())
+    }
+
+    async fn lambda_query_candidates(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<LambdaMemoryEntry>, Temm1eError> {
+        let rows: Vec<LambdaMemoryRow> = sqlx::query_as(
+            "SELECT hash, created_at, last_accessed, access_count, importance, \
+             explicit_save, full_text, summary_text, essence_text, tags, \
+             memory_type, session_id \
+             FROM lambda_memories ORDER BY importance DESC LIMIT ?",
+        )
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("lambda_query_candidates: {e}")))?;
+
+        Ok(rows.into_iter().map(lambda_row_to_entry).collect())
+    }
+
+    async fn lambda_recall(
+        &self,
+        hash_prefix: &str,
+    ) -> Result<Option<LambdaMemoryEntry>, Temm1eError> {
+        let pattern = format!("{hash_prefix}%");
+        let row: Option<LambdaMemoryRow> = sqlx::query_as(
+            "SELECT hash, created_at, last_accessed, access_count, importance, \
+             explicit_save, full_text, summary_text, essence_text, tags, \
+             memory_type, session_id \
+             FROM lambda_memories WHERE hash LIKE ? LIMIT 1",
+        )
+        .bind(&pattern)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("lambda_recall: {e}")))?;
+
+        Ok(row.map(lambda_row_to_entry))
+    }
+
+    async fn lambda_touch(&self, hash: &str) -> Result<(), Temm1eError> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        sqlx::query(
+            "UPDATE lambda_memories SET last_accessed = ?, access_count = access_count + 1 \
+             WHERE hash = ?",
+        )
+        .bind(now)
+        .bind(hash)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("lambda_touch: {e}")))?;
+
+        debug!(hash = %hash, "Touched λ-memory (reheated)");
+        Ok(())
+    }
+
+    async fn lambda_fts_search(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<(String, f64)>, Temm1eError> {
+        if query.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        // Sanitize: escape double quotes, wrap in quotes for phrase-safe matching
+        let sanitized = query.replace('"', "\"\"");
+        let rows: Vec<(i64, f64)> = sqlx::query_as(
+            "SELECT rowid, rank FROM lambda_memories_fts \
+             WHERE lambda_memories_fts MATCH ? \
+             ORDER BY rank LIMIT ?",
+        )
+        .bind(format!("\"{sanitized}\""))
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("lambda_fts_search: {e}")))?;
+
+        // Resolve rowids back to hashes
+        let mut results = Vec::with_capacity(rows.len());
+        for (rowid, rank) in rows {
+            let hash_row: Option<(String,)> =
+                sqlx::query_as("SELECT hash FROM lambda_memories WHERE rowid = ?")
+                    .bind(rowid)
+                    .fetch_optional(&self.pool)
+                    .await
+                    .map_err(|e| Temm1eError::Memory(format!("lambda_fts hash resolve: {e}")))?;
+
+            if let Some((hash,)) = hash_row {
+                results.push((hash, rank));
+            }
+        }
+        Ok(results)
+    }
+
+    async fn lambda_gc(&self, now_epoch: u64, max_age_secs: u64) -> Result<usize, Temm1eError> {
+        let cutoff = (now_epoch.saturating_sub(max_age_secs)) as i64;
+        let result = sqlx::query(
+            "DELETE FROM lambda_memories \
+             WHERE explicit_save = 0 AND last_accessed < ? AND importance < 3.0",
+        )
+        .bind(cutoff)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("lambda_gc: {e}")))?;
+
+        let count = result.rows_affected() as usize;
+        if count > 0 {
+            info!(deleted = count, "λ-Memory garbage collection");
+        }
+        Ok(count)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -299,6 +532,55 @@ fn entry_type_to_str(et: &MemoryEntryType) -> &'static str {
         MemoryEntryType::Skill => "skill",
         MemoryEntryType::Knowledge => "knowledge",
         MemoryEntryType::Blueprint => "blueprint",
+    }
+}
+
+// ── λ-Memory helpers ──────────────────────────────────────────
+
+#[derive(sqlx::FromRow)]
+struct LambdaMemoryRow {
+    hash: String,
+    created_at: i64,
+    last_accessed: i64,
+    access_count: i32,
+    importance: f32,
+    explicit_save: i32,
+    full_text: String,
+    summary_text: String,
+    essence_text: String,
+    tags: String,
+    memory_type: String,
+    session_id: String,
+}
+
+fn lambda_row_to_entry(row: LambdaMemoryRow) -> LambdaMemoryEntry {
+    let tags: Vec<String> = serde_json::from_str(&row.tags).unwrap_or_default();
+    let memory_type = match row.memory_type.as_str() {
+        "knowledge" => LambdaMemoryType::Knowledge,
+        "learning" => LambdaMemoryType::Learning,
+        _ => LambdaMemoryType::Conversation,
+    };
+    LambdaMemoryEntry {
+        hash: row.hash,
+        created_at: row.created_at as u64,
+        last_accessed: row.last_accessed as u64,
+        access_count: row.access_count as u32,
+        importance: row.importance,
+        explicit_save: row.explicit_save != 0,
+        full_text: row.full_text,
+        summary_text: row.summary_text,
+        essence_text: row.essence_text,
+        tags,
+        memory_type,
+        session_id: row.session_id,
+    }
+}
+
+fn lambda_type_to_str(lt: &LambdaMemoryType) -> &'static str {
+    match lt {
+        LambdaMemoryType::Conversation => "conversation",
+        LambdaMemoryType::Knowledge => "knowledge",
+        LambdaMemoryType::Learning => "learning",
     }
 }
 

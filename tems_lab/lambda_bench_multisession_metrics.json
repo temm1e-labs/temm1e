@@ -1,0 +1,51 @@
+{
+  "lambda": {
+    "name": "\u03bb-Memory",
+    "turns": 100,
+    "errors": 0,
+    "in_tok": 119491,
+    "out_tok": 6098,
+    "memories_created": 43,
+    "auto_generated": 3,
+    "memory_count": 43,
+    "recall_score": 19.0,
+    "recall_pct": 95.0,
+    "correct": 19,
+    "wrong": 1
+  },
+  "current": {
+    "name": "Current Memory",
+    "turns": 100,
+    "errors": 0,
+    "in_tok": 68744,
+    "out_tok": 7331,
+    "memories_created": 100,
+    "memory_count": 0,
+    "recall_score": 11.75,
+    "recall_pct": 58.75,
+    "correct": 9,
+    "wrong": 0
+  },
+  "naive": {
+    "name": "Naive Summary",
+    "turns": 100,
+    "errors": 0,
+    "in_tok": 88779,
+    "out_tok": 8318,
+    "memories_created": 100,
+    "summaries_generated": 4,
+    "memory_count": 4,
+    "recall_score": 4.75,
+    "recall_pct": 23.75,
+    "correct": 4,
+    "wrong": 13
+  },
+  "meta": {
+    "date": "2026-03-15T17:02:34.194438",
+    "model": "gpt-5.2",
+    "sessions": 5,
+    "turns": 100,
+    "elapsed": 240,
+    "type": "multi-session"
+  }
+}

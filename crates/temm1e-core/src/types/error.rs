@@ -50,6 +50,12 @@ pub enum Temm1eError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    /// Signal from process_message: classifier says Order+Complex,
+    /// hive is enabled — caller should route to swarm instead.
+    /// Contains the original message text for decomposition.
+    #[error("Hive route: {0}")]
+    HiveRoute(String),
 }
 
 // ── Structured Failure Types (Tem's Mind v2.0) ─────────────────────

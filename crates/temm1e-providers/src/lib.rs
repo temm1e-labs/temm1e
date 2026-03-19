@@ -12,9 +12,11 @@
 #![allow(dead_code)]
 
 pub mod anthropic;
+pub mod gemini;
 pub mod openai_compat;
 
 pub use anthropic::AnthropicProvider;
+pub use gemini::GeminiProvider;
 pub use openai_compat::OpenAICompatProvider;
 
 use temm1e_core::types::config::ProviderConfig;
@@ -25,7 +27,7 @@ use temm1e_core::Provider;
 ///
 /// The `name` field in `ProviderConfig` determines which backend to use:
 /// - `"anthropic"` -> `AnthropicProvider` (native Messages API)
-/// - `"gemini"` -> `OpenAICompatProvider` with Google's OpenAI-compatible endpoint
+/// - `"gemini"` -> `GeminiProvider` (native generateContent API)
 /// - `"grok"` | `"xai"` -> `OpenAICompatProvider` with `https://api.x.ai/v1`
 /// - `"openrouter"` -> `OpenAICompatProvider` with `https://openrouter.ai/api/v1`
 /// - `"minimax"` -> `OpenAICompatProvider` with `https://api.minimax.io/v1`
@@ -51,13 +53,8 @@ pub fn create_provider(config: &ProviderConfig) -> Result<Box<dyn Provider>, Tem
             Ok(Box::new(provider))
         }
         "gemini" => {
-            let base_url = config.base_url.clone().unwrap_or_else(|| {
-                "https://generativelanguage.googleapis.com/v1beta/openai".to_string()
-            });
-            let provider = OpenAICompatProvider::new(api_key)
-                .with_keys(all_keys)
-                .with_base_url(base_url)
-                .with_extra_headers(config.extra_headers.clone());
+            // Native Gemini API — properly handles systemInstruction.
+            let provider = GeminiProvider::new(api_key);
             Ok(Box::new(provider))
         }
         "grok" | "xai" => {

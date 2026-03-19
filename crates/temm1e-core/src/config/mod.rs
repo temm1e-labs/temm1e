@@ -1,3 +1,4 @@
+pub mod credentials;
 mod env;
 mod loader;
 

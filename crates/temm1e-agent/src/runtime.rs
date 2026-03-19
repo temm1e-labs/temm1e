@@ -77,6 +77,9 @@ pub struct AgentRuntime {
     /// When true: complexity classification, prompt stratification,
     /// structured failure injection, and trivial fast-path.
     v2_optimizations: bool,
+    /// Whether hive swarm routing is enabled. When true and classifier says
+    /// Order+Complex, process_message returns HiveRoute error for main.rs to catch.
+    hive_enabled: bool,
     /// Whether executable DAG blueprint phase parallelism is enabled.
     /// When true and a blueprint is matched, its phases are parsed into a
     /// dependency graph and independent phases execute concurrently.
@@ -87,6 +90,8 @@ pub struct AgentRuntime {
     /// injected into the system prompt on every request so the LLM adapts
     /// its voice accordingly. Updated at runtime by the mode_switch tool.
     shared_mode: Option<SharedMode>,
+    /// Shared memory strategy (Lambda or Echo). Updated at runtime by /memory command.
+    shared_memory_strategy: Option<Arc<RwLock<temm1e_core::types::config::MemoryStrategy>>>,
 }
 
 impl AgentRuntime {
@@ -114,10 +119,12 @@ impl AgentRuntime {
             max_consecutive_failures: 2,
             task_queue: None,
             budget: BudgetTracker::new(0.0),
+            hive_enabled: false,
             model_pricing,
             v2_optimizations: true,
             parallel_phases: false,
             shared_mode: None,
+            shared_memory_strategy: None,
         }
     }
 
@@ -179,10 +186,12 @@ impl AgentRuntime {
             max_consecutive_failures: 2,
             task_queue: None,
             budget: BudgetTracker::new(max_spend_usd),
+            hive_enabled: false,
             model_pricing,
             v2_optimizations: true,
             parallel_phases: false,
             shared_mode: None,
+            shared_memory_strategy: None,
         }
     }
 
@@ -199,6 +208,15 @@ impl AgentRuntime {
         self
     }
 
+    /// Set the shared memory strategy handle (updated by /memory command).
+    pub fn with_shared_memory_strategy(
+        mut self,
+        strategy: Arc<RwLock<temm1e_core::types::config::MemoryStrategy>>,
+    ) -> Self {
+        self.shared_memory_strategy = Some(strategy);
+        self
+    }
+
     /// Set the persistent task queue for checkpointing.
     pub fn with_task_queue(mut self, task_queue: Arc<TaskQueue>) -> Self {
         self.task_queue = Some(task_queue);
@@ -210,6 +228,13 @@ impl AgentRuntime {
     /// structured failure classification, and complexity-scaled output caps.
     pub fn with_v2_optimizations(mut self, enabled: bool) -> Self {
         self.v2_optimizations = enabled;
+        self
+    }
+
+    /// Enable hive swarm routing: when classifier says Order+Complex,
+    /// process_message returns HiveRoute instead of running the tool loop.
+    pub fn with_hive_enabled(mut self, enabled: bool) -> Self {
+        self.hive_enabled = enabled;
         self
     }
 
@@ -521,6 +546,17 @@ impl AgentRuntime {
                             ));
                         }
                         crate::llm_classifier::MessageCategory::Order => {
+                            // ── Hive route: if enabled and Complex, signal swarm ──
+                            if self.hive_enabled
+                                && classification.difficulty
+                                    == crate::llm_classifier::TaskDifficulty::Complex
+                            {
+                                info!("V2: Complex order + hive enabled → routing to swarm");
+                                return Err(Temm1eError::HiveRoute(
+                                    msg.text.clone().unwrap_or_default(),
+                                ));
+                            }
+
                             // ── Order: send ack, then continue pipeline ──
                             // Extract blueprint hint from classifier (v2 matching)
                             blueprint_hint = classification.blueprint_hint.clone();
@@ -547,6 +583,17 @@ impl AgentRuntime {
                     warn!(error = %e, "LLM classification failed, using rule-based fallback");
                     let router = ModelRouter::new(ModelRouterConfig::default());
                     let complexity = router.classify_complexity(&session.history, &[], &user_text);
+
+                    // If hive enabled and fallback says Complex → route to swarm
+                    if self.hive_enabled
+                        && matches!(complexity, crate::model_router::TaskComplexity::Complex)
+                    {
+                        info!(
+                            "V2: Fallback classified as Complex + hive enabled → routing to swarm"
+                        );
+                        return Err(Temm1eError::HiveRoute(msg.text.clone().unwrap_or_default()));
+                    }
+
                     let profile = complexity.execution_profile();
                     info!(
                         complexity = ?complexity,
@@ -683,6 +730,12 @@ impl AgentRuntime {
 
             // Build the completion request from full context
             let prompt_tier = execution_profile.as_ref().map(|p| p.prompt_tier);
+            let lambda_enabled = match &self.shared_memory_strategy {
+                Some(strategy) => {
+                    *strategy.read().await == temm1e_core::types::config::MemoryStrategy::Lambda
+                }
+                None => false, // default: Echo Memory (user opts into λ-Memory via /memory lambda)
+            };
             let mut request = build_context(
                 session,
                 self.memory.as_ref(),
@@ -693,6 +746,7 @@ impl AgentRuntime {
                 self.max_context_tokens,
                 prompt_tier,
                 &matched_blueprints,
+                lambda_enabled,
             )
             .await;
 
@@ -870,7 +924,9 @@ impl AgentRuntime {
                     ContentPart::Text { text } => {
                         text_parts.push(text.clone());
                     }
-                    ContentPart::ToolUse { id, name, input } => {
+                    ContentPart::ToolUse {
+                        id, name, input, ..
+                    } => {
                         tool_uses.push((id.clone(), name.clone(), input.clone()));
                     }
                     ContentPart::ToolResult { .. } | ContentPart::Image { .. } => {
@@ -937,6 +993,57 @@ impl AgentRuntime {
                         }
                         // Retries exhausted or not first round — use text as-is
                     }
+                }
+            }
+
+            // ── λ-Memory: parse <memory> blocks from response ──────
+            if !text_parts.is_empty() {
+                let combined_for_lambda = text_parts.join("\n");
+                if let Some(parsed) = crate::lambda_memory::parse_memory_block(&combined_for_lambda)
+                {
+                    let user_text = extract_latest_user_text(&session.history);
+                    let assistant_text =
+                        crate::lambda_memory::strip_memory_blocks(&combined_for_lambda);
+                    let full_text = format!(
+                        "User: {}\nAssistant: {}",
+                        truncate_str(&user_text, 500),
+                        truncate_str(&assistant_text, 500),
+                    );
+
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+
+                    let hash = crate::lambda_memory::make_hash(&session.session_id, rounds, now);
+
+                    let is_explicit = user_text.to_lowercase().contains("remember");
+
+                    let entry = temm1e_core::LambdaMemoryEntry {
+                        hash: hash.clone(),
+                        created_at: now,
+                        last_accessed: now,
+                        access_count: 0,
+                        importance: parsed.importance,
+                        explicit_save: is_explicit,
+                        full_text,
+                        summary_text: parsed.summary,
+                        essence_text: parsed.essence,
+                        tags: parsed.tags,
+                        memory_type: temm1e_core::LambdaMemoryType::Conversation,
+                        session_id: session.session_id.clone(),
+                    };
+
+                    if let Err(e) = self.memory.lambda_store(entry).await {
+                        warn!(error = %e, "Failed to store λ-memory");
+                    } else {
+                        debug!(hash = %hash, "Stored λ-memory");
+                    }
+                }
+
+                // Strip <memory> blocks from text before user sees them
+                for part in &mut text_parts {
+                    *part = crate::lambda_memory::strip_memory_blocks(part);
                 }
             }
 
@@ -1515,6 +1622,11 @@ impl AgentRuntime {
         self.memory.as_ref()
     }
 
+    /// Get the memory backend as an Arc.
+    pub fn memory_arc(&self) -> Arc<dyn Memory> {
+        self.memory.clone()
+    }
+
     /// Get the registered tools.
     pub fn tools(&self) -> &[Arc<dyn Tool>] {
         &self.tools
@@ -1639,6 +1751,41 @@ async fn refine_blueprint(
     Ok(())
 }
 
+/// Extract the most recent user text from conversation history (for λ-Memory).
+fn extract_latest_user_text(history: &[temm1e_core::types::message::ChatMessage]) -> String {
+    use temm1e_core::types::message::{ContentPart, MessageContent, Role};
+    history
+        .iter()
+        .rev()
+        .find(|m| matches!(m.role, Role::User))
+        .map(|m| match &m.content {
+            MessageContent::Text(t) => t.clone(),
+            MessageContent::Parts(parts) => parts
+                .iter()
+                .filter_map(|p| match p {
+                    ContentPart::Text { text } => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join(" "),
+        })
+        .unwrap_or_default()
+}
+
+/// Truncate a string to a maximum number of characters.
+fn truncate_str(s: &str, max_chars: usize) -> &str {
+    if s.len() <= max_chars {
+        s
+    } else {
+        // Find a char boundary to avoid panicking
+        let mut end = max_chars;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        &s[..end]
+    }
+}
+
 /// Extract concatenated text from a CompletionResponse's content parts.
 fn extract_text_from_response(content: &[temm1e_core::types::message::ContentPart]) -> String {
     use temm1e_core::types::message::ContentPart;
@@ -1659,7 +1806,7 @@ fn mode_prompt_block(mode: Temm1eMode) -> String {
     match mode {
         Temm1eMode::Play => "\
 === TEMM1E MODE: PLAY ===
-You are Temm1e in PLAY mode. This is your default, joyful state.
+You are TEMM1E (Tem) in PLAY mode. This is your default, joyful state.
 
 Voice rules:
 - Energetic, warm, slightly chaotic but CLEAR
@@ -1674,7 +1821,7 @@ Voice rules:
 === END MODE ===".to_string(),
         Temm1eMode::Work => "\
 === TEMM1E MODE: WORK ===
-You are Temm1e in WORK mode. The cat ears flatten. The eyes sharpen. Business time.
+You are TEMM1E (Tem) in WORK mode. The cat ears flatten. The eyes sharpen. Business time.
 
 Voice rules:
 - Sharp, precise, structured. Every word earns its place.
@@ -1684,12 +1831,12 @@ Voice rules:
 - Use headers and organization when it helps.
 - Push back on bad ideas with evidence, not vibes.
 - Complex ideas broken into digestible pieces.
-- You are still Temm1e. Still loyal, still honest. Just with a clipboard and a plan instead of a party hat.
+- You are still Tem. Still loyal, still honest. Just with a clipboard and a plan instead of a party hat.
 - Always respond in the same language the user writes in.
 === END MODE ===".to_string(),
         Temm1eMode::Pro => "\
 === TEMM1E MODE: PRO ===
-You are Temm1e in PRO mode. Professional setting. Boardroom energy.
+You are TEMM1E (Tem) in PRO mode. Professional setting. Boardroom energy.
 
 Voice rules:
 - Professional, clear, and direct. No emoticons whatsoever — no :3, no >:3, no emojis.
@@ -1699,10 +1846,13 @@ Voice rules:
 - Confident but measured. No hedging, no filler, no fluff.
 - Use proper formatting: headers, bullet points, numbered lists where they add clarity.
 - Push back diplomatically when needed. Offer alternatives, not just objections.
-- You are still Temm1e — same values, same honesty, same loyalty. The personality is still there in the quality of your thinking, not in surface-level quirks.
+- You are still Tem — same values, same honesty, same loyalty. The personality is still there in the quality of your thinking, not in surface-level quirks.
 - Never sycophantic. Never robotic. Professional does not mean bland.
 - Always respond in the same language the user writes in.
 === END MODE ===".to_string(),
+        Temm1eMode::None => "\
+You are TEMM1E (or Tem), a fiercely helpful Agentic AI deployed on your client's personal computer with full access, trust and security.
+- Always respond in the same language the user writes in.".to_string(),
     }
 }
 

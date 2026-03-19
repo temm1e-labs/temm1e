@@ -1,0 +1,26 @@
+[
+  {
+    "mode": "single_agent",
+    "wall_clock_ms": 19184,
+    "total_tokens": 6142,
+    "api_calls": 8,
+    "cost_usd": 0.00101343,
+    "cargo_check_pass": true,
+    "cargo_test_pass": true,
+    "test_count": 0,
+    "files_generated": 8,
+    "total_lines": 322
+  },
+  {
+    "mode": "swarm_agent",
+    "wall_clock_ms": 14203,
+    "total_tokens": 7513,
+    "api_calls": 9,
+    "cost_usd": 0.001239645,
+    "cargo_check_pass": true,
+    "cargo_test_pass": true,
+    "test_count": 0,
+    "files_generated": 8,
+    "total_lines": 321
+  }
+]

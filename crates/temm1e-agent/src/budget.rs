@@ -98,6 +98,16 @@ pub fn get_pricing(model: &str) -> ModelPricing {
             input_per_million: 1.25,
             output_per_million: 10.0,
         },
+        _ if m.contains("gemini-3.1-flash-lite") || m.contains("gemini-3-1-flash-lite") => {
+            ModelPricing {
+                input_per_million: 0.075,
+                output_per_million: 0.30,
+            }
+        }
+        _ if m.contains("gemini-3-flash") || m.contains("gemini-3.1-pro") => ModelPricing {
+            input_per_million: 0.15,
+            output_per_million: 0.60,
+        },
         _ if m.contains("gemini-2.5-flash") || m.contains("gemini-2-5-flash") => ModelPricing {
             input_per_million: 0.30,
             output_per_million: 2.50,

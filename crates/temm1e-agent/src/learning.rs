@@ -326,6 +326,7 @@ mod tests {
                 id: "tu-1".to_string(),
                 name: tool_name.to_string(),
                 input: serde_json::json!({}),
+                thought_signature: None,
             }]),
         }
     }

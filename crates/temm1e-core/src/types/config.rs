@@ -15,6 +15,8 @@ pub enum Temm1eMode {
     Work,
     /// PRO mode — professional, business-grade, no emoticons
     Pro,
+    /// NONE mode — no personality, minimal identity prompt only
+    None,
 }
 
 impl std::fmt::Display for Temm1eMode {
@@ -23,6 +25,7 @@ impl std::fmt::Display for Temm1eMode {
             Temm1eMode::Play => write!(f, "PLAY :3"),
             Temm1eMode::Work => write!(f, "WORK >:3"),
             Temm1eMode::Pro => write!(f, "PRO"),
+            Temm1eMode::None => write!(f, "NONE"),
         }
     }
 }
@@ -175,6 +178,81 @@ pub struct MemoryConfig {
     pub connection_string: Option<String>,
     #[serde(default)]
     pub search: SearchConfig,
+    /// λ-Memory configuration — continuous decay with hash-based recall.
+    #[serde(default)]
+    pub lambda: LambdaMemoryConfig,
+}
+
+/// Active memory strategy — switchable at runtime via `/memory` command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum MemoryStrategy {
+    /// λ-Memory: exponential decay, fidelity tiers, hash-based recall, cross-session.
+    Lambda,
+    /// Echo Memory: keyword search over recent context window. No persistence.
+    #[default]
+    Echo,
+}
+
+impl std::fmt::Display for MemoryStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MemoryStrategy::Lambda => write!(f, "λ-Memory"),
+            MemoryStrategy::Echo => write!(f, "Echo Memory"),
+        }
+    }
+}
+
+/// Configuration for λ-Memory — continuous decay with hash-based recall.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LambdaMemoryConfig {
+    /// Whether λ-Memory is enabled (default: true).
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Decay rate constant (λ). Higher = faster decay (default: 0.01).
+    #[serde(default = "default_decay_lambda")]
+    pub decay_lambda: f32,
+    /// Threshold for full text display (default: 2.0).
+    #[serde(default = "default_hot")]
+    pub hot_threshold: f32,
+    /// Threshold for summary display (default: 1.0).
+    #[serde(default = "default_warm")]
+    pub warm_threshold: f32,
+    /// Threshold for essence display (default: 0.3).
+    #[serde(default = "default_cool")]
+    pub cool_threshold: f32,
+    /// Max memories to score per turn (default: 500).
+    #[serde(default = "default_candidate_limit")]
+    pub candidate_limit: usize,
+}
+
+fn default_decay_lambda() -> f32 {
+    0.01
+}
+fn default_hot() -> f32 {
+    2.0
+}
+fn default_warm() -> f32 {
+    1.0
+}
+fn default_cool() -> f32 {
+    0.3
+}
+fn default_candidate_limit() -> usize {
+    500
+}
+
+impl Default for LambdaMemoryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            decay_lambda: 0.01,
+            hot_threshold: 2.0,
+            warm_threshold: 1.0,
+            cool_threshold: 0.3,
+            candidate_limit: 500,
+        }
+    }
 }
 
 impl Default for MemoryConfig {
@@ -184,6 +262,7 @@ impl Default for MemoryConfig {
             path: None,
             connection_string: None,
             search: SearchConfig::default(),
+            lambda: LambdaMemoryConfig::default(),
         }
     }
 }
@@ -770,6 +849,7 @@ mod tests {
                     vector_weight: 0.8,
                     keyword_weight: 0.2,
                 },
+                lambda: LambdaMemoryConfig::default(),
             },
             observability: ObservabilityConfig {
                 log_level: "debug".to_string(),

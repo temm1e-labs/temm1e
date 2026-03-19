@@ -1,0 +1,26 @@
+[
+  {
+    "mode": "single",
+    "wall_ms": 566351,
+    "tokens": 31642,
+    "api_calls": 17,
+    "cost": 0.01044186,
+    "test_pass": false,
+    "test_count": 0,
+    "total_attempts": 17,
+    "files_clean": 5,
+    "lines": 405
+  },
+  {
+    "mode": "swarm",
+    "wall_ms": 391185,
+    "tokens": 32400,
+    "api_calls": 17,
+    "cost": 0.010692,
+    "test_pass": false,
+    "test_count": 0,
+    "total_attempts": 17,
+    "files_clean": 4,
+    "lines": 419
+  }
+]

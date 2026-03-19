@@ -32,7 +32,7 @@ impl Tool for ModeSwitchTool {
     }
 
     fn description(&self) -> &str {
-        "Switch Temm1e's personality mode between PLAY (warm, chaotic, :3), \
+        "Switch Tem's personality mode between PLAY (warm, chaotic, :3), \
          WORK (sharp, analytical, >:3), or PRO (professional, no emoticons). \
          Use this when the user asks to change the vibe or when a task requires a different energy."
     }
@@ -95,6 +95,9 @@ impl Tool for ModeSwitchTool {
             Temm1eMode::Play => "Mode switched to PLAY! Let's have some fun! :3".to_string(),
             Temm1eMode::Work => "Mode switched to WORK. Ready to execute. >:3".to_string(),
             Temm1eMode::Pro => "Mode switched to PRO. Professional mode engaged.".to_string(),
+            // None is never reachable here — the tool only accepts play/work/pro
+            // and is not registered when personality is None (locked).
+            Temm1eMode::None => "Mode unchanged.".to_string(),
         };
 
         Ok(ToolOutput {

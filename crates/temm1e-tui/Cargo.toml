@@ -1,0 +1,61 @@
+[package]
+name = "temm1e-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Interactive TUI for TEMM1E — Claude Code-level terminal experience"
+
+[dependencies]
+# Internal
+temm1e-core.workspace = true
+temm1e-agent.workspace = true
+temm1e-providers.workspace = true
+temm1e-memory.workspace = true
+temm1e-vault.workspace = true
+temm1e-tools.workspace = true
+temm1e-codex-oauth = { workspace = true, optional = true }
+temm1e-mcp = { workspace = true, optional = true }
+
+# TUI framework
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
+crossterm = { version = "0.28", features = ["event-stream"] }
+
+# Text rendering
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+unicode-width = "0.2"
+textwrap = "0.16"
+
+# Fuzzy matching
+nucleo = "0.5"
+
+# Async
+tokio.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# Utilities
+chrono.workspace = true
+uuid.workspace = true
+dirs.workspace = true
+bytes.workspace = true
+
+[features]
+default = ["mcp", "codex-oauth"]
+mcp = ["dep:temm1e-mcp"]
+codex-oauth = ["dep:temm1e-codex-oauth"]
+
+[dev-dependencies]
+temm1e-test-utils.workspace = true
+insta = "1"
