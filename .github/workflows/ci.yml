@@ -30,7 +30,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwayland-dev libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev libpipewire-0.3-dev libspa-0.2-dev libclang-dev libegl1-mesa-dev libgbm-dev libdrm-dev
+          sudo apt-get install -y libwayland-dev libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev libpipewire-0.3-dev libspa-0.2-dev libclang-dev libegl1-mesa-dev libgbm-dev libdrm-dev libxdo-dev
 
       - name: Check formatting
         run: cargo fmt --all -- --check
