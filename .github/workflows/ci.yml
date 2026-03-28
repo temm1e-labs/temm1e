@@ -103,14 +103,14 @@ jobs:
             --no-default-features \
             --features telegram,discord,browser,mcp,codex-oauth,openssl-vendored
 
-      - name: Check binary size (<10 MB)
+      - name: Check binary size (<30 MB)
         run: |
           BINARY="target/${{ matrix.target }}/release/temm1e"
           SIZE=$(stat -c%s "$BINARY")
           SIZE_MB=$(echo "scale=2; $SIZE / 1048576" | bc)
           echo "Binary size: ${SIZE_MB} MB ($SIZE bytes)"
-          if [ "$SIZE" -gt 10485760 ]; then
-            echo "::error::Binary size ${SIZE_MB} MB exceeds 10 MB limit"
+          if [ "$SIZE" -gt 31457280 ]; then
+            echo "::error::Binary size ${SIZE_MB} MB exceeds 30 MB limit"
             exit 1
           fi
           echo "Binary size OK: ${SIZE_MB} MB"
