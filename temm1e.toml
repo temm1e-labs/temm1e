@@ -65,3 +65,9 @@ enabled = true
 token = "allowlist:ignore"
 allowlist = []
 file_transfer = true
+
+[awareness]
+enabled = true
+confidence_threshold = 0.7
+max_interventions_per_session = 10
+observation_mode = "rules_first"

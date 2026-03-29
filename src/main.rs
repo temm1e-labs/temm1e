@@ -1890,25 +1890,42 @@ async fn main() -> Result<()> {
                             Arc::from(temm1e_providers::create_provider(&provider_config)?)
                         }
                     };
-                    let agent = Arc::new(
-                        temm1e_agent::AgentRuntime::with_limits(
-                            provider.clone(),
-                            memory.clone(),
-                            tools.clone(),
-                            model.clone(),
-                            system_prompt.clone(),
-                            config.agent.max_turns,
-                            config.agent.max_context_tokens,
-                            config.agent.max_tool_rounds,
-                            config.agent.max_task_duration_secs,
-                            config.agent.max_spend_usd,
-                        )
-                        .with_v2_optimizations(config.agent.v2_optimizations)
-                        .with_parallel_phases(config.agent.parallel_phases)
-                        .with_hive_enabled(hive_enabled_early)
-                        .with_shared_mode(shared_mode.clone())
-                        .with_shared_memory_strategy(shared_memory_strategy.clone()),
-                    );
+                    let mut runtime = temm1e_agent::AgentRuntime::with_limits(
+                        provider.clone(),
+                        memory.clone(),
+                        tools.clone(),
+                        model.clone(),
+                        system_prompt.clone(),
+                        config.agent.max_turns,
+                        config.agent.max_context_tokens,
+                        config.agent.max_tool_rounds,
+                        config.agent.max_task_duration_secs,
+                        config.agent.max_spend_usd,
+                    )
+                    .with_v2_optimizations(config.agent.v2_optimizations)
+                    .with_parallel_phases(config.agent.parallel_phases)
+                    .with_hive_enabled(hive_enabled_early)
+                    .with_shared_mode(shared_mode.clone())
+                    .with_shared_memory_strategy(shared_memory_strategy.clone());
+                    // Tem Conscious: enable consciousness if configured
+                    if config.consciousness.enabled {
+                        let aware_config = temm1e_agent::consciousness::ConsciousnessConfig {
+                            enabled: true,
+                            confidence_threshold: config.consciousness.confidence_threshold,
+                            max_interventions_per_session: config
+                                .consciousness
+                                .max_interventions_per_session,
+                            observation_mode: config.consciousness.observation_mode.clone(),
+                        };
+                        runtime = runtime.with_consciousness(
+                            temm1e_agent::consciousness_engine::ConsciousnessEngine::new(
+                                aware_config,
+                                provider.clone(),
+                                model.clone(),
+                            ),
+                        );
+                    }
+                    let agent = Arc::new(runtime);
                     *agent_state.write().await = Some(agent);
                     tracing::info!(provider = %pname, model = %model, "Agent initialized");
                 }
@@ -4629,6 +4646,10 @@ Just type a message to chat with the AI agent.",
 
             let mut agent_opt: Option<temm1e_agent::AgentRuntime> = None;
 
+            tracing::info!(
+                has_credentials = credentials.is_some(),
+                "CLI Chat: checking credentials for agent init"
+            );
             if let Some((pname, key, model)) = credentials {
                 if !is_placeholder_key(&key) {
                     let (all_keys, saved_base_url) = load_active_provider_keys()
@@ -4681,25 +4702,53 @@ Just type a message to chat with the AI agent.",
                     match provider_result {
                         Ok(provider) => {
                             let system_prompt = Some(build_system_prompt());
-                            agent_opt = Some(
-                                temm1e_agent::AgentRuntime::with_limits(
-                                    provider,
-                                    memory.clone(),
-                                    tools_template.clone(),
-                                    model.clone(),
-                                    system_prompt,
-                                    max_turns,
-                                    max_ctx,
-                                    max_rounds,
-                                    max_task_duration,
-                                    max_spend,
-                                )
-                                .with_v2_optimizations(v2_opt)
-                                .with_parallel_phases(pp_opt)
-                                .with_hive_enabled(hive_enabled_early)
-                                .with_shared_mode(shared_mode.clone())
-                                .with_shared_memory_strategy(shared_memory_strategy.clone()),
+                            let consciousness_provider = provider.clone();
+                            let mut rt = temm1e_agent::AgentRuntime::with_limits(
+                                provider,
+                                memory.clone(),
+                                tools_template.clone(),
+                                model.clone(),
+                                system_prompt,
+                                max_turns,
+                                max_ctx,
+                                max_rounds,
+                                max_task_duration,
+                                max_spend,
+                            )
+                            .with_v2_optimizations(v2_opt)
+                            .with_parallel_phases(pp_opt)
+                            .with_hive_enabled(hive_enabled_early)
+                            .with_shared_mode(shared_mode.clone())
+                            .with_shared_memory_strategy(shared_memory_strategy.clone());
+                            // Tem Conscious: enable consciousness for CLI chat
+                            tracing::info!(
+                                consciousness_enabled = config.consciousness.enabled,
+                                "Checking consciousness config"
                             );
+                            if config.consciousness.enabled {
+                                let consciousness_cfg =
+                                    temm1e_agent::consciousness::ConsciousnessConfig {
+                                        enabled: true,
+                                        confidence_threshold: config
+                                            .consciousness
+                                            .confidence_threshold,
+                                        max_interventions_per_session: config
+                                            .consciousness
+                                            .max_interventions_per_session,
+                                        observation_mode: config
+                                            .consciousness
+                                            .observation_mode
+                                            .clone(),
+                                    };
+                                rt = rt.with_consciousness(
+                                    temm1e_agent::consciousness_engine::ConsciousnessEngine::new(
+                                        consciousness_cfg,
+                                        consciousness_provider.clone(),
+                                        model.clone(),
+                                    ),
+                                );
+                            }
+                            agent_opt = Some(rt);
                             println!("Connected to {} (model: {})", pname, model);
                             if max_spend > 0.0 {
                                 println!("Budget: ${:.2} per session", max_spend);

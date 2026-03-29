@@ -5,6 +5,8 @@ pub mod agent_task_status;
 pub mod blueprint;
 pub mod budget;
 pub mod circuit_breaker;
+pub mod consciousness;
+pub mod consciousness_engine;
 pub mod context;
 pub mod delegation;
 pub mod done_criteria;
