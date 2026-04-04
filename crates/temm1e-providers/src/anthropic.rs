@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 use reqwest::Client;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use temm1e_core::types::error::Temm1eError;
 use temm1e_core::types::message::{
@@ -120,6 +121,8 @@ impl AnthropicProvider {
 #[derive(Debug, Deserialize)]
 struct AnthropicResponse {
     id: String,
+    #[serde(default)]
+    r#type: Option<String>,
     content: Vec<AnthropicContentBlock>,
     stop_reason: Option<String>,
     usage: AnthropicUsage,
@@ -136,12 +139,21 @@ enum AnthropicContentBlock {
         name: String,
         input: serde_json::Value,
     },
+    #[serde(rename = "thinking")]
+    Thinking {
+        thinking: String,
+        signature: Option<String>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
 struct AnthropicUsage {
     input_tokens: u32,
     output_tokens: u32,
+    #[serde(default)]
+    cache_creation_input_tokens: Option<u32>,
+    #[serde(default)]
+    cache_read_input_tokens: Option<u32>,
 }
 
 // SSE event types
@@ -150,7 +162,7 @@ struct AnthropicSseMessageStart {
     message: AnthropicSseMessageMeta,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct AnthropicSseMessageMeta {
     id: String,
     usage: Option<AnthropicUsage>,
@@ -169,22 +181,31 @@ struct AnthropicSseContentBlockDelta {
 }
 
 #[derive(Debug, Deserialize)]
+struct AnthropicSseContentBlockStop {
+    index: usize,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 enum AnthropicDelta {
     #[serde(rename = "text_delta")]
     TextDelta { text: String },
     #[serde(rename = "input_json_delta")]
     InputJsonDelta { partial_json: String },
+    #[serde(rename = "thinking_delta")]
+    ThinkingDelta { thinking: String, signature: Option<String> },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct AnthropicSseMessageDelta {
+    #[serde(default)]
     delta: AnthropicMessageDeltaBody,
     usage: Option<AnthropicUsage>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct AnthropicMessageDeltaBody {
+    #[serde(default)]
     stop_reason: Option<String>,
 }
 
@@ -277,6 +298,8 @@ fn convert_anthropic_content(block: &AnthropicContentBlock) -> ContentPart {
             input: input.clone(),
             thought_signature: None,
         },
+        // Skip thinking blocks to save tokens in context
+        AnthropicContentBlock::Thinking { .. } => ContentPart::Text { text: String::new() },
     }
 }
 
@@ -398,15 +421,16 @@ impl Provider for AnthropicProvider {
             (
                 byte_stream,
                 String::new(), // buffer for incomplete lines
-                Vec::<(String, String, serde_json::Value)>::new(), // active tool_use blocks: (id, name, partial_json)
+                HashMap::<usize, (String, String, serde_json::Value)>::new(), // index → (id, name, partial_json)
+                None::<usize>, // current_block_index — tracks last seen block index
             ),
-            |(mut byte_stream, mut buffer, mut tool_blocks)| async move {
+            |(mut byte_stream, mut buffer, mut pending_blocks, mut current_index)| async move {
                 use futures::StreamExt;
 
                 loop {
                     // Try to extract a complete SSE event from the buffer
-                    if let Some(event) = extract_sse_event(&mut buffer, &mut tool_blocks) {
-                        return Some((event, (byte_stream, buffer, tool_blocks)));
+                    if let Some(event) = extract_sse_event(&mut buffer, &mut pending_blocks, &mut current_index) {
+                        return Some((event, (byte_stream, buffer, pending_blocks, current_index)));
                     }
 
                     // Need more data
@@ -418,7 +442,7 @@ impl Provider for AnthropicProvider {
                         Some(Err(e)) => {
                             return Some((
                                 Err(Temm1eError::Provider(format!("Stream read error: {e}"))),
-                                (byte_stream, buffer, tool_blocks),
+                                (byte_stream, buffer, pending_blocks, current_index),
                             ));
                         }
                         None => {
@@ -467,7 +491,8 @@ impl Provider for AnthropicProvider {
 /// Returns `Some(Result<StreamChunk>)` if an event was parsed, `None` if more data is needed.
 fn extract_sse_event(
     buffer: &mut String,
-    tool_blocks: &mut Vec<(String, String, serde_json::Value)>,
+    pending_blocks: &mut HashMap<usize, (String, String, serde_json::Value)>,
+    current_index: &mut Option<usize>,
 ) -> Option<Result<StreamChunk, Temm1eError>> {
     // SSE events are terminated by a blank line (\n\n)
     loop {
@@ -501,13 +526,18 @@ fn extract_sse_event(
             }
             "content_block_start" => {
                 if let Ok(parsed) = serde_json::from_str::<AnthropicSseContentBlockStart>(&data) {
+                    let index = parsed.index;
+                    *current_index = Some(index);
                     match parsed.content_block {
                         AnthropicContentBlock::ToolUse { id, name, .. } => {
-                            // Start accumulating a tool_use block
-                            tool_blocks.push((id, name, serde_json::Value::Null));
+                            // Index-keyed accumulation — safe against thinking blocks interleaving
+                            pending_blocks.insert(index, (id, name, serde_json::Value::Null));
                         }
                         AnthropicContentBlock::Text { .. } => {
                             // Text block start, no content yet
+                        }
+                        AnthropicContentBlock::Thinking { .. } => {
+                            // Thinking blocks: track index but don't accumulate
                         }
                     }
                 }
@@ -515,6 +545,9 @@ fn extract_sse_event(
             }
             "content_block_delta" => {
                 if let Ok(parsed) = serde_json::from_str::<AnthropicSseContentBlockDelta>(&data) {
+                    // Always sync current_index from the event — delta index wins
+                    *current_index = Some(parsed.index);
+
                     match parsed.delta {
                         AnthropicDelta::TextDelta { text } => {
                             return Some(Ok(StreamChunk {
@@ -523,12 +556,16 @@ fn extract_sse_event(
                                 stop_reason: None,
                             }));
                         }
+                        AnthropicDelta::ThinkingDelta { .. } => {
+                            // Skip thinking delta — don't emit, don't accumulate
+                            continue;
+                        }
                         AnthropicDelta::InputJsonDelta { partial_json } => {
-                            // Accumulate partial JSON for the current tool_use block
-                            if let Some(tb) = tool_blocks.last_mut() {
-                                match &mut tb.2 {
+                            // Accumulate partial JSON for the block at parsed.index (not current_index)
+                            if let Some((_, _, val)) = pending_blocks.get_mut(&parsed.index) {
+                                match val {
                                     serde_json::Value::Null => {
-                                        tb.2 = serde_json::Value::String(partial_json);
+                                        *val = serde_json::Value::String(partial_json);
                                     }
                                     serde_json::Value::String(ref mut s) => {
                                         s.push_str(&partial_json);
@@ -544,26 +581,29 @@ fn extract_sse_event(
                 }
             }
             "content_block_stop" => {
-                // If there is a completed tool_use block, emit it
-                if let Some((id, name, raw_input)) = tool_blocks.pop() {
-                    let input = match raw_input {
-                        serde_json::Value::String(s) => serde_json::from_str(&s)
-                            .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
-                        serde_json::Value::Null => {
-                            serde_json::Value::Object(serde_json::Map::new())
-                        }
-                        other => other,
-                    };
-                    return Some(Ok(StreamChunk {
-                        delta: None,
-                        tool_use: Some(ContentPart::ToolUse {
-                            id,
-                            name,
-                            input,
-                            thought_signature: None,
-                        }),
-                        stop_reason: None,
-                    }));
+                // Emit the tool_use block at the index from the stop event
+                if let Ok(stop) = serde_json::from_str::<AnthropicSseContentBlockStop>(&data) {
+                    let idx = stop.index;
+                    if let Some((id, name, raw_input)) = pending_blocks.remove(&idx) {
+                        let input = match raw_input {
+                            serde_json::Value::String(s) => serde_json::from_str(&s)
+                                .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
+                            serde_json::Value::Null => {
+                                serde_json::Value::Object(serde_json::Map::new())
+                            }
+                            other => other,
+                        };
+                        return Some(Ok(StreamChunk {
+                            delta: None,
+                            tool_use: Some(ContentPart::ToolUse {
+                                id,
+                                name,
+                                input,
+                                thought_signature: None,
+                            }),
+                            stop_reason: None,
+                        }));
+                    }
                 }
                 continue;
             }
@@ -719,9 +759,10 @@ mod tests {
     #[test]
     fn sse_text_delta_event() {
         let mut buffer = "event: content_block_delta\ndata: {\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\n".to_string();
-        let mut tool_blocks = Vec::new();
+        let mut tool_blocks = HashMap::new();
+        let mut current_index = None;
 
-        let result = extract_sse_event(&mut buffer, &mut tool_blocks);
+        let result = extract_sse_event(&mut buffer, &mut tool_blocks, &mut current_index);
         assert!(result.is_some());
         let chunk = result.unwrap().unwrap();
         assert_eq!(chunk.delta.as_deref(), Some("Hello"));
@@ -730,9 +771,10 @@ mod tests {
     #[test]
     fn sse_message_delta_stop() {
         let mut buffer = "event: message_delta\ndata: {\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"input_tokens\":10,\"output_tokens\":20}}\n\n".to_string();
-        let mut tool_blocks = Vec::new();
+        let mut tool_blocks = HashMap::new();
+        let mut current_index = None;
 
-        let result = extract_sse_event(&mut buffer, &mut tool_blocks);
+        let result = extract_sse_event(&mut buffer, &mut tool_blocks, &mut current_index);
         assert!(result.is_some());
         let chunk = result.unwrap().unwrap();
         assert_eq!(chunk.stop_reason.as_deref(), Some("end_turn"));
@@ -741,9 +783,10 @@ mod tests {
     #[test]
     fn sse_ping_event_skipped() {
         let mut buffer = "event: ping\ndata: {}\n\nevent: content_block_delta\ndata: {\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hi\"}}\n\n".to_string();
-        let mut tool_blocks = Vec::new();
+        let mut tool_blocks = HashMap::new();
+        let mut current_index = None;
 
-        let result = extract_sse_event(&mut buffer, &mut tool_blocks);
+        let result = extract_sse_event(&mut buffer, &mut tool_blocks, &mut current_index);
         assert!(result.is_some());
         let chunk = result.unwrap().unwrap();
         assert_eq!(chunk.delta.as_deref(), Some("Hi"));
@@ -752,9 +795,10 @@ mod tests {
     #[test]
     fn sse_error_event() {
         let mut buffer = "event: error\ndata: {\"type\":\"overloaded_error\"}\n\n".to_string();
-        let mut tool_blocks = Vec::new();
+        let mut tool_blocks = HashMap::new();
+        let mut current_index = None;
 
-        let result = extract_sse_event(&mut buffer, &mut tool_blocks);
+        let result = extract_sse_event(&mut buffer, &mut tool_blocks, &mut current_index);
         assert!(result.is_some());
         assert!(result.unwrap().is_err());
     }
@@ -795,5 +839,53 @@ mod tests {
         let provider = AnthropicProvider::new("key".to_string())
             .with_base_url("https://custom.api.com".to_string());
         assert_eq!(provider.base_url, "https://custom.api.com");
+    }
+
+    // Regression test: thinking blocks interleaved with tool_use blocks must not corrupt tool input.
+    // The proxy may send thinking_delta events between tool_use deltas. Index-keyed tracking
+    // ensures each delta accumulates into the correct block regardless of interleaving.
+    #[test]
+    fn sse_thinking_blocks_interleaved_with_tool_use() {
+        // Simulate: tool_use[0] start → thinking[1] start → tool_use[0] delta → thinking[1] delta → tool_use[0] stop
+        let mut pending = HashMap::new();
+        let mut idx = None;
+
+        // tool_use block at index 0 starts
+        let mut buf = "event: content_block_start\ndata: {\"index\":0,\"type\":\"content_block_start\",\"content_block\":{\"type\":\"tool_use\",\"id\":\"tool1\",\"name\":\"search\",\"input\":{}}}\n\n".to_string();
+        extract_sse_event(&mut buf, &mut pending, &mut idx);
+        assert_eq!(pending.len(), 1);
+        assert!(pending.contains_key(&0));
+
+        // thinking block at index 1 starts — should track but not accumulate
+        let mut buf2 = "event: content_block_start\ndata: {\"index\":1,\"type\":\"content_block_start\",\"content_block\":{\"type\":\"thinking\",\"thinking\":\"searching...\",\"signature\":null}}\n\n".to_string();
+        extract_sse_event(&mut buf2, &mut pending, &mut idx);
+        assert_eq!(pending.len(), 1); // thinking not added to pending
+        assert_eq!(idx, Some(1));
+
+        // thinking delta — should be skipped (no accumulation)
+        let mut buf3 = "event: content_block_delta\ndata: {\"index\":1,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"step 1\",\"signature\":null}}\n\n".to_string();
+        let result3 = extract_sse_event(&mut buf3, &mut pending, &mut idx);
+        assert!(result3.is_none()); // skipped, not emitted
+
+        // tool_use delta for index 0 — must accumulate into tool1 (NOT tool2)
+        let mut buf4 = "event: content_block_delta\ndata: {\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"query\\\":\\\"ai agents\\\"}\"}}\n\n".to_string();
+        let result4 = extract_sse_event(&mut buf4, &mut pending, &mut idx);
+        assert!(result4.is_none()); // partial, not emitted yet
+
+        // tool_use stop for index 0 — must emit correct tool1 with full input
+        let mut buf5 = "event: content_block_stop\ndata: {\"index\":0}\n\n".to_string();
+        let result5 = extract_sse_event(&mut buf5, &mut pending, &mut idx);
+        assert!(result5.is_some());
+        let chunk = result5.unwrap().unwrap();
+        let tool = chunk.tool_use.unwrap();
+        match tool {
+            ContentPart::ToolUse { id, name, input, .. } => {
+                assert_eq!(id, "tool1");
+                assert_eq!(name, "search");
+                let input_str = serde_json::to_string(&input).unwrap();
+                assert!(input_str.contains("ai agents"));
+            }
+            _ => panic!("expected ToolUse variant"),
+        }
     }
 }
