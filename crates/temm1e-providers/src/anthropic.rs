@@ -136,6 +136,10 @@ enum AnthropicContentBlock {
         name: String,
         input: serde_json::Value,
     },
+    /// Catch-all for block types we don't handle (e.g. `thinking` from
+    /// Anthropic-compatible providers like MiniMax). Silently ignored.
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize)]
@@ -175,6 +179,9 @@ enum AnthropicDelta {
     TextDelta { text: String },
     #[serde(rename = "input_json_delta")]
     InputJsonDelta { partial_json: String },
+    /// Catch-all for delta types we don't handle (e.g. `thinking_delta`).
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize)]
@@ -268,15 +275,16 @@ fn convert_tool_to_anthropic(tool: &ToolDefinition) -> serde_json::Value {
     })
 }
 
-fn convert_anthropic_content(block: &AnthropicContentBlock) -> ContentPart {
+fn convert_anthropic_content(block: &AnthropicContentBlock) -> Option<ContentPart> {
     match block {
-        AnthropicContentBlock::Text { text } => ContentPart::Text { text: text.clone() },
-        AnthropicContentBlock::ToolUse { id, name, input } => ContentPart::ToolUse {
+        AnthropicContentBlock::Text { text } => Some(ContentPart::Text { text: text.clone() }),
+        AnthropicContentBlock::ToolUse { id, name, input } => Some(ContentPart::ToolUse {
             id: id.clone(),
             name: name.clone(),
             input: input.clone(),
             thought_signature: None,
-        },
+        }),
+        AnthropicContentBlock::Unknown => None,
     }
 }
 
@@ -337,7 +345,7 @@ impl Provider for AnthropicProvider {
         let content = api_response
             .content
             .iter()
-            .map(convert_anthropic_content)
+            .filter_map(convert_anthropic_content)
             .collect();
 
         Ok(CompletionResponse {
@@ -509,6 +517,9 @@ fn extract_sse_event(
                         AnthropicContentBlock::Text { .. } => {
                             // Text block start, no content yet
                         }
+                        AnthropicContentBlock::Unknown => {
+                            // Ignore unknown block types (e.g. thinking)
+                        }
                     }
                 }
                 continue;
@@ -536,6 +547,9 @@ fn extract_sse_event(
                                     _ => {}
                                 }
                             }
+                            continue;
+                        }
+                        AnthropicDelta::Unknown => {
                             continue;
                         }
                     }
