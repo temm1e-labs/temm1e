@@ -572,6 +572,10 @@ Most AI agents are generalists — they do everything themselves, polluting thei
 
 ### Tem Cambium — Tem Writes Its Own Code
 
+<p align="center">
+  <img src="assets/tem-cambium-overview.png" alt="Tem Cambium Overview" width="100%">
+</p>
+
 Most AI agents are frozen at compile time. The model behind the API gets better every release; the host runtime that calls it does not. A 2030-era model running inside a 2026-era binary is a Formula 1 engine in a go-kart chassis — the model has new capability, but the runtime has no way to translate it into new tools, integrations, or workflows. Cambium closes that gap by letting Tem extend its own runtime.
 
 Named after the **vascular cambium** — the thin layer of growth tissue under tree bark where new wood is added each year. The heartwood of the tree (the dead, rigid core that carries mechanical load) never changes once laid down; the cambium adds rings at the edge. TEMM1E's architecture is divided the same way:
