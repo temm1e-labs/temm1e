@@ -765,20 +765,25 @@ fn view(state: &mut AppState, frame: &mut ratatui::Frame) {
         }
     }
 
-    // ── Mouse selection: highlight + optional copy on Ctrl+C ─
-    // Runs after all other rendering so it overlays the final buffer.
-    // Extracts text from the just-rendered cells on pending_copy_selection,
-    // then applies a REVERSED-style highlight so the user sees the range.
+    // ── Selection + click-to-copy pass ─────────────────────
     //
-    // Selection now PERSISTS on mouse release. It clears on
-    // Ctrl+C (after copy), Escape, or a new click.
+    // CRITICAL: clear any stale REVERSED modifier from the buffer
+    // BEFORE applying a new highlight. ratatui's `Cell::set_style`
+    // (invoked by `Buffer::set_line` during normal rendering) only
+    // ADDS modifiers — it never removes them. So highlights from
+    // previous frames persist on cells the new render pass writes
+    // to, producing "ghost" highlights that accumulate over time.
+    //
+    // We always clear (even when there is no active selection) so
+    // a selection that was cleared logically also disappears
+    // visually on the next frame.
+    let buf = frame.buffer_mut();
+    clear_reverse_highlight(buf);
+
+    // Drag selection: highlight + Ctrl+C copy
     if let Some(sel) = state.mouse_selection.clone() {
-        let buf = frame.buffer_mut();
         let (start, end) = normalized_selection(&sel, buf.area);
 
-        // Extract BEFORE highlighting — symbol content is independent
-        // of style modifiers, so order doesn't matter for correctness,
-        // but doing extract first makes the logic clearer.
         if state.pending_copy_selection {
             state.pending_copy_selection = false;
             let text = extract_selection_text(buf, start, end);
@@ -794,35 +799,52 @@ fn view(state: &mut AppState, frame: &mut ratatui::Frame) {
                     }
                 }
             }
-            // Clear the selection after copy so the highlight goes
-            // away on the NEXT frame.
+            // Clear the selection after copy — the highlight
+            // disappears on the next frame because clear_reverse_highlight
+            // runs unconditionally.
             state.mouse_selection = None;
-            highlight_selection_cells(buf, start, end);
         } else {
             highlight_selection_cells(buf, start, end);
         }
     }
 
-    // ── Single-click on a code block → copy whole block ────
-    // Runs AFTER the selection pass so click-to-copy can still
-    // fire even if the user previously had a selection that
-    // Mouse::Down cleared on the same frame.
+    // Single-click on a code block → copy whole block
     if let Some((_col, row)) = state.pending_code_click.take() {
-        let buf = frame.buffer_mut();
         if let Some((top_row, bot_row, text)) = extract_code_block_at(buf, row) {
             match widgets::copy_picker::copy_to_clipboard(&text) {
                 Ok(()) => {
                     let line_count = text.lines().count();
                     state.copy_feedback =
                         Some(format!("Copied {line_count} lines of code to clipboard"));
-                    // Flash the entire block with REVERSED highlight
-                    // for this frame so the user sees what was copied.
+                    // Flash the block for this frame; clears automatically
+                    // next frame via clear_reverse_highlight.
                     highlight_code_block(buf, top_row, bot_row);
                 }
                 Err(e) => {
                     state.copy_feedback = Some(format!("Copy failed: {e}"));
                 }
             }
+        }
+    }
+}
+
+/// Clear any stale REVERSED modifier from every cell in the buffer.
+/// Required before applying a new selection highlight because
+/// ratatui's `Cell::set_style` (invoked by `Buffer::set_line` during
+/// render_chat) only ADDS modifiers — it does not clear existing
+/// ones. Without this explicit clear, every cell that was ever
+/// highlighted accumulates REVERSED forever, producing ghost
+/// highlights scattered across the screen as the user drags or
+/// scrolls.
+///
+/// Touches `buf.area` which is the full frame — single pass over
+/// the terminal's cells, `O(width * height)`. Fast.
+fn clear_reverse_highlight(buf: &mut ratatui::buffer::Buffer) {
+    use ratatui::style::Modifier;
+    let area = buf.area;
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            buf[(x, y)].modifier.remove(Modifier::REVERSED);
         }
     }
 }
@@ -996,6 +1018,10 @@ fn extract_code_block_at(buf: &ratatui::buffer::Buffer, row: u16) -> Option<(u16
 /// Apply REVERSED to every cell of a code block's rendered rows
 /// (including the gutter prefix). Used as a visual flash when the
 /// user clicks to copy a block.
+///
+/// Mutates the `modifier` field directly (not via `set_style`)
+/// because `Cell::set_style` has add-only semantics for modifiers
+/// — using it would still work in isolation but is misleading.
 fn highlight_code_block(buf: &mut ratatui::buffer::Buffer, top: u16, bot: u16) {
     use ratatui::style::Modifier;
     let left = buf.area.left();
@@ -1005,16 +1031,14 @@ fn highlight_code_block(buf: &mut ratatui::buffer::Buffer, top: u16, bot: u16) {
             break;
         }
         for x in left..right {
-            let cell = &mut buf[(x, y)];
-            let style = cell.style();
-            cell.set_style(style.add_modifier(Modifier::REVERSED));
+            buf[(x, y)].modifier.insert(Modifier::REVERSED);
         }
     }
 }
 
 /// Apply a REVERSED style modifier to every cell in the selection
-/// range. This is the standard "inverted" look users expect from
-/// terminal selections. Purely visual — does not affect the symbols.
+/// range. Assumes `clear_reverse_highlight` has already been called
+/// this frame so only the current selection ends up visible.
 fn highlight_selection_cells(
     buf: &mut ratatui::buffer::Buffer,
     start: (u16, u16),
@@ -1036,9 +1060,7 @@ fn highlight_selection_cells(
             right_edge
         };
         for x in x_start..x_end {
-            let cell = &mut buf[(x, y)];
-            let current = cell.style();
-            cell.set_style(current.add_modifier(Modifier::REVERSED));
+            buf[(x, y)].modifier.insert(Modifier::REVERSED);
         }
     }
 }
