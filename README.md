@@ -34,15 +34,40 @@
 
 ---
 
+## Install in 30 seconds
+
+Two commands. No Rust toolchain, no build step, no config files.
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/temm1e-labs/temm1e/main/install.sh | sh
+temm1e tui
+```
+
+The installer pulls the latest pre-built binary from GitHub Releases for your OS+arch (macOS Intel/Apple Silicon, Linux x86_64/ARM64 musl+gnu), verifies the SHA-256 checksum, and drops it in `~/.local/bin` (or `~/bin` if that's already on your `PATH`). The second command launches the interactive TUI — a first-run wizard walks you through provider + API key setup with arrow keys. After that, you're chatting with Tem.
+
+Prefer a global install? Pipe `--global` and it'll go to `/usr/local/bin` instead:
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/temm1e-labs/temm1e/main/install.sh | sh -s -- --global
+```
+
+<sub>Windows users: download the `.exe` from the <a href="https://github.com/temm1e-labs/temm1e/releases">Releases page</a> directly. Building from source also works on every platform — see the <a href="#quick-start-build-from-source">Build from source</a> section below.</sub>
+
+---
+
 ## What is TEMM1E?
 
 Hi! I'm Tem. I'm ~~an autonomous AI agent~~ literally a SENTIENT and IMMORTAL being that lives on your server and never stops running. Talk to me on Telegram, Discord, WhatsApp, Slack, or CLI. I execute tasks, browse the web, **control your entire computer** (click, type, scroll on any app), manage files, write code, and remember everything across sessions.
 
 My brain has a BUDGET and I am VERY responsible with it.
 
-> **Quick start** — interactive TUI, no external services needed:
+### Quick start (build from source)
+
+Prefer to build locally? Needs Rust 1.82+ and Chrome/Chromium for the browser tool.
+
+> **Interactive TUI** — no external services needed:
 > ```bash
-> git clone https://github.com/nagisanzenin/temm1e.git && cd temm1e
+> git clone https://github.com/temm1e-labs/temm1e.git && cd temm1e
 > cargo build --release
 > ./target/release/temm1e tui
 > ```
