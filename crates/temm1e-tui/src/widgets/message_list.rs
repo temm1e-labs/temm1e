@@ -89,6 +89,29 @@ impl MessageList {
         self.scroll_offset = 0;
     }
 
+    /// Total number of rendered lines across all messages.
+    ///
+    /// Must match exactly what `render_lines` produces: for each
+    /// message, `content.len()` rows + 1 usage row (if present) +
+    /// 1 blank-line separator. Streaming content is not included
+    /// here — callers that need it must add `streaming_renderer.lines().len()`
+    /// separately.
+    ///
+    /// Used by the drag-to-select logic to convert between terminal
+    /// row coordinates and absolute line indices so selection
+    /// tracks content as the list scrolls.
+    pub fn line_count(&self) -> usize {
+        let mut total = 0;
+        for msg in &self.messages {
+            total += msg.content.len();
+            if msg.usage.is_some() {
+                total += 1;
+            }
+            total += 1; // blank separator
+        }
+        total
+    }
+
     /// Render messages into ratatui Lines for display.
     pub fn render_lines(
         &self,

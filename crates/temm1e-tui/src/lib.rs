@@ -781,12 +781,19 @@ fn view(state: &mut AppState, frame: &mut ratatui::Frame) {
     clear_reverse_highlight(buf);
 
     // Drag selection: highlight + Ctrl+C copy
+    //
+    // Selection is stored in ABSOLUTE content line coordinates so
+    // the highlight tracks content as the list scrolls. Extraction
+    // reads from the message list directly (not the buffer), so
+    // the entire logical selection is copied even if part of it
+    // has scrolled off-screen during an auto-scroll drag.
     if let Some(sel) = state.mouse_selection.clone() {
-        let (start, end) = normalized_selection(&sel, buf.area);
+        let (start, end) = normalized_selection(&sel);
 
         if state.pending_copy_selection {
             state.pending_copy_selection = false;
-            let text = extract_selection_text(buf, start, end);
+            // Release the buf borrow so we can borrow state immutably for extraction
+            let text = extract_selection_text(state, start.0, start.1, end.0, end.1);
             if !text.trim().is_empty() {
                 match widgets::copy_picker::copy_to_clipboard(&text) {
                     Ok(()) => {
@@ -799,25 +806,23 @@ fn view(state: &mut AppState, frame: &mut ratatui::Frame) {
                     }
                 }
             }
-            // Clear the selection after copy — the highlight
-            // disappears on the next frame because clear_reverse_highlight
-            // runs unconditionally.
             state.mouse_selection = None;
         } else {
-            highlight_selection_cells(buf, start, end);
+            let ctx = crate::app::compute_selection_ctx(state);
+            let buf = frame.buffer_mut();
+            highlight_selection_cells(buf, start.0, start.1, end.0, end.1, &ctx);
         }
     }
 
     // Single-click on a code block → copy whole block
     if let Some((_col, row)) = state.pending_code_click.take() {
+        let buf = frame.buffer_mut();
         if let Some((top_row, bot_row, text)) = extract_code_block_at(buf, row) {
             match widgets::copy_picker::copy_to_clipboard(&text) {
                 Ok(()) => {
                     let line_count = text.lines().count();
                     state.copy_feedback =
                         Some(format!("Copied {line_count} lines of code to clipboard"));
-                    // Flash the block for this frame; clears automatically
-                    // next frame via clear_reverse_highlight.
                     highlight_code_block(buf, top_row, bot_row);
                 }
                 Err(e) => {
@@ -850,19 +855,12 @@ fn clear_reverse_highlight(buf: &mut ratatui::buffer::Buffer) {
 }
 
 /// Normalize a `MouseSelection` into a (start, end) pair in reading
-/// order (earlier cell first) and clamp both to the buffer area.
-fn normalized_selection(
-    sel: &MouseSelection,
-    area: ratatui::layout::Rect,
-) -> ((u16, u16), (u16, u16)) {
-    let clamp = |(x, y): (u16, u16)| -> (u16, u16) {
-        let right = area.right().saturating_sub(1).max(area.left());
-        let bottom = area.bottom().saturating_sub(1).max(area.top());
-        (x.clamp(area.left(), right), y.clamp(area.top(), bottom))
-    };
-    let a = clamp(sel.anchor);
-    let c = clamp(sel.current);
-    // Reading order: earlier row first; within same row, earlier column.
+/// order (earlier line first; within same line, earlier column).
+/// Both the anchor and the current are in ABSOLUTE content line
+/// coordinates — terminal row mapping happens separately.
+fn normalized_selection(sel: &MouseSelection) -> ((u16, i64), (u16, i64)) {
+    let a = sel.anchor;
+    let c = sel.current;
     if (a.1, a.0) <= (c.1, c.0) {
         (a, c)
     } else {
@@ -870,85 +868,95 @@ fn normalized_selection(
     }
 }
 
-/// Extract the selected cell symbols as plain text. Each row is
-/// trimmed of trailing spaces (terminal cells are padded) and
-/// separated by `\n`. UTF-8 safe because `Cell::symbol()` returns a
-/// complete grapheme per cell.
+/// Extract the selected content as plain text, using ABSOLUTE line
+/// indices into the full rendered content (not the visible buffer).
+/// This means the entire selection is copied even if part of it has
+/// scrolled off-screen during an auto-scroll drag — a critical win
+/// over buffer-based extraction.
 ///
 /// Strips code-block decoration added by `widgets/markdown.rs`:
 ///
-///   - Rows whose first non-space char is `╭` or `╰` are the top
-///     and bottom borders of a rendered code block — skipped
-///     entirely so the user's paste doesn't get `╭── rust ──` junk.
+///   - Rows whose first non-space char is `╭` or `╰` are top/bottom
+///     borders of a rendered code block — skipped entirely.
 ///   - Rows starting with ` │ ` (space + U+2502 + space) are code
-///     content with a box-drawing gutter prefix — the prefix is
-///     stripped, indentation inside the prefix is preserved.
+///     content with a gutter prefix — the prefix is stripped,
+///     indentation inside the prefix is preserved.
 ///
-/// Everything else is passed through unchanged.
+/// Non-code rows honor the selection's column range at the start
+/// and end rows so the user can select fragments of prose.
 fn extract_selection_text(
-    buf: &ratatui::buffer::Buffer,
-    start: (u16, u16),
-    end: (u16, u16),
+    state: &AppState,
+    start_col: u16,
+    start_abs: i64,
+    end_col: u16,
+    end_abs: i64,
 ) -> String {
+    // Re-materialize the full flattened line list so we can index
+    // by absolute position. Styles don't matter for extraction, so
+    // pass defaults.
+    let style = ratatui::style::Style::default();
+    let mut all_lines = state.message_list.render_lines(style, style, style, style);
+
+    // Append streaming content if active, matching chat.rs so the
+    // absolute indices used by the selection are consistent with
+    // what's actually rendered.
+    if state.is_agent_working {
+        if let Some(ref renderer) = state.streaming_renderer {
+            for rl in renderer.lines() {
+                all_lines.push(ratatui::text::Line::from(rl.spans.clone()));
+            }
+        }
+    }
+
+    if all_lines.is_empty() {
+        return String::new();
+    }
+
+    let start_idx = start_abs.max(0) as usize;
+    let end_idx = (end_abs.max(0) as usize).min(all_lines.len().saturating_sub(1));
+    if start_idx > end_idx {
+        return String::new();
+    }
+
     let mut rows: Vec<String> = Vec::new();
-    let left_edge = buf.area.left();
-    let right_edge = buf.area.right();
-    let bottom_edge = buf.area.bottom();
+    for (offset, line) in all_lines[start_idx..=end_idx].iter().enumerate() {
+        let idx = start_idx + offset;
+        // Flatten the Line's spans to plain text. Each span's
+        // `content` is a `Cow<str>` over the original rendered
+        // text, so this preserves every grapheme exactly.
+        let full_text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        let trimmed_end = full_text.trim_end();
 
-    for y in start.1..=end.1 {
-        if y >= bottom_edge {
-            break;
-        }
-        // Always read the FULL row for decoration detection — the
-        // user might have dragged into the middle of a code block,
-        // and we still want to strip the `│ ` prefix even though
-        // they didn't select the leading cells.
-        let mut row = String::new();
-        for x in left_edge..right_edge {
-            row.push_str(buf[(x, y)].symbol());
-        }
-        let row_trimmed_end = row.trim_end().to_string();
-
-        // Detect code-block borders (top: ╭, bottom: ╰) and skip.
-        let leading_non_space = row_trimmed_end.trim_start();
-        if leading_non_space.starts_with('\u{256d}') // ╭
-            || leading_non_space.starts_with('\u{2570}')
-        // ╰
-        {
+        // Skip code-block borders
+        let leading = trimmed_end.trim_start();
+        if leading.starts_with('\u{256d}') || leading.starts_with('\u{2570}') {
             continue;
         }
 
-        // Detect code content rows: ` │ ` (space + │ + space) prefix.
-        // If the user's selection spans the prefix cells, we read the
-        // full row and strip it. If they dragged across only the
-        // code portion, the prefix isn't in `row_trimmed_end` yet so
-        // strip_prefix is a no-op.
-        let stripped = if let Some(rest) = row_trimmed_end.strip_prefix(" \u{2502} ") {
-            rest.to_string()
-        } else {
-            row_trimmed_end
-        };
-
-        // Now honor the user's actual column range for non-code rows.
-        // For code rows (which we already trimmed to full width), we
-        // preserve the whole content line because the user's intent
-        // when dragging code is "give me the code, not a fragment".
-        // For everything else, slice to the selected x range.
-        if row.starts_with(" \u{2502} ") {
-            rows.push(stripped);
-        } else {
-            let x_start = if y == start.1 { start.0 } else { left_edge };
-            let x_end = if y == end.1 {
-                (end.0.saturating_add(1)).min(right_edge)
-            } else {
-                right_edge
-            };
-            let mut partial = String::new();
-            for x in x_start..x_end {
-                partial.push_str(buf[(x, y)].symbol());
-            }
-            rows.push(partial.trim_end().to_string());
+        // Strip code-row gutter prefix
+        if let Some(code) = trimmed_end.strip_prefix(" \u{2502} ") {
+            rows.push(code.to_string());
+            continue;
         }
+
+        // Non-code row: honor the selection's column range at the
+        // start and end rows. Middle rows are captured in full.
+        let x_start = if idx == start_idx {
+            start_col as usize
+        } else {
+            0
+        };
+        let x_end = if idx == end_idx {
+            (end_col as usize).saturating_add(1)
+        } else {
+            usize::MAX
+        };
+        let partial: String = trimmed_end
+            .chars()
+            .skip(x_start)
+            .take(x_end.saturating_sub(x_start))
+            .collect();
+        rows.push(partial.trim_end().to_string());
     }
 
     rows.join("\n")
@@ -1036,31 +1044,50 @@ fn highlight_code_block(buf: &mut ratatui::buffer::Buffer, top: u16, bot: u16) {
     }
 }
 
-/// Apply a REVERSED style modifier to every cell in the selection
-/// range. Assumes `clear_reverse_highlight` has already been called
-/// this frame so only the current selection ends up visible.
+/// Apply REVERSED to the cells of the selection that are currently
+/// visible in the viewport. Uses absolute line indices, clipping
+/// any part of the selection that's scrolled off-screen. The clip
+/// means the VISIBLE portion follows content as the user scrolls —
+/// content that scrolls back into view regains its highlight.
+///
+/// Assumes `clear_reverse_highlight` was called earlier in the
+/// same frame so only the current selection ends up highlighted.
 fn highlight_selection_cells(
     buf: &mut ratatui::buffer::Buffer,
-    start: (u16, u16),
-    end: (u16, u16),
+    start_col: u16,
+    start_abs: i64,
+    end_col: u16,
+    end_abs: i64,
+    ctx: &crate::app::SelectionCtx,
 ) {
     use ratatui::style::Modifier;
     let left_edge = buf.area.left();
     let right_edge = buf.area.right();
-    let bottom_edge = buf.area.bottom();
 
-    for y in start.1..=end.1 {
-        if y >= bottom_edge {
+    // Iterate only over VISIBLE terminal rows for efficiency.
+    for term_row in ctx.msg_top..ctx.msg_bottom {
+        if term_row >= buf.area.bottom() {
             break;
         }
-        let x_start = if y == start.1 { start.0 } else { left_edge };
-        let x_end = if y == end.1 {
-            (end.0.saturating_add(1)).min(right_edge)
+        let abs = ctx.term_to_abs(term_row);
+        if abs < start_abs || abs > end_abs {
+            continue;
+        }
+
+        // Determine column range for this row
+        let x_start = if abs == start_abs {
+            start_col
+        } else {
+            left_edge
+        };
+        let x_end = if abs == end_abs {
+            (end_col.saturating_add(1)).min(right_edge)
         } else {
             right_edge
         };
+
         for x in x_start..x_end {
-            buf[(x, y)].modifier.insert(Modifier::REVERSED);
+            buf[(x, term_row)].modifier.insert(Modifier::REVERSED);
         }
     }
 }

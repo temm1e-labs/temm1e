@@ -71,19 +71,60 @@ pub struct ToolCallRecord {
     pub result_preview: Option<String>,
 }
 
-/// Active mouse selection on the rendered buffer.
+/// Active mouse selection, stored in LOGICAL content coordinates.
 ///
-/// `anchor` is where the left button first went down. `current` is the
-/// most recent drag position. Both are buffer cell coordinates (x =
-/// column, y = row), absolute to the full terminal area.
+/// - `anchor.0` / `current.0` = column (terminal x, always 0..=width)
+/// - `anchor.1` / `current.1` = absolute line index in the full
+///   flattened rendered content (not terminal row). `i64` so the
+///   anchor can sit above the viewport after the user scrolls past it.
 ///
-/// The view layer renders a REVERSED highlight over the cells in the
-/// range and, on `Mouse::Up`, extracts the cell symbols and drops the
-/// resulting text into the system clipboard.
+/// `last_term_row` tracks the cursor's current terminal y so the
+/// Tick handler can drive continuous auto-scroll while the mouse is
+/// HELD at an edge (mouse drag events only fire on position
+/// changes, so "hold at edge" would otherwise stall).
+///
+/// `is_dragging` is true between `Mouse::Down` and `Mouse::Up` — it
+/// gates the tick-based auto-scroll so the scroll only advances
+/// while the button is actually held.
 #[derive(Debug, Clone)]
 pub struct MouseSelection {
-    pub anchor: (u16, u16),
-    pub current: (u16, u16),
+    pub anchor: (u16, i64),
+    pub current: (u16, i64),
+    pub last_term_row: u16,
+    pub is_dragging: bool,
+}
+
+/// Layout + scroll context needed to convert between terminal row
+/// coordinates and absolute content line indices. Computed fresh on
+/// demand — cheap because `compute_message_area_bounds` is constant-
+/// time and `MessageList::line_count` is O(messages).
+#[derive(Debug, Clone, Copy)]
+pub struct SelectionCtx {
+    pub msg_top: u16,
+    pub msg_bottom: u16,
+    pub view_height: usize,
+    pub total_lines: usize,
+    pub view_start: usize,
+}
+
+impl SelectionCtx {
+    /// Convert a terminal row to its absolute line index in the
+    /// full flattened rendered content. Returns `i64` because the
+    /// result can legitimately go negative (terminal row above the
+    /// message area) or past the end.
+    pub fn term_to_abs(&self, term_row: u16) -> i64 {
+        self.view_start as i64 + (term_row as i64 - self.msg_top as i64)
+    }
+
+    /// Convert an absolute line index back to a terminal row, if
+    /// and only if it is currently visible in the viewport.
+    pub fn abs_to_term(&self, abs: i64) -> Option<u16> {
+        let rel = abs - self.view_start as i64;
+        if rel < 0 || rel >= self.view_height as i64 {
+            return None;
+        }
+        Some(self.msg_top + rel as u16)
+    }
 }
 
 /// Root application state (TEA model).
@@ -272,31 +313,53 @@ pub fn update(state: &mut AppState, event: Event) {
             use crossterm::event::{MouseButton, MouseEventKind};
             match mouse.kind {
                 // ── Drag-to-select (native selection inside the TUI) ─
+                //
+                // Selection is stored in ABSOLUTE content line index,
+                // not terminal row, so scrolling the list moves the
+                // highlight with the content instead of making it
+                // "slide off" the previous selection.
                 MouseEventKind::Down(MouseButton::Left) => {
-                    // Fresh selection — clears any previous one
+                    let ctx = compute_selection_ctx(state);
+                    let abs = ctx.term_to_abs(mouse.row);
                     state.mouse_selection = Some(MouseSelection {
-                        anchor: (mouse.column, mouse.row),
-                        current: (mouse.column, mouse.row),
+                        anchor: (mouse.column, abs),
+                        current: (mouse.column, abs),
+                        last_term_row: mouse.row,
+                        is_dragging: true,
                     });
                     state.copy_feedback = None;
                     state.needs_redraw = true;
                 }
                 MouseEventKind::Drag(MouseButton::Left) => {
-                    // Update the selection tip to follow the cursor.
-                    if let Some(ref mut sel) = state.mouse_selection {
-                        sel.current = (mouse.column, mouse.row);
-                    }
-
-                    // Auto-scroll when the cursor is at the top or
-                    // bottom edge of the message area. Dropped mut
-                    // borrow on mouse_selection above so we can now
-                    // take immutable then mutable borrows on state.
                     if state.mouse_selection.is_some() {
-                        let (msg_top, msg_bottom) = compute_message_area_bounds(state);
-                        if mouse.row <= msg_top {
+                        // Update current to the new cursor position
+                        let ctx = compute_selection_ctx(state);
+                        let abs = ctx.term_to_abs(mouse.row);
+                        if let Some(ref mut sel) = state.mouse_selection {
+                            sel.current = (mouse.column, abs);
+                            sel.last_term_row = mouse.row;
+                        }
+
+                        // Immediate auto-scroll at the edges. Works
+                        // on every drag event; the Tick handler adds
+                        // continuous scrolling while the mouse is
+                        // HELD still at the edge without firing new
+                        // drag events.
+                        if mouse.row <= ctx.msg_top {
                             state.message_list.scroll_up(1);
-                        } else if mouse.row + 1 >= msg_bottom {
+                            // Recompute current_abs in the new view
+                            let new_ctx = compute_selection_ctx(state);
+                            let new_abs = new_ctx.term_to_abs(mouse.row);
+                            if let Some(ref mut sel) = state.mouse_selection {
+                                sel.current = (mouse.column, new_abs);
+                            }
+                        } else if mouse.row + 1 >= ctx.msg_bottom {
                             state.message_list.scroll_down(1);
+                            let new_ctx = compute_selection_ctx(state);
+                            let new_abs = new_ctx.term_to_abs(mouse.row);
+                            if let Some(ref mut sel) = state.mouse_selection {
+                                sel.current = (mouse.column, new_abs);
+                            }
                         }
                         state.needs_redraw = true;
                     }
@@ -304,14 +367,17 @@ pub fn update(state: &mut AppState, event: Event) {
                 MouseEventKind::Up(MouseButton::Left) => {
                     if let Some(sel) = state.mouse_selection.as_ref() {
                         if sel.anchor == sel.current {
-                            // Pure click — clear the existing selection
-                            // and record the click for the view to
-                            // check against code-block bounds.
+                            // Pure click with no drag — clear the
+                            // selection and record the click for the
+                            // view to try the code-block-copy path.
                             state.mouse_selection = None;
                             state.pending_code_click = Some((mouse.column, mouse.row));
+                        } else if let Some(ref mut sel_mut) = state.mouse_selection {
+                            // Real drag — end the drag but KEEP the
+                            // selection highlighted so the user can
+                            // press Ctrl+C to finalize.
+                            sel_mut.is_dragging = false;
                         }
-                        // Real drag — keep selection alive until the
-                        // user presses Ctrl+C or clicks elsewhere.
                         state.needs_redraw = true;
                     }
                 }
@@ -452,6 +518,41 @@ pub fn update(state: &mut AppState, event: Event) {
             state.needs_redraw = true;
         }
         Event::Tick => {
+            // Continuous auto-scroll while the user is holding the
+            // mouse button at an edge of the message area.
+            // `is_dragging` is true from Mouse::Down until Mouse::Up,
+            // so this does not fire after the user releases.
+            //
+            // Scrolls at 2 lines per tick (~60 lines/sec at 33ms
+            // tick), which feels responsive without runaway scroll.
+            if let Some(sel) = state.mouse_selection.as_ref() {
+                if sel.is_dragging {
+                    let ctx = compute_selection_ctx(state);
+                    let tr = sel.last_term_row;
+                    let scrolled = if tr <= ctx.msg_top {
+                        state.message_list.scroll_up(2);
+                        true
+                    } else if tr + 1 >= ctx.msg_bottom {
+                        state.message_list.scroll_down(2);
+                        true
+                    } else {
+                        false
+                    };
+                    if scrolled {
+                        // Recompute current_abs against the new view:
+                        // the cursor stayed at the same terminal row,
+                        // but the content under it is now N lines
+                        // further along.
+                        let new_ctx = compute_selection_ctx(state);
+                        if let Some(ref mut sel_mut) = state.mouse_selection {
+                            let col = sel_mut.current.0;
+                            sel_mut.current = (col, new_ctx.term_to_abs(tr));
+                        }
+                        state.needs_redraw = true;
+                    }
+                }
+            }
+
             if state.is_agent_working {
                 state.activity_panel.tick();
                 state.needs_redraw = true;
@@ -639,6 +740,37 @@ fn compute_message_area_bounds(state: &AppState) -> (u16, u16) {
         .saturating_add(1); // status bar
     let bottom = state.terminal_size.1.saturating_sub(tail);
     (0, bottom)
+}
+
+/// Build the `SelectionCtx` describing the current viewport mapping
+/// between terminal rows and absolute content line indices. Cheap —
+/// both helpers it calls are constant-time or linear in message count.
+pub fn compute_selection_ctx(state: &AppState) -> SelectionCtx {
+    let (msg_top, msg_bottom) = compute_message_area_bounds(state);
+    let view_height = msg_bottom.saturating_sub(msg_top) as usize;
+
+    // Total rendered lines = message_list lines + streaming (if active)
+    let mut total_lines = state.message_list.line_count();
+    if state.is_agent_working {
+        if let Some(ref renderer) = state.streaming_renderer {
+            total_lines += renderer.lines().len();
+        }
+    }
+
+    let scroll = state.message_list.scroll_offset;
+    let max_offset = total_lines.saturating_sub(view_height);
+    let offset = scroll.min(max_offset);
+    let view_start = total_lines
+        .saturating_sub(offset)
+        .saturating_sub(view_height);
+
+    SelectionCtx {
+        msg_top,
+        msg_bottom,
+        view_height,
+        total_lines,
+        view_start,
+    }
 }
 
 /// Push a single-line system message to the message list (toast-style).
