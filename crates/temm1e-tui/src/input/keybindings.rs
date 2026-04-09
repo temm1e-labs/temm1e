@@ -51,6 +51,10 @@ pub enum Action {
     PageDown,
     /// Close overlay / go back (Esc).
     Escape,
+    /// Yank a code block to clipboard (Ctrl+Y).
+    YankCodeBlock,
+    /// Toggle mouse capture for native text selection (Alt+S).
+    ToggleMouseCapture,
     /// No action for this key.
     None,
 }
@@ -82,6 +86,9 @@ pub fn map_key(key: KeyEvent) -> Action {
         (KeyModifiers::CONTROL, KeyCode::Char('d')) => Action::Quit,
         (KeyModifiers::CONTROL, KeyCode::Char('l')) => Action::Redraw,
         (KeyModifiers::CONTROL, KeyCode::Char('o')) => Action::ToggleActivityPanel,
+        (KeyModifiers::CONTROL, KeyCode::Char('y')) => Action::YankCodeBlock,
+        // Alt+S toggles mouse capture (select mode)
+        (KeyModifiers::ALT, KeyCode::Char('s')) => Action::ToggleMouseCapture,
         // Scrolling
         (KeyModifiers::NONE, KeyCode::PageUp) => Action::PageUp,
         (KeyModifiers::NONE, KeyCode::PageDown) => Action::PageDown,

@@ -10,7 +10,7 @@ use temm1e_agent::agent_task_status::AgentTaskPhase;
 
 use crate::app::AppState;
 use crate::widgets::input_area::InputArea;
-use crate::widgets::status_bar::{StatusBar, StatusBarData};
+use crate::widgets::status_bar::StatusBar;
 
 /// Render the chat view.
 pub fn render_chat(state: &AppState, area: Rect, buf: &mut Buffer) {
@@ -22,6 +22,7 @@ pub fn render_chat(state: &AppState, area: Rect, buf: &mut Buffer) {
     };
     let input_height = (state.input.lines.len() as u16).clamp(1, 10);
     let status_height = 1u16;
+    let hint_height = 1u16;
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -29,6 +30,7 @@ pub fn render_chat(state: &AppState, area: Rect, buf: &mut Buffer) {
             Constraint::Min(3),
             Constraint::Length(thinking_height),
             Constraint::Length(input_height + 1),
+            Constraint::Length(hint_height),
             Constraint::Length(status_height),
         ])
         .split(area);
@@ -104,34 +106,97 @@ pub fn render_chat(state: &AppState, area: Rect, buf: &mut Buffer) {
             }
         }
     } else if state.is_agent_working && thinking_height > 0 {
-        let elapsed = state.activity_panel.started_at.elapsed();
-        let phase_text = match &state.activity_panel.phase {
-            AgentTaskPhase::Preparing => "Preparing",
-            AgentTaskPhase::Classifying => "Classifying",
+        // B5 — richer collapsed thinking line with live tool info
+        let elapsed = state.activity_panel.elapsed();
+        let tools_count = state.activity_panel.tool_calls.len();
+        let phase_display = match &state.activity_panel.phase {
+            AgentTaskPhase::Preparing => format!("preparing · {:.1}s", elapsed.as_secs_f64()),
+            AgentTaskPhase::Classifying => format!("classifying · {:.1}s", elapsed.as_secs_f64()),
             AgentTaskPhase::CallingProvider { round } => {
                 if *round <= 1 {
-                    "Thinking"
+                    format!("thinking · {:.0}s", elapsed.as_secs_f64())
                 } else {
-                    "Thinking (multi-round)"
+                    format!(
+                        "thinking (round {}) · {} tools · {:.0}s total",
+                        round,
+                        tools_count,
+                        elapsed.as_secs_f64()
+                    )
                 }
             }
-            AgentTaskPhase::ExecutingTool { tool_name, .. } => tool_name.as_str(),
-            AgentTaskPhase::Finishing => "Finishing",
-            AgentTaskPhase::Done => "Done",
-            AgentTaskPhase::Interrupted { .. } => "Interrupted",
+            AgentTaskPhase::ExecutingTool {
+                tool_name,
+                started_at_ms,
+                args_preview,
+                ..
+            } => {
+                let tool_elapsed_ms = (elapsed.as_millis() as u64).saturating_sub(*started_at_ms);
+                let preview = if args_preview.is_empty() {
+                    String::new()
+                } else {
+                    format!(" {}", args_preview)
+                };
+                format!(
+                    "{}{} · {:.1}s · {} tools · {:.0}s total",
+                    tool_name,
+                    preview,
+                    tool_elapsed_ms as f64 / 1000.0,
+                    tools_count,
+                    elapsed.as_secs_f64()
+                )
+            }
+            AgentTaskPhase::ToolCompleted {
+                tool_name,
+                duration_ms,
+                ok,
+                ..
+            } => {
+                let sym = if *ok { "✓" } else { "✗" };
+                format!(
+                    "{} {} ({}ms) · {} tools · {:.0}s total",
+                    sym,
+                    tool_name,
+                    duration_ms,
+                    tools_count,
+                    elapsed.as_secs_f64()
+                )
+            }
+            AgentTaskPhase::Finishing => format!("finishing · {:.1}s", elapsed.as_secs_f64()),
+            AgentTaskPhase::Done => format!(
+                "done · {} tools · {:.0}s",
+                tools_count,
+                elapsed.as_secs_f64()
+            ),
+            AgentTaskPhase::Interrupted { round } => format!(
+                "cancelled at round {} · {} tools · {:.0}s",
+                round,
+                tools_count,
+                elapsed.as_secs_f64()
+            ),
         };
-        let spinner_char = match (elapsed.as_millis() / 200) % 4 {
-            0 => "\u{25dc}",
-            1 => "\u{25dd}",
-            2 => "\u{25de}",
-            _ => "\u{25df}",
+
+        let (symbol, sym_style) = match &state.activity_panel.phase {
+            AgentTaskPhase::Preparing | AgentTaskPhase::Classifying | AgentTaskPhase::Finishing => {
+                ("⧖", state.theme.phase_active)
+            }
+            AgentTaskPhase::CallingProvider { .. } => ("◐", state.theme.phase_active),
+            AgentTaskPhase::ExecutingTool { .. } => ("▸", state.theme.tool_running),
+            AgentTaskPhase::ToolCompleted { ok, .. } => {
+                if *ok {
+                    ("✓", state.theme.phase_done)
+                } else {
+                    ("✗", state.theme.error)
+                }
+            }
+            AgentTaskPhase::Done => ("✓", state.theme.phase_done),
+            AgentTaskPhase::Interrupted { .. } => ("⊗", state.theme.error),
         };
+
         let line = Line::from(vec![
-            Span::styled(format!(" {} ", spinner_char), state.theme.phase_active),
-            Span::styled(phase_text.to_string(), state.theme.phase_active),
+            Span::styled(format!(" {} ", symbol), sym_style),
             Span::styled(
-                format!("  {:.1}s", elapsed.as_secs_f64()),
-                state.theme.secondary.add_modifier(Modifier::DIM),
+                phase_display,
+                state.theme.phase_active.add_modifier(Modifier::DIM),
             ),
         ]);
         buf.set_line(chunks[1].left(), chunks[1].top(), &line, chunks[1].width);
@@ -151,20 +216,9 @@ pub fn render_chat(state: &AppState, area: Rect, buf: &mut Buffer) {
         .cursor_style(state.theme.input_cursor)
         .render(input_inner, buf);
 
+    // === Hint bar ===
+    crate::widgets::hint_bar::render_hint_bar(state, chunks[3], buf);
+
     // === Status bar ===
-    let status_data = StatusBarData {
-        model: state.current_model.clone().unwrap_or_default(),
-        provider: state.current_provider.clone().unwrap_or_default(),
-        total_input_tokens: state.token_counter.total_input_tokens,
-        total_output_tokens: state.token_counter.total_output_tokens,
-        total_cost_usd: state.token_counter.total_cost_usd,
-        is_agent_working: state.is_agent_working,
-    };
-    StatusBar::new(
-        &status_data,
-        state.theme.status_bar,
-        state.theme.accent,
-        state.theme.info,
-    )
-    .render(chunks[3], buf);
+    StatusBar::new(state).render(chunks[4], buf);
 }

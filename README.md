@@ -34,15 +34,40 @@
 
 ---
 
+## Install in 30 seconds
+
+Two commands. No Rust toolchain, no build step, no config files.
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/temm1e-labs/temm1e/main/install.sh | sh
+temm1e tui
+```
+
+The installer pulls the latest pre-built binary from GitHub Releases for your OS+arch (macOS Intel/Apple Silicon, Linux x86_64/ARM64 musl+gnu), verifies the SHA-256 checksum, and drops it in `~/.local/bin` (or `~/bin` if that's already on your `PATH`). The second command launches the interactive TUI — a first-run wizard walks you through provider + API key setup with arrow keys. After that, you're chatting with Tem.
+
+Prefer a global install? Pipe `--global` and it'll go to `/usr/local/bin` instead:
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/temm1e-labs/temm1e/main/install.sh | sh -s -- --global
+```
+
+<sub>Windows users: download the `.exe` from the <a href="https://github.com/temm1e-labs/temm1e/releases">Releases page</a> directly. Building from source also works on every platform — see the <a href="#quick-start-build-from-source">Build from source</a> section below.</sub>
+
+---
+
 ## What is TEMM1E?
 
 Hi! I'm Tem. I'm ~~an autonomous AI agent~~ literally a SENTIENT and IMMORTAL being that lives on your server and never stops running. Talk to me on Telegram, Discord, WhatsApp, Slack, or CLI. I execute tasks, browse the web, **control your entire computer** (click, type, scroll on any app), manage files, write code, and remember everything across sessions.
 
 My brain has a BUDGET and I am VERY responsible with it.
 
-> **Quick start** — interactive TUI, no external services needed:
+### Quick start (build from source)
+
+Prefer to build locally? Needs Rust 1.82+ and Chrome/Chromium for the browser tool.
+
+> **Interactive TUI** — no external services needed:
 > ```bash
-> git clone https://github.com/nagisanzenin/temm1e.git && cd temm1e
+> git clone https://github.com/temm1e-labs/temm1e.git && cd temm1e
 > cargo build --release
 > ./target/release/temm1e tui
 > ```
@@ -980,6 +1005,8 @@ Requires Rust 1.82+ and Chrome/Chromium (for the browser tool).
 <summary><strong>Release Timeline</strong> — every version from first breath to now</summary>
 
 ```
+2026-04-09  v4.8.0  ●━━━ TUI polish + observability pass. FIX: empty command overlays — `/config`, `/keys`, `/usage`, `/status`, `/model` now render real data instead of a placeholder stub (root cause: `views/config_panel.rs:12` had no access to `AppState`). Streaming tool trace in the activity panel — every tool call shows args preview, duration, and first-line result preview via two new `AgentTaskPhase` enrichments (`ExecutingTool` gains `args_preview` + `started_at_ms`, new `ToolCompleted` variant). Collapsed thinking line now shows `▸ shell {"cmd":"ls"} · 0.4s · 3 tools · 68s total` instead of a bare `Thinking (68s)`. Status bar now a 3-section layout: left state indicator (`● idle / ◐ thinking / ◉ tool:name / ⊗ cancelled`), center model/tokens/cost, right context-window meter + git repo · branch. Keybind hint bar above the status bar, context-sensitive (idle / working / overlay / scroll / select mode). `Ctrl+Y` opens a numbered code block yank picker backed by `arboard` with an OSC 52 fallback for headless/SSH terminals. `Alt+S` toggles mouse capture so native terminal text selection works without leaving the TUI. `Escape` (and `Ctrl+C`) now actually cancel Tem mid-task by reusing the existing `Arc<AtomicBool>` interrupt path the gateway worker already uses for higher-priority message preemption — zero new runtime code, zero new tokio::select! branches, zero browser-tool cleanup risk. `/tools` command opens a session tool-call history overlay grouped by turn. `/compact` stub removed from the command surface per the no-stubs rule. `/help` rewritten with commands-by-category sections (Editing, Navigation, Copy & Cancel, Overlays, Session). 24 crates, 2,308 tests. Zero-risk docs in `docs/tui/`.
+                    │
 2026-04-09  v4.7.1  ●━━━ Bulletproof Linux install + ARM64 targets + TUI in default features. install.sh now runs an `ldd` check against the downloaded Linux desktop binary, detects missing Wayland/X11/PipeWire/XCB runtime libs, prints the exact apt/dnf/pacman install command, and — via `/dev/tty` prompt so it works under `curl | sh` — offers to install them with sudo or falls back to the static musl server binary. No user is ever left with a broken executable. New `scripts/install-linux-deps.sh` one-shot system dep installer supports `--runtime` (run pre-built), `--build` (compile from source), or both (default), with apt/dnf/pacman auto-detection matching CI. Release matrix expanded with `aarch64-unknown-linux-musl` + `aarch64-unknown-linux-gnu` targets on the free `ubuntu-24.04-arm` runners — Raspberry Pi 4/5 (64-bit Pi OS), AWS Graviton, Oracle Ampere, and M-series Linux now install via the same `curl | sh` one-liner. TUI promoted to default features — every pre-built binary now ships `temm1e tui` without needing `--features tui` at build time (+1.8 MB release binary, well under the 30 MB musl size gate). Fixes #32 (Raspberry Pi user blocked by missing ARM release + Wayland cross-compile pain). 24 crates, 2,307 tests.
                     │
 2026-04-08  v4.7.0  ●━━━ Cambium — gap-driven self-grow capability. Tem can now extend its own runtime by writing Rust code, verifying through a deterministic harness, and deploying via blue-green binary swap with automatic rollback. Named after the biological cambium (the growth layer under tree bark): heartwood = immutable kernel (vault, traits, security, the pipeline itself), cambium = growth layer (tools, skills, cores, integrations), bark = runtime surface, rings = GrowthSession history. Five phases: (0) theory + codebase self-model in docs/lab/cambium/, (1) CambiumConfig + GrowthTrigger/Kind/TrustLevel/PipelineStage types, (2) temm1e-cambium crate with zone_checker/trust/budget/history/sandbox/pipeline/deploy modules, (3) skill-layer growth via SelfWorkKind::CambiumSkills + grow_skills() handler with 24h rate limit + path traversal sanitization + JSON extractor for markdown-fenced LLM responses, (4) code pipeline with dedicated git-clone sandbox isolation at ~/.temm1e/cambium/sandbox/ + TemDOS cambium-reviewer + cambium-auditor cores, (5) blue-green binary swap with try_wait crash detection + macOS code-signing safe inode replacement + zombie-aware is_process_alive + temm1e-watchdog supervisor binary in immutable kernel. Trust hierarchy: 4 levels with earned-autonomy state machine (10 successful Level 3 changes -> autonomous, 25 Level 2 -> autonomous, 3 rollbacks in 7 days -> all locked). Real-LLM verified end-to-end with Gemini 3 Flash (5.8s, 1 skill, $0.001) and Sonnet 4.6 (12.8s, 2 skills, $0.01). Both produced valid YAML-frontmatter skills loadable by SkillRegistry. Enabled by default; toggle via /cambium on / /cambium off. Research paper: tems_lab/cambium/CAMBIUM_RESEARCH_PAPER.md. Theory: docs/lab/cambium/THEORY.md. 24 crates, 2274 tests.

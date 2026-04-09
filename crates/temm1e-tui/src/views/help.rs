@@ -1,4 +1,8 @@
 //! Help overlay — shows available commands and keyboard shortcuts.
+//!
+//! Commands come from the registry dynamically. Keybinds are grouped
+//! by category (Editing, Navigation, Copy & Cancel, Overlays, Session)
+//! to be scannable at a glance.
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Rect};
@@ -10,12 +14,10 @@ use crate::theme::Theme;
 
 /// Render the help overlay centered on screen.
 pub fn render_help(registry: &CommandRegistry, theme: &Theme, area: Rect, buf: &mut Buffer) {
-    // Center the overlay
-    let popup_width = 60.min(area.width.saturating_sub(4));
-    let popup_height = 25.min(area.height.saturating_sub(4));
+    let popup_width = 68.min(area.width.saturating_sub(4));
+    let popup_height = 32.min(area.height.saturating_sub(4));
     let popup = centered_rect(popup_width, popup_height, area);
 
-    // Clear the area behind the popup
     Clear.render(popup, buf);
 
     let block = Block::default()
@@ -26,42 +28,84 @@ pub fn render_help(registry: &CommandRegistry, theme: &Theme, area: Rect, buf: &
     let inner = block.inner(popup);
     block.render(popup, buf);
 
-    let mut lines = Vec::new();
-    lines.push(Line::from(Span::styled("Commands", theme.heading)));
+    let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(""));
 
+    // ── Commands (from registry) ──────────────────────
+    lines.push(Line::from(Span::styled("  Commands", theme.heading)));
+    lines.push(Line::from(""));
     for (name, desc) in registry.all_commands() {
         lines.push(Line::from(vec![
-            Span::styled(format!("  /{:<12}", name), theme.command),
+            Span::styled(format!("    /{:<12}", name), theme.command),
             Span::styled(desc.to_string(), theme.text),
         ]));
     }
 
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "Keyboard Shortcuts",
-        theme.heading,
-    )));
-    lines.push(Line::from(""));
 
-    let shortcuts = [
-        ("Enter", "Submit input"),
+    // ── Editing ───────────────────────────────────────
+    lines.push(Line::from(Span::styled("  Editing", theme.heading)));
+    lines.push(Line::from(""));
+    for (key, desc) in &[
+        ("Enter", "Submit message"),
         ("Shift+Enter", "Insert newline"),
-        ("Tab", "Cycle completions"),
-        ("Ctrl+C", "Interrupt / clear"),
-        ("Ctrl+D", "Quit (empty input)"),
-        ("Ctrl+L", "Redraw terminal"),
-        ("Ctrl+O", "Toggle activity panel"),
-        ("PageUp/Down", "Scroll messages"),
-        ("Esc", "Close overlay"),
-    ];
-
-    for (key, desc) in &shortcuts {
-        lines.push(Line::from(vec![
-            Span::styled(format!("  {:<16}", key), theme.info),
-            Span::styled(desc.to_string(), theme.text),
-        ]));
+        ("Tab", "Complete slash command"),
+        ("Ctrl+A", "Move to line start"),
+        ("Ctrl+E", "Move to line end"),
+        ("Ctrl+K", "Delete to line end"),
+        ("Ctrl+U", "Delete to line start"),
+    ] {
+        lines.push(shortcut(theme, key, desc));
     }
+
+    lines.push(Line::from(""));
+
+    // ── Navigation ────────────────────────────────────
+    lines.push(Line::from(Span::styled("  Navigation", theme.heading)));
+    lines.push(Line::from(""));
+    for (key, desc) in &[
+        ("PageUp/Down", "Scroll messages"),
+        ("Shift+Up/Down", "Scroll 3 lines"),
+        ("Ctrl+L", "Redraw terminal"),
+    ] {
+        lines.push(shortcut(theme, key, desc));
+    }
+
+    lines.push(Line::from(""));
+
+    // ── Copy & Cancel ─────────────────────────────────
+    lines.push(Line::from(Span::styled("  Copy & Cancel", theme.heading)));
+    lines.push(Line::from(""));
+    for (key, desc) in &[
+        ("Drag (mouse)", "Select text — release to keep selection"),
+        ("Ctrl+C", "Copy selection · else cancel Tem · 2× quit"),
+        ("Click code", "Click inside any code block → copy it whole"),
+        ("Ctrl+Y", "Yank a code block to clipboard (numbered picker)"),
+        ("Esc", "Clear selection · close overlay · cancel Tem"),
+        ("Alt+S", "Toggle mouse capture (lets terminal handle mouse)"),
+    ] {
+        lines.push(shortcut(theme, key, desc));
+    }
+
+    lines.push(Line::from(""));
+
+    // ── Overlays ──────────────────────────────────────
+    lines.push(Line::from(Span::styled("  Overlays", theme.heading)));
+    lines.push(Line::from(""));
+    for (key, desc) in &[
+        ("Ctrl+O", "Toggle activity panel"),
+        ("Esc", "Close any open overlay"),
+    ] {
+        lines.push(shortcut(theme, key, desc));
+    }
+
+    lines.push(Line::from(""));
+
+    // ── Session ───────────────────────────────────────
+    lines.push(Line::from(Span::styled("  Session", theme.heading)));
+    lines.push(Line::from(""));
+    lines.push(shortcut(theme, "Ctrl+D", "Quit (empty input only)"));
+    lines.push(shortcut(theme, "/quit", "Exit via slash command"));
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
@@ -71,6 +115,13 @@ pub fn render_help(registry: &CommandRegistry, theme: &Theme, area: Rect, buf: &
 
     let para = Paragraph::new(lines).wrap(Wrap { trim: false });
     para.render(inner, buf);
+}
+
+fn shortcut(theme: &Theme, key: &str, desc: &str) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(format!("    {:<16}", key), theme.info),
+        Span::styled(desc.to_string(), theme.text),
+    ])
 }
 
 fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {

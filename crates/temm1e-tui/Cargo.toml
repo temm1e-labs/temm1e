@@ -51,6 +51,20 @@ uuid.workspace = true
 dirs.workspace = true
 bytes.workspace = true
 
+# Base64 for the OSC 52 clipboard fallback (universal — works in
+# any terminal that supports the OSC 52 escape sequence).
+base64 = "0.22"
+
+# Native clipboard via `arboard` — used on macOS, Windows, and
+# Linux/glibc. Excluded from musl builds because the Wayland +
+# X11 backends (x11rb, wl-clipboard-rs and their transitive deps)
+# add ~1 MB to the static musl binary, pushing it over the 30 MB
+# CI size gate. Musl builds fall back to OSC 52 only, which works
+# in every modern terminal (kitty, alacritty, iTerm2, WezTerm,
+# Windows Terminal, tmux with passthrough enabled).
+[target.'cfg(not(target_env = "musl"))'.dependencies]
+arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
+
 [features]
 default = ["mcp", "codex-oauth"]
 mcp = ["dep:temm1e-mcp"]

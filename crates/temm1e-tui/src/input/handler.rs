@@ -29,6 +29,10 @@ pub enum InputResult {
     Escape,
     /// Tab completion requested.
     TabComplete,
+    /// Yank a code block (Ctrl+Y).
+    YankCodeBlock,
+    /// Toggle mouse capture / select mode (Alt+S).
+    ToggleMouseCapture,
     /// Key was not handled by input.
     NotHandled,
 }
@@ -125,6 +129,8 @@ pub fn handle_input_event(
         Action::PageUp => InputResult::PageUp,
         Action::PageDown => InputResult::PageDown,
         Action::Escape => InputResult::Escape,
+        Action::YankCodeBlock => InputResult::YankCodeBlock,
+        Action::ToggleMouseCapture => InputResult::ToggleMouseCapture,
         Action::None => InputResult::NotHandled,
     }
 }

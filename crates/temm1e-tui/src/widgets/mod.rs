@@ -2,6 +2,8 @@
 
 pub mod activity_panel;
 pub mod ascii_art;
+pub mod copy_picker;
+pub mod hint_bar;
 pub mod input_area;
 pub mod markdown;
 pub mod message_list;

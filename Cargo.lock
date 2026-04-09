@@ -157,6 +157,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "arboard"
+version = "3.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0348a1c054491f4bfe6ab86a7b6ab1e44e45d899005de92f58b3df180b36ddaf"
+dependencies = [
+ "clipboard-win",
+ "log",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "parking_lot",
+ "percent-encoding",
+ "windows-sys 0.60.2",
+ "wl-clipboard-rs",
+ "x11rb",
+]
+
+[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1434,6 +1452,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
+name = "clipboard-win"
+version = "5.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bde03770d3df201d4fb868f2c9c59e66a3e4e2bd06692a0fe701e7103c7e84d4"
+dependencies = [
+ "error-code",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2438,6 +2465,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "error-code"
+version = "3.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59"
+
+[[package]]
 name = "etcetera"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2795,6 +2828,16 @@ checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
  "typenum",
  "version_check",
+]
+
+[[package]]
+name = "gethostname"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bd49230192a3797a9a4d6abe9b3eed6f7fa4c8a8a4947977c6f80025f92cbd8"
+dependencies = [
+ "rustix 1.1.4",
+ "windows-link",
 ]
 
 [[package]]
@@ -4619,6 +4662,16 @@ checksum = "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50"
 dependencies = [
  "futures-core",
  "pin-project-lite",
+]
+
+[[package]]
+name = "os_pipe"
+version = "1.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6866,7 +6919,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -6914,7 +6967,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-agent"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -6940,7 +6993,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-anima"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -6956,7 +7009,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-automation"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "chrono",
  "temm1e-core",
@@ -6967,7 +7020,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-cambium"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -6985,7 +7038,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-channels"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -7020,7 +7073,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-codex-oauth"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -7041,7 +7094,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-core"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -7064,7 +7117,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-cores"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7083,7 +7136,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-distill"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7102,7 +7155,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-filestore"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -7120,7 +7173,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-gateway"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -7147,7 +7200,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-gaze"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -7163,7 +7216,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-hive"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7182,7 +7235,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-mcp"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "dirs",
@@ -7198,7 +7251,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-memory"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7216,7 +7269,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-observable"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7233,7 +7286,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-perpetuum"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7263,7 +7316,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-providers"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "futures",
@@ -7279,7 +7332,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-skills"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "dirs",
  "serde",
@@ -7292,7 +7345,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-test-utils"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -7307,7 +7360,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-tools"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -7334,10 +7387,12 @@ dependencies = [
 
 [[package]]
 name = "temm1e-tui"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "anyhow",
+ "arboard",
  "async-trait",
+ "base64",
  "bytes",
  "chrono",
  "crossterm",
@@ -7370,7 +7425,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-vault"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -7390,7 +7445,7 @@ dependencies = [
 
 [[package]]
 name = "temm1e-watchdog"
-version = "4.7.1"
+version = "4.8.0"
 dependencies = [
  "clap",
  "tempfile",
@@ -7930,6 +7985,17 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "tree_magic_mini"
+version = "3.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8765b90061cba6c22b5831f675da109ae5561588290f9fa2317adab2714d5a6"
+dependencies = [
+ "memchr",
+ "nom 8.0.0",
+ "petgraph",
 ]
 
 [[package]]
@@ -9427,10 +9493,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "wl-clipboard-rs"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9651471a32e87d96ef3a127715382b2d11cc7c8bb9822ded8a7cc94072eb0a3"
+dependencies = [
+ "libc",
+ "log",
+ "os_pipe",
+ "rustix 1.1.4",
+ "thiserror 2.0.18",
+ "tree_magic_mini",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
+]
+
+[[package]]
 name = "writeable"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
+
+[[package]]
+name = "x11rb"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9993aa5be5a26815fe2c3eacfc1fde061fc1a1f094bf1ad2a18bf9c495dd7414"
+dependencies = [
+ "gethostname",
+ "rustix 1.1.4",
+ "x11rb-protocol",
+]
+
+[[package]]
+name = "x11rb-protocol"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea6fc2961e4ef194dcbfe56bb845534d0dc8098940c7e5c012a258bfec6701bd"
 
 [[package]]
 name = "x25519-dalek"

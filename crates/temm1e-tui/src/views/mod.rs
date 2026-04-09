@@ -4,3 +4,4 @@ pub mod chat;
 pub mod config_panel;
 pub mod help;
 pub mod onboarding;
+pub mod tools_overlay;

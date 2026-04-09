@@ -23,6 +23,36 @@ use tracing::{debug, info, warn};
 /// Image MIME types that vision-capable models can process.
 const IMAGE_MIME_TYPES: &[&str] = &["image/jpeg", "image/png", "image/gif", "image/webp"];
 
+/// Serialize a JSON value to a short preview string (max `max_chars`
+/// characters, UTF-8 safe). Used by v4.8.0 observability enrichment.
+fn truncate_json_preview(value: &serde_json::Value, max_chars: usize) -> String {
+    let s = serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string());
+    if s.chars().count() <= max_chars {
+        return s;
+    }
+    let cap = max_chars.saturating_sub(1).max(1);
+    let mut out: String = s.chars().take(cap).collect();
+    out.push('…');
+    out
+}
+
+/// Extract the first non-empty line of `text`, trimmed and truncated
+/// to `max_chars` (UTF-8 safe). Used by v4.8.0 observability enrichment.
+fn first_nonempty_line_preview(text: &str, max_chars: usize) -> String {
+    let first = text
+        .lines()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or("")
+        .trim();
+    if first.chars().count() <= max_chars {
+        return first.to_string();
+    }
+    let cap = max_chars.saturating_sub(1).max(1);
+    let mut out: String = first.chars().take(cap).collect();
+    out.push('…');
+    out
+}
+
 use crate::model_router::{ModelRouter, ModelRouterConfig};
 use crate::output_compression::compress_tool_output;
 use temm1e_core::types::error::classify_tool_failure;
@@ -1221,6 +1251,30 @@ impl AgentRuntime {
             turn_output_tokens = turn_output_tokens.saturating_add(response.usage.output_tokens);
             turn_cost_usd += call_cost;
 
+            // ── Cancellation check point (v4.8.0) ───────────────────
+            // The top-of-loop check catches cancels between rounds,
+            // but single-round turns (text-only reply, no tool calls)
+            // never iterate. Check here, AFTER the provider returns,
+            // so a user pressing Escape during the provider call is
+            // honored before we commit the response to history.
+            if let Some(ref flag) = interrupt {
+                if flag.load(Ordering::Relaxed) {
+                    info!("Agent interrupted after provider call at round {}", rounds);
+                    if let Some(ref tx) = status_tx {
+                        tx.send_modify(|s| {
+                            s.input_tokens = turn_input_tokens;
+                            s.output_tokens = turn_output_tokens;
+                            s.cost_usd = turn_cost_usd;
+                            s.phase = AgentTaskPhase::Interrupted {
+                                round: rounds as u32,
+                            };
+                        });
+                    }
+                    interrupted = true;
+                    break;
+                }
+            }
+
             // ── Status: update token/cost counters ──────────────
             if let Some(ref tx) = status_tx {
                 tx.send_modify(|s| {
@@ -1776,25 +1830,79 @@ impl AgentRuntime {
 
             let tool_total = tool_uses.len() as u32;
             for (tool_index, (tool_use_id, tool_name, arguments)) in tool_uses.iter().enumerate() {
+                // ── Cancellation check point (v4.8.0) ─────────
+                // Honor Escape/Ctrl+C between tools in a multi-tool round.
+                if let Some(ref flag) = interrupt {
+                    if flag.load(Ordering::Relaxed) {
+                        info!(
+                            "Agent interrupted before tool {} of {} at round {}",
+                            tool_index + 1,
+                            tool_total,
+                            rounds
+                        );
+                        if let Some(ref tx) = status_tx {
+                            tx.send_modify(|s| {
+                                s.phase = AgentTaskPhase::Interrupted {
+                                    round: rounds as u32,
+                                };
+                            });
+                        }
+                        interrupted = true;
+                        break;
+                    }
+                }
+
                 turn_tools_used = turn_tools_used.saturating_add(1);
                 info!(tool = %tool_name, id = %tool_use_id, "Executing tool call");
 
-                // ── Status: ExecutingTool ────────────────────────
+                // ── Status: ExecutingTool (v4.8.0 — enriched) ────
+                let args_preview = truncate_json_preview(arguments, 80);
+                let tool_started = Instant::now();
                 if let Some(ref tx) = status_tx {
                     let tname = tool_name.clone();
                     let tidx = tool_index as u32;
                     let ttotal = tool_total;
+                    let ap = args_preview.clone();
                     tx.send_modify(|s| {
+                        let started_at_ms = s.started_at.elapsed().as_millis() as u64;
                         s.phase = AgentTaskPhase::ExecutingTool {
                             round: rounds as u32,
                             tool_name: tname,
                             tool_index: tidx,
                             tool_total: ttotal,
+                            args_preview: ap,
+                            started_at_ms,
                         };
                     });
                 }
 
                 let result = execute_tool(tool_name, arguments.clone(), &self.tools, session).await;
+                let tool_duration_ms = tool_started.elapsed().as_millis() as u64;
+
+                // ── Status: ToolCompleted (v4.8.0 — new variant) ─
+                // Emit BEFORE the (potentially large) tool-output processing
+                // block so observers see the completion promptly.
+                let (completion_ok, completion_preview) = match &result {
+                    Ok(out) => (!out.is_error, first_nonempty_line_preview(&out.content, 80)),
+                    Err(e) => (false, first_nonempty_line_preview(&e.to_string(), 80)),
+                };
+                if let Some(ref tx) = status_tx {
+                    let tname = tool_name.clone();
+                    let tidx = tool_index as u32;
+                    let ttotal = tool_total;
+                    let preview = completion_preview.clone();
+                    tx.send_modify(|s| {
+                        s.phase = AgentTaskPhase::ToolCompleted {
+                            round: rounds as u32,
+                            tool_name: tname,
+                            tool_index: tidx,
+                            tool_total: ttotal,
+                            duration_ms: tool_duration_ms,
+                            ok: completion_ok,
+                            result_preview: preview,
+                        };
+                    });
+                }
 
                 if tool_name == "send_message" && result.as_ref().is_ok_and(|o| !o.is_error) {
                     send_message_used = true;
@@ -1933,6 +2041,13 @@ impl AgentRuntime {
                         }
                     }
                 }
+            }
+
+            // If the per-tool cancel check fired, break out of the main
+            // tool-use loop too (the for-loop break above only exits the
+            // inner tool iteration).
+            if interrupted {
+                break;
             }
 
             // Inject pending user messages into the last tool result so the

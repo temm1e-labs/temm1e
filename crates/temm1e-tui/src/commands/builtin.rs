@@ -18,15 +18,12 @@ pub fn register_builtins(registry: &mut CommandRegistry) {
 
     registry.register(CommandDef {
         name: "model",
-        description: "Show or switch the current model",
-        handler: Box::new(|args, ctx| {
+        description: "Show models (no arg) or hot-swap to a new model",
+        handler: Box::new(|args, _ctx| {
             if args.is_empty() {
                 CommandResult::ShowOverlay(OverlayKind::ModelPicker)
             } else {
-                CommandResult::DisplayMessage(format!(
-                    "Model switch to '{}' requested (current: {})",
-                    args, ctx.current_model,
-                ))
+                CommandResult::SwitchModel(args.trim().to_string())
             }
         }),
     });
@@ -56,16 +53,14 @@ pub fn register_builtins(registry: &mut CommandRegistry) {
     });
 
     registry.register(CommandDef {
-        name: "quit",
-        description: "Exit the TUI",
-        handler: Box::new(|_, _| CommandResult::Quit),
+        name: "tools",
+        description: "Show tool call history for this session",
+        handler: Box::new(|_, _| CommandResult::ShowOverlay(OverlayKind::Tools)),
     });
 
     registry.register(CommandDef {
-        name: "compact",
-        description: "Compact conversation history",
-        handler: Box::new(|_, _| {
-            CommandResult::DisplayMessage("Conversation compacted.".to_string())
-        }),
+        name: "quit",
+        description: "Exit the TUI",
+        handler: Box::new(|_, _| CommandResult::Quit),
     });
 }

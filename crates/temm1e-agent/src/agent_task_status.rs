@@ -8,6 +8,7 @@
 //! Phase 1: status emission + CancellationToken infrastructure.
 //! Phase 2: mid-stream cancellation via `tokio::select!`.
 //! Phase 3: full Interceptor with message classification.
+//! v4.8.0: enriched tool phase events (args preview, duration, result).
 
 use std::time::Instant;
 
@@ -26,6 +27,25 @@ pub enum AgentTaskPhase {
         tool_name: String,
         tool_index: u32,
         tool_total: u32,
+        /// JSON-serialized tool args, truncated to ~80 chars for UI display.
+        args_preview: String,
+        /// Milliseconds elapsed since the agent task started when this
+        /// tool began executing (monotonic — safe from wall-clock shifts).
+        started_at_ms: u64,
+    },
+    /// A tool call just finished (success or failure). Emitted AFTER
+    /// `ExecutingTool` and BEFORE the next `CallingProvider` round.
+    ToolCompleted {
+        round: u32,
+        tool_name: String,
+        tool_index: u32,
+        tool_total: u32,
+        /// Wall-clock duration of the tool execution in milliseconds.
+        duration_ms: u64,
+        /// True if the tool returned Ok(output) with is_error == false.
+        ok: bool,
+        /// First non-empty line of the tool output, truncated to ~80 chars.
+        result_preview: String,
     },
     /// Agent loop exited — building final reply.
     Finishing,
@@ -82,11 +102,21 @@ impl std::fmt::Display for AgentTaskPhase {
                 tool_name,
                 tool_index,
                 tool_total,
+                ..
             } => write!(
                 f,
                 "Running {tool_name} ({}/{tool_total}, round {round})",
                 tool_index + 1
             ),
+            Self::ToolCompleted {
+                tool_name,
+                duration_ms,
+                ok,
+                ..
+            } => {
+                let sym = if *ok { "✓" } else { "✗" };
+                write!(f, "{sym} {tool_name} ({duration_ms}ms)")
+            }
             Self::Finishing => write!(f, "Finishing up"),
             Self::Done => write!(f, "Done"),
             Self::Interrupted { round } => write!(f, "Interrupted at round {round}"),
@@ -135,6 +165,17 @@ mod tests {
                 tool_name: "shell".to_string(),
                 tool_index: 1,
                 tool_total: 3,
+                args_preview: "{\"command\":\"ls\"}".to_string(),
+                started_at_ms: 500,
+            },
+            AgentTaskPhase::ToolCompleted {
+                round: 2,
+                tool_name: "shell".to_string(),
+                tool_index: 1,
+                tool_total: 3,
+                duration_ms: 42,
+                ok: true,
+                result_preview: "hello".to_string(),
             },
             AgentTaskPhase::Finishing,
             AgentTaskPhase::Done,
@@ -143,6 +184,31 @@ mod tests {
         for phase in phases {
             let _cloned = phase.clone();
         }
+    }
+
+    #[test]
+    fn display_tool_completed() {
+        let phase = AgentTaskPhase::ToolCompleted {
+            round: 1,
+            tool_name: "shell".to_string(),
+            tool_index: 0,
+            tool_total: 1,
+            duration_ms: 42,
+            ok: true,
+            result_preview: "hello".to_string(),
+        };
+        assert_eq!(phase.to_string(), "✓ shell (42ms)");
+
+        let phase = AgentTaskPhase::ToolCompleted {
+            round: 1,
+            tool_name: "shell".to_string(),
+            tool_index: 0,
+            tool_total: 1,
+            duration_ms: 100,
+            ok: false,
+            result_preview: "error".to_string(),
+        };
+        assert_eq!(phase.to_string(), "✗ shell (100ms)");
     }
 
     #[test]

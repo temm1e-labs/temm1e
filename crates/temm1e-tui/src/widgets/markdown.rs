@@ -30,6 +30,52 @@ impl RenderedLine {
     }
 }
 
+/// Extract code blocks from raw markdown text.
+///
+/// Returns `(lang, text, line_count)` tuples for each fenced code block
+/// found in the input. Used by the yank picker to capture blocks as
+/// they flow through the message list, without changing the rendering
+/// signature.
+pub fn extract_code_blocks(text: &str) -> Vec<(String, String, usize)> {
+    let mut blocks = Vec::new();
+    let mut in_block = false;
+    let mut lang = String::new();
+    let mut buf: Vec<&str> = Vec::new();
+
+    for raw_line in text.lines() {
+        if raw_line.trim_start().starts_with("```") {
+            if in_block {
+                let body = buf.join("\n");
+                let count = buf.len();
+                blocks.push((lang.clone(), body, count));
+                buf.clear();
+                lang.clear();
+                in_block = false;
+            } else {
+                in_block = true;
+                lang = raw_line
+                    .trim_start()
+                    .trim_start_matches('`')
+                    .trim()
+                    .to_string();
+            }
+            continue;
+        }
+        if in_block {
+            buf.push(raw_line);
+        }
+    }
+
+    // Unclosed final block — still capture it
+    if in_block && !buf.is_empty() {
+        let body = buf.join("\n");
+        let count = buf.len();
+        blocks.push((lang, body, count));
+    }
+
+    blocks
+}
+
 /// Render markdown text into styled lines, wrapping prose to `width`.
 pub fn render_markdown(
     text: &str,

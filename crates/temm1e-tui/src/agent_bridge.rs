@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::{mpsc, watch, Mutex, RwLock};
@@ -26,6 +27,11 @@ pub struct AgentHandle {
     pub inbound_tx: mpsc::Sender<InboundMessage>,
     /// Watch channel for real-time status updates.
     pub status_rx: watch::Receiver<AgentTaskStatus>,
+    /// Cancel signal — set to true from the TUI on Escape/Ctrl+C while
+    /// the agent is working. The agent loop polls this between rounds
+    /// (`runtime.rs:927`) and emits `AgentTaskPhase::Interrupted`.
+    /// Reset to false at the start of each new message.
+    pub interrupt_flag: Arc<AtomicBool>,
 }
 
 /// Configuration for agent setup.
@@ -159,6 +165,8 @@ pub async fn spawn_agent(
     // 7. Set up channels
     let (inbound_tx, mut inbound_rx) = mpsc::channel::<InboundMessage>(64);
     let (status_tx, status_rx) = watch::channel(AgentTaskStatus::default());
+    let interrupt_flag = Arc::new(AtomicBool::new(false));
+    let interrupt_for_task = interrupt_flag.clone();
 
     // 8. Load conversation history
     let cli_history_key = "chat_history:tui".to_string();
@@ -174,6 +182,11 @@ pub async fn spawn_agent(
     let memory_clone = memory.clone();
     tokio::spawn(async move {
         while let Some(msg) = inbound_rx.recv().await {
+            // CRITICAL: reset the interrupt flag before each turn.
+            // If a previous turn was cancelled and we didn't reset,
+            // the new turn would cancel immediately. (Tier C.)
+            interrupt_for_task.store(false, Ordering::Relaxed);
+
             let current_history = history_clone.lock().await.clone();
             let mut session = SessionContext {
                 session_id: "tui-tui".to_string(),
@@ -203,11 +216,11 @@ pub async fn spawn_agent(
                 .process_message(
                     &msg,
                     &mut session,
-                    None,                    // interrupt
-                    None,                    // pending
-                    Some(early_tx),          // reply_tx (early replies)
-                    Some(status_tx.clone()), // status_tx (real-time phase updates)
-                    None,                    // cancel
+                    Some(interrupt_for_task.clone()), // Tier C: real interrupt flag
+                    None,                             // pending
+                    Some(early_tx),                   // reply_tx (early replies)
+                    Some(status_tx.clone()),          // status_tx (real-time phase updates)
+                    None,                             // cancel (reserved for v4.9.0)
                 )
                 .await;
 
@@ -259,6 +272,7 @@ pub async fn spawn_agent(
     Ok(AgentHandle {
         inbound_tx,
         status_rx,
+        interrupt_flag,
     })
 }
 
