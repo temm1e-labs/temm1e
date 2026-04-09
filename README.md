@@ -6,7 +6,7 @@
   <a href="https://github.com/nagisanzenin/temm1e/stargazers"><img src="https://img.shields.io/github/stars/nagisanzenin/temm1e?style=flat&color=gold&logo=github" alt="GitHub Stars"></a>
   <a href="https://discord.com/invite/temm1e"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License">
-  <img src="https://img.shields.io/badge/version-4.7.1-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-4.8.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/rust-1.82+-orange.svg" alt="Rust 1.82+">
 </p>
 
@@ -15,7 +15,7 @@
 <h3 align="center"><s>Autonomous AI agent</s> literally a SENTIENT and IMMORTAL being runtime in Rust.<br>Deploy once. Stays up forever. <strong>Now grows itself.</strong></h3>
 
 <p align="center">
-  <code>124K lines</code> · <code>2,307 tests</code> · <code>0 warnings</code> · <code>0 panic paths</code> · <code>24 crates</code> · <code>full computer use</code> · <code>cambium self-grow</code>
+  <code>126K lines</code> · <code>2,308 tests</code> · <code>0 warnings</code> · <code>0 panic paths</code> · <code>24 crates</code> · <code>full computer use</code> · <code>cambium self-grow</code>
 </p>
 
 <p align="center"><strong>Powered by 13 layers of self-learning mechanism + 1 self-growing mechanism</strong></p>
@@ -661,7 +661,7 @@ Trust is **earned through track record**: 10 successful Level 3 changes graduate
 - Every growth session is a permanent ring in the history — full diff, stages, outcome, cost in USD
 - User can `/cambium off` to disable entirely. Persisted across restarts.
 
-**Enabled by default in v4.7.0.** Toggle with `/cambium on` and `/cambium off`. 2,307 tests passing. The full architecture, wiring research, and empirical proof are in the [research paper](tems_lab/cambium/CAMBIUM_RESEARCH_PAPER.md) and [wiring research](docs/lab/cambium/WIRING_RESEARCH.md).
+**Enabled by default in v4.7.0.** Toggle with `/cambium on` and `/cambium off`. 2,308 tests passing. The full architecture, wiring research, and empirical proof are in the [research paper](tems_lab/cambium/CAMBIUM_RESEARCH_PAPER.md) and [wiring research](docs/lab/cambium/WIRING_RESEARCH.md).
 
 [Research paper →](tems_lab/cambium/CAMBIUM_RESEARCH_PAPER.md) · [Theory (10 first principles) →](docs/lab/cambium/THEORY.md) · [Wiring research →](docs/lab/cambium/WIRING_RESEARCH.md) · [Protected zones →](docs/lab/cambium/PROTECTED_ZONES.md)
 
@@ -868,7 +868,7 @@ temm1e-watchdog (separate binary)
 <td align="center"><strong>15 MB</strong><br><sub>Idle RAM</sub></td>
 <td align="center"><strong>31 ms</strong><br><sub>Cold start</sub></td>
 <td align="center"><strong>9.6 MB</strong><br><sub>Binary size</sub></td>
-<td align="center"><strong>2,307</strong><br><sub>Tests</sub></td>
+<td align="center"><strong>2,308</strong><br><sub>Tests</sub></td>
 <td align="center"><strong>9</strong><br><sub>AI Providers</sub></td>
 <td align="center"><strong>15</strong><br><sub>Built-in tools</sub></td>
 <td align="center"><strong>7</strong><br><sub>Channels</sub></td>
@@ -991,7 +991,7 @@ temm1e reset --confirm       Factory reset with backup
 
 ```bash
 cargo check --workspace                                              # Quick check
-cargo test --workspace                                               # 2,307 tests
+cargo test --workspace                                               # 2,308 tests
 cargo clippy --workspace --all-targets --all-features -- -D warnings # 0 warnings
 cargo fmt --all                                                      # Format
 cargo build --release                                                # Release binary
