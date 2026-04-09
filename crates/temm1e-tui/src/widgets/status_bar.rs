@@ -1,18 +1,35 @@
-//! Bottom status bar — 3-section layout.
+//! Bottom status bar — 3-section horizontal layout.
 //!
-//! Left: session state indicator (idle / thinking / tool name / cancelled).
-//! Center: model · provider · tokens · cost.
-//! Right: context-window usage meter · git repo/branch.
+//! Left   : session state indicator (idle / thinking / tool name / cancelled).
+//! Center : model · provider · tokens · cost.
+//! Right  : context-window usage meter · git repo/branch.
+//!
+//! Uses ratatui `Layout::horizontal` so the three sections physically
+//! cannot overlap. Each section renders inside its own bounded `Rect`
+//! and is independently truncated if it doesn't fit.
 
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Alignment, Rect};
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Widget;
 
 use temm1e_agent::agent_task_status::AgentTaskPhase;
 
-use crate::app::{AppState, GitInfo};
+use crate::app::AppState;
+
+/// Fixed width of the left (state indicator) section.
+///
+/// Enough for `◉ tool:browser_ag` (16 chars) plus a 2-char leading
+/// separator. Truncated cleanly if the tool name is longer.
+const LEFT_WIDTH: u16 = 20;
+
+/// Fixed width of the right (context meter + git) section.
+///
+/// Enough for the 10-block meter (`▓▓▓▓▓▓▓▓▓▓`) + ` 100% ` + `▣ repo · branch`
+/// with a reasonable repo/branch length. Terminals narrower than
+/// `LEFT_WIDTH + RIGHT_WIDTH + 10` will crop the center.
+const RIGHT_WIDTH: u16 = 48;
 
 /// Renders the status bar at the bottom of the screen.
 pub struct StatusBar<'a> {
@@ -32,53 +49,55 @@ impl<'a> Widget for StatusBar<'a> {
         }
 
         let style = self.state.theme.status_bar;
-        let accent = self.state.theme.accent;
-        let info = self.state.theme.info;
-        let secondary = self.state.theme.secondary;
-        let tool_running = self.state.theme.tool_running;
-        let error = self.state.theme.error;
 
         // Fill background across the whole bar
         for x in area.left()..area.right() {
             buf[(x, area.top())].set_style(style);
         }
 
-        // ── Left: state indicator ─────────────────────────
-        let (symbol, label, sym_style) =
-            state_indicator(self.state, accent, tool_running, secondary, error);
-        let left_spans = vec![
-            Span::styled(" ", style),
-            Span::styled(symbol.to_string(), sym_style),
-            Span::styled(" ", style),
-            Span::styled(label, sym_style),
-        ];
-        let left_line = Line::from(left_spans);
-        buf.set_line(area.left(), area.top(), &left_line, area.width);
+        // Split horizontally into three sections — ratatui guarantees
+        // they are non-overlapping, so a center overflow truncates
+        // instead of writing over the right section.
+        //
+        // On terminals narrower than LEFT + RIGHT + 10, the center
+        // gets squeezed to its Min but the left/right are preserved.
+        // On very narrow terminals where left + right exceed width,
+        // the layout engine gives all rects the same `area.y/height`
+        // and shrinks widths proportionally.
+        let chunks = Layout::horizontal([
+            Constraint::Length(LEFT_WIDTH),
+            Constraint::Min(10),
+            Constraint::Length(RIGHT_WIDTH),
+        ])
+        .split(area);
 
-        // ── Right: context meter + git info ───────────────
-        let right_spans = right_section(self.state, info, secondary, accent, error);
-        if !right_spans.is_empty() {
-            let right_line = Line::from(right_spans).alignment(Alignment::Right);
-            buf.set_line(area.left(), area.top(), &right_line, area.width);
-        }
-
-        // ── Center: model · provider · tokens · cost ──────
-        let center_spans = center_section(self.state, style, accent, info, secondary);
-        if !center_spans.is_empty() {
-            // Center manually — compute the visible text length and offset
-            let center_text_width: usize =
-                center_spans.iter().map(|s| s.content.chars().count()).sum();
-            let center_x = area
-                .left()
-                .saturating_add(area.width.saturating_sub(center_text_width as u16) / 2);
-            let center_line = Line::from(center_spans);
-            // Render center with a clipping width so it doesn't overwrite edges
-            let clip_width = area
-                .width
-                .saturating_sub(center_x.saturating_sub(area.left()));
-            buf.set_line(center_x, area.top(), &center_line, clip_width);
-        }
+        render_left(self.state, chunks[0], buf);
+        render_center(self.state, chunks[1], buf);
+        render_right(self.state, chunks[2], buf);
     }
+}
+
+// ── LEFT — session state indicator ─────────────────────────────
+
+fn render_left(state: &AppState, area: Rect, buf: &mut Buffer) {
+    if area.width == 0 {
+        return;
+    }
+    let style = state.theme.status_bar;
+    let accent = state.theme.accent;
+    let tool_running = state.theme.tool_running;
+    let secondary = state.theme.secondary;
+    let error = state.theme.error;
+
+    let (symbol, label, sym_style) = state_indicator(state, accent, tool_running, secondary, error);
+
+    let line = Line::from(vec![
+        Span::styled(" ", style),
+        Span::styled(symbol.to_string(), sym_style),
+        Span::styled(" ", style),
+        Span::styled(label, sym_style),
+    ]);
+    buf.set_line(area.left(), area.top(), &line, area.width);
 }
 
 fn state_indicator(
@@ -88,7 +107,6 @@ fn state_indicator(
     secondary: Style,
     error: Style,
 ) -> (&'static str, String, Style) {
-    // Idle when not working, regardless of last phase (except cancelled)
     if !state.is_agent_working {
         if matches!(
             state.activity_panel.phase,
@@ -123,13 +141,17 @@ fn state_indicator(
     }
 }
 
-fn center_section(
-    state: &AppState,
-    style: Style,
-    accent: Style,
-    info: Style,
-    secondary: Style,
-) -> Vec<Span<'static>> {
+// ── CENTER — model · provider · tokens · cost ─────────────────
+
+fn render_center(state: &AppState, area: Rect, buf: &mut Buffer) {
+    if area.width == 0 {
+        return;
+    }
+    let style = state.theme.status_bar;
+    let accent = state.theme.accent;
+    let info = state.theme.info;
+    let secondary = state.theme.secondary;
+
     let mut spans: Vec<Span<'static>> = Vec::new();
     let model = state.current_model.clone().unwrap_or_default();
     let provider = state.current_provider.clone().unwrap_or_default();
@@ -164,16 +186,30 @@ fn center_section(
         spans.push(Span::styled(format!("${:.4}", cost), info));
     }
 
-    spans
+    // Center the content within `area` horizontally.
+    let text_width: u16 = spans.iter().map(|s| s.content.chars().count() as u16).sum();
+    let x = if text_width >= area.width {
+        area.left()
+    } else {
+        area.left() + (area.width - text_width) / 2
+    };
+
+    let line = Line::from(spans);
+    // Clip to the remaining width so we never bleed past `area.right()`.
+    let avail = area.width.saturating_sub(x.saturating_sub(area.left()));
+    buf.set_line(x, area.top(), &line, avail);
 }
 
-fn right_section(
-    state: &AppState,
-    _info: Style,
-    secondary: Style,
-    accent: Style,
-    error: Style,
-) -> Vec<Span<'static>> {
+// ── RIGHT — context meter + git repo/branch ────────────────────
+
+fn render_right(state: &AppState, area: Rect, buf: &mut Buffer) {
+    if area.width == 0 {
+        return;
+    }
+    let accent = state.theme.accent;
+    let secondary = state.theme.secondary;
+    let error = state.theme.error;
+
     let mut spans: Vec<Span<'static>> = Vec::new();
 
     // Context window meter (D5)
@@ -196,27 +232,35 @@ fn right_section(
                 secondary
             };
             spans.push(Span::styled(meter, meter_style));
-            spans.push(Span::styled(format!(" {}% ", pct), meter_style));
+            spans.push(Span::styled(format!(" {pct}% "), meter_style));
         }
     }
 
     // Git repo + branch (A3)
     if let Some(ref git) = state.git_info {
-        spans.push(Span::styled(git_repo_span(git), secondary));
+        spans.push(Span::styled("▣ ".to_string(), secondary));
         spans.push(Span::styled(git.repo_name.clone(), accent));
         spans.push(Span::styled(" · ".to_string(), secondary));
         spans.push(Span::styled(git.branch.clone(), secondary));
-        spans.push(Span::styled(" ".to_string(), secondary));
-    } else {
-        // Pad a trailing space so right-alignment doesn't touch the border
-        spans.push(Span::styled(" ".to_string(), secondary));
     }
 
-    spans
-}
+    if spans.is_empty() {
+        return;
+    }
 
-fn git_repo_span(_git: &GitInfo) -> String {
-    "▣ ".to_string()
+    // Right-align manually — place the content at the end of `area`
+    // and let ratatui's set_line crop on the left if the content is
+    // wider than the area.
+    let text_width: u16 = spans.iter().map(|s| s.content.chars().count() as u16).sum();
+    let x = if text_width >= area.width {
+        area.left()
+    } else {
+        area.right() - text_width
+    };
+
+    let line = Line::from(spans);
+    let avail = area.width.saturating_sub(x.saturating_sub(area.left()));
+    buf.set_line(x, area.top(), &line, avail);
 }
 
 fn format_tokens_u32(n: u32) -> String {
