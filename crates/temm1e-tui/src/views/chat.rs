@@ -107,7 +107,7 @@ pub fn render_chat(state: &AppState, area: Rect, buf: &mut Buffer) {
         }
     } else if state.is_agent_working && thinking_height > 0 {
         // B5 — richer collapsed thinking line with live tool info
-        let elapsed = state.activity_panel.started_at.elapsed();
+        let elapsed = state.activity_panel.elapsed();
         let tools_count = state.activity_panel.tool_calls.len();
         let phase_display = match &state.activity_panel.phase {
             AgentTaskPhase::Preparing => format!("preparing · {:.1}s", elapsed.as_secs_f64()),

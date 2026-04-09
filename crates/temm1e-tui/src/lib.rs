@@ -107,12 +107,10 @@ pub async fn launch_tui(config: Temm1eConfig) -> anyhow::Result<()> {
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(
-        stdout,
-        EnterAlternateScreen,
-        cursor::Hide,
-        crossterm::event::EnableMouseCapture
-    )?;
+    // Mouse capture is OFF by default so native terminal text selection
+    // works out of the box. Users can toggle it on with Alt+S to get
+    // TUI scroll-wheel support.
+    execute!(stdout, EnterAlternateScreen, cursor::Hide)?;
     let _guard = TerminalGuard;
 
     let backend = CrosstermBackend::new(stdout);
@@ -249,6 +247,13 @@ pub async fn launch_tui(config: Temm1eConfig) -> anyhow::Result<()> {
                     .store(true, std::sync::atomic::Ordering::Relaxed);
             }
             state.pending_cancel = false;
+        }
+
+        // Handle /model hot-swap — tear down the current agent task
+        // and spawn a new one with the new model. Only runs while
+        // idle (the command handler rejects mid-turn switches).
+        if let Some(new_model) = state.pending_model_switch.take() {
+            handle_model_switch(&mut state, &mut agent_handle, &event_tx, &config, new_model).await;
         }
 
         // Handle user message submission → send to agent
@@ -454,6 +459,111 @@ fn whoami() -> String {
     std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_else(|_| "unknown".to_string())
+}
+
+/// Validate + apply a model hot-swap. Called from the event loop
+/// when `state.pending_model_switch` is set. Drops the old agent
+/// handle (its task exits when the sender is dropped), spawns a new
+/// agent with the new model, saves the new model to credentials.toml
+/// so the next launch uses it, and updates `state.current_model`.
+async fn handle_model_switch(
+    state: &mut AppState,
+    agent_handle: &mut Option<AgentHandle>,
+    event_tx: &mpsc::UnboundedSender<Event>,
+    config: &Temm1eConfig,
+    new_model: String,
+) {
+    use temm1e_core::types::model_registry::available_models_for_provider;
+
+    let Some(provider) = state.current_provider.clone() else {
+        push_system_line_via_tx(
+            event_tx,
+            "Cannot switch model: no provider is configured.".to_string(),
+        );
+        return;
+    };
+
+    // Validate against the known list for the current provider.
+    let known = available_models_for_provider(&provider);
+    if !known.is_empty() && !known.contains(&new_model.as_str()) {
+        push_system_line_via_tx(
+            event_tx,
+            format!(
+                "Unknown model '{}' for provider '{}'. Valid: {}",
+                new_model,
+                provider,
+                known.join(", ")
+            ),
+        );
+        return;
+    }
+
+    // Read the current credentials to recover the API key + base_url.
+    let Some((_name, keys, _model, base_url)) = load_active_provider_keys() else {
+        push_system_line_via_tx(
+            event_tx,
+            "Cannot switch model: no saved credentials for the active provider.".to_string(),
+        );
+        return;
+    };
+    let Some(api_key) = keys.into_iter().next() else {
+        push_system_line_via_tx(
+            event_tx,
+            "Cannot switch model: no API key found for the active provider.".to_string(),
+        );
+        return;
+    };
+
+    // Drop the old handle — its task exits when `inbound_tx` is dropped.
+    // Happens automatically when we overwrite agent_handle below.
+    let old = agent_handle.take();
+    drop(old);
+
+    match agent_bridge::spawn_agent(
+        AgentSetup {
+            provider_name: provider.clone(),
+            api_key: api_key.clone(),
+            model: new_model.clone(),
+            base_url: base_url.clone(),
+            config: config.clone(),
+            mode: state.selected_mode.clone(),
+        },
+        event_tx.clone(),
+    )
+    .await
+    {
+        Ok(handle) => {
+            *agent_handle = Some(handle);
+            state.current_model = Some(new_model.clone());
+            // Persist so the next launch uses the new model
+            if let Err(e) =
+                save_credentials(&provider, &api_key, &new_model, base_url.as_deref()).await
+            {
+                tracing::warn!(error = %e, "Failed to persist model switch");
+            }
+            push_system_line_via_tx(event_tx, format!("✓ Switched to model '{new_model}'"));
+        }
+        Err(e) => {
+            push_system_line_via_tx(event_tx, format!("✗ Model switch failed: {e}"));
+        }
+    }
+}
+
+/// Push a system message through the event channel so the TUI
+/// renders it on the next iteration. Used by async side effects
+/// that don't hold a mutable `AppState` reference.
+fn push_system_line_via_tx(event_tx: &mpsc::UnboundedSender<Event>, text: String) {
+    let _ = event_tx.send(Event::AgentResponse(event::AgentResponseEvent {
+        message: temm1e_core::types::message::OutboundMessage {
+            chat_id: "tui".to_string(),
+            text,
+            reply_to: None,
+            parse_mode: None,
+        },
+        input_tokens: 0,
+        output_tokens: 0,
+        cost_usd: 0.0,
+    }));
 }
 
 /// Detect git repository + branch. Returns `None` if:

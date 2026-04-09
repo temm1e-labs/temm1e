@@ -1251,6 +1251,30 @@ impl AgentRuntime {
             turn_output_tokens = turn_output_tokens.saturating_add(response.usage.output_tokens);
             turn_cost_usd += call_cost;
 
+            // ── Cancellation check point (v4.8.0) ───────────────────
+            // The top-of-loop check catches cancels between rounds,
+            // but single-round turns (text-only reply, no tool calls)
+            // never iterate. Check here, AFTER the provider returns,
+            // so a user pressing Escape during the provider call is
+            // honored before we commit the response to history.
+            if let Some(ref flag) = interrupt {
+                if flag.load(Ordering::Relaxed) {
+                    info!("Agent interrupted after provider call at round {}", rounds);
+                    if let Some(ref tx) = status_tx {
+                        tx.send_modify(|s| {
+                            s.input_tokens = turn_input_tokens;
+                            s.output_tokens = turn_output_tokens;
+                            s.cost_usd = turn_cost_usd;
+                            s.phase = AgentTaskPhase::Interrupted {
+                                round: rounds as u32,
+                            };
+                        });
+                    }
+                    interrupted = true;
+                    break;
+                }
+            }
+
             // ── Status: update token/cost counters ──────────────
             if let Some(ref tx) = status_tx {
                 tx.send_modify(|s| {
@@ -1806,6 +1830,28 @@ impl AgentRuntime {
 
             let tool_total = tool_uses.len() as u32;
             for (tool_index, (tool_use_id, tool_name, arguments)) in tool_uses.iter().enumerate() {
+                // ── Cancellation check point (v4.8.0) ─────────
+                // Honor Escape/Ctrl+C between tools in a multi-tool round.
+                if let Some(ref flag) = interrupt {
+                    if flag.load(Ordering::Relaxed) {
+                        info!(
+                            "Agent interrupted before tool {} of {} at round {}",
+                            tool_index + 1,
+                            tool_total,
+                            rounds
+                        );
+                        if let Some(ref tx) = status_tx {
+                            tx.send_modify(|s| {
+                                s.phase = AgentTaskPhase::Interrupted {
+                                    round: rounds as u32,
+                                };
+                            });
+                        }
+                        interrupted = true;
+                        break;
+                    }
+                }
+
                 turn_tools_used = turn_tools_used.saturating_add(1);
                 info!(tool = %tool_name, id = %tool_use_id, "Executing tool call");
 
@@ -1995,6 +2041,13 @@ impl AgentRuntime {
                         }
                     }
                 }
+            }
+
+            // If the per-tool cancel check fired, break out of the main
+            // tool-use loop too (the for-loop break above only exits the
+            // inner tool iteration).
+            if interrupted {
+                break;
             }
 
             // Inject pending user messages into the last tool result so the

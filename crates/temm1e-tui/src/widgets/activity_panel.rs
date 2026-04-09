@@ -42,6 +42,12 @@ pub struct ActivityPanel {
     pub cost_usd: f64,
     pub expanded: bool,
     pub spinner: Spinner,
+    /// Frozen elapsed duration — set when the turn reaches Done or
+    /// Interrupted, cleared on `reset()`. While set, `elapsed()` returns
+    /// this value instead of the live wall-clock. Prevents the counter
+    /// from creeping up between turns when the user opens overlays or
+    /// presses non-action keys.
+    pub frozen_elapsed: Option<Duration>,
 }
 
 impl Default for ActivityPanel {
@@ -55,6 +61,7 @@ impl Default for ActivityPanel {
             cost_usd: 0.0,
             expanded: false,
             spinner: Spinner::default(),
+            frozen_elapsed: None,
         }
     }
 }
@@ -72,6 +79,15 @@ impl ActivityPanel {
         self.input_tokens = 0;
         self.output_tokens = 0;
         self.cost_usd = 0.0;
+        self.frozen_elapsed = None;
+    }
+
+    /// Return the elapsed time to display — frozen snapshot if the
+    /// turn has reached a terminal phase (Done/Interrupted), otherwise
+    /// live wall-clock since `started_at`.
+    pub fn elapsed(&self) -> Duration {
+        self.frozen_elapsed
+            .unwrap_or_else(|| self.started_at.elapsed())
     }
 
     /// Update from an AgentTaskStatus snapshot.
@@ -147,6 +163,12 @@ impl ActivityPanel {
                         entry.result_preview = "[cancelled]".to_string();
                     }
                 }
+                // Freeze the displayed elapsed so it stops creeping.
+                self.frozen_elapsed = Some(self.started_at.elapsed());
+            }
+            // ── Done — freeze the elapsed so the counter doesn't creep ─
+            AgentTaskPhase::Done => {
+                self.frozen_elapsed = Some(self.started_at.elapsed());
             }
             _ => {}
         }
@@ -181,7 +203,7 @@ impl ActivityPanel {
         }
 
         let mut lines = Vec::new();
-        let elapsed = self.started_at.elapsed();
+        let elapsed = self.elapsed();
 
         // Header
         lines.push(Line::from(vec![

@@ -33,11 +33,6 @@ fn hint_for_state(state: &AppState) -> &'static str {
         Overlay::None => {}
     }
 
-    // Copy mode (mouse selection enabled)
-    if !state.mouse_capture_enabled {
-        return "SELECT MODE · Alt+S resume · select with mouse to copy";
-    }
-
     // Scroll mode — user scrolled away from the bottom
     if state.message_list.scroll_offset > 0 {
         return "SCROLL · G bottom · Esc exit scroll";
@@ -48,6 +43,11 @@ fn hint_for_state(state: &AppState) -> &'static str {
         return "Esc cancel · ^O activity · ^C cancel (×2 quit)";
     }
 
-    // Idle default
-    "Enter submit · ^C cancel · ^Y yank · Alt+S select · ^O activity · ? help"
+    // Scroll-wheel mode (mouse capture ON) — unusual; surface the toggle
+    if state.mouse_capture_enabled {
+        return "SCROLL MODE · Alt+S select · Enter submit · ^C cancel";
+    }
+
+    // Idle default (select mode — mouse capture OFF)
+    "Enter submit · ^C cancel · ^Y yank · drag to select · ^O activity · ? help"
 }

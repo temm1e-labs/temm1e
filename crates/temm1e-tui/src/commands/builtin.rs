@@ -18,15 +18,12 @@ pub fn register_builtins(registry: &mut CommandRegistry) {
 
     registry.register(CommandDef {
         name: "model",
-        description: "Show or switch the current model",
-        handler: Box::new(|args, ctx| {
+        description: "Show models (no arg) or hot-swap to a new model",
+        handler: Box::new(|args, _ctx| {
             if args.is_empty() {
                 CommandResult::ShowOverlay(OverlayKind::ModelPicker)
             } else {
-                CommandResult::DisplayMessage(format!(
-                    "Model switch to '{}' requested (current: {})",
-                    args, ctx.current_model,
-                ))
+                CommandResult::SwitchModel(args.trim().to_string())
             }
         }),
     });

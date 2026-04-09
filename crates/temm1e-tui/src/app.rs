@@ -116,6 +116,9 @@ pub struct AppState {
     // Escape cancellation (C4)
     pub pending_cancel: bool,
 
+    // Model hot-swap (bug 4 fix)
+    pub pending_model_switch: Option<String>,
+
     // Commands
     pub command_registry: CommandRegistry,
 
@@ -159,11 +162,15 @@ impl AppState {
             api_keys_cache: Vec::new(),
             git_info: None,
             code_blocks: std::collections::VecDeque::with_capacity(9),
-            mouse_capture_enabled: true,
+            // Default: mouse capture OFF → native terminal text selection
+            // works out of the box. Users opt in to TUI-mode mouse (scroll
+            // wheel, click handlers) via Alt+S.
+            mouse_capture_enabled: false,
             needs_mouse_toggle: false,
             tool_call_history: Vec::new(),
             current_turn: 0,
             pending_cancel: false,
+            pending_model_switch: None,
             command_registry: CommandRegistry::new(),
             theme,
             onboarding_step: OnboardingStep::Welcome,
@@ -489,9 +496,9 @@ fn handle_key(state: &mut AppState, key: crossterm::event::KeyEvent) {
             state.mouse_capture_enabled = !state.mouse_capture_enabled;
             state.needs_mouse_toggle = true;
             let msg = if state.mouse_capture_enabled {
-                "Scroll mode — scroll wheel + keybinds active"
+                "Scroll mode — TUI owns the mouse (wheel scroll works, drag-select disabled)"
             } else {
-                "Select mode — select text with mouse, press Alt+S to resume"
+                "Select mode — drag to select text natively (default)"
             };
             push_system_line(state, msg.to_string());
         }
@@ -579,6 +586,19 @@ fn handle_user_submit(state: &mut AppState, text: String) {
                 state.should_quit = true;
             }
             CommandResult::Silent => {}
+            CommandResult::SwitchModel(model) => {
+                if state.is_agent_working {
+                    push_system_line(
+                        state,
+                        "Cannot switch model while Tem is working. \
+                         Press Esc to cancel first."
+                            .to_string(),
+                    );
+                } else {
+                    push_system_line(state, format!("Switching to model '{model}'..."));
+                    state.pending_model_switch = Some(model);
+                }
+            }
             CommandResult::Error(msg) => {
                 state.message_list.push(DisplayMessage {
                     role: MessageRole::System,

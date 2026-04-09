@@ -80,7 +80,8 @@ pub fn render_help(registry: &CommandRegistry, theme: &Theme, area: Rect, buf: &
         ("Esc", "Cancel Tem mid-task · close overlay"),
         ("Ctrl+C", "Cancel Tem · press twice to quit"),
         ("Ctrl+Y", "Yank a code block to clipboard"),
-        ("Alt+S", "Toggle select-mode (enables mouse copy)"),
+        ("Drag (mouse)", "Select text natively (default mode)"),
+        ("Alt+S", "Toggle scroll-mode (mouse wheel / blocks drag)"),
     ] {
         lines.push(shortcut(theme, key, desc));
     }

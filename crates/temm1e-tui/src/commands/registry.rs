@@ -23,6 +23,10 @@ pub enum CommandResult {
     Silent,
     /// Error message.
     Error(String),
+    /// Request a model hot-swap. Consumed by the TUI event loop —
+    /// validates the name, tears down the current agent task, and
+    /// spawns a new one with the new model.
+    SwitchModel(String),
 }
 
 /// Overlay types that commands can trigger.

@@ -160,7 +160,7 @@ fn render_usage_lines(state: &AppState) -> Vec<Line<'static>> {
 
 fn render_status_lines(state: &AppState) -> Vec<Line<'static>> {
     let panel = &state.activity_panel;
-    let elapsed = panel.started_at.elapsed();
+    let elapsed = panel.elapsed();
     let phase = match &panel.phase {
         AgentTaskPhase::Preparing => "Preparing".to_string(),
         AgentTaskPhase::Classifying => "Classifying".to_string(),
