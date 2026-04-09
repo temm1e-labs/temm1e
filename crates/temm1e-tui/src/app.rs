@@ -274,8 +274,22 @@ pub fn update(state: &mut AppState, event: Event) {
                     state.needs_redraw = true;
                 }
                 MouseEventKind::Drag(MouseButton::Left) => {
+                    // Update the selection tip to follow the cursor.
                     if let Some(ref mut sel) = state.mouse_selection {
                         sel.current = (mouse.column, mouse.row);
+                    }
+
+                    // Auto-scroll when the cursor is at the top or
+                    // bottom edge of the message area. Dropped mut
+                    // borrow on mouse_selection above so we can now
+                    // take immutable then mutable borrows on state.
+                    if state.mouse_selection.is_some() {
+                        let (msg_top, msg_bottom) = compute_message_area_bounds(state);
+                        if mouse.row <= msg_top {
+                            state.message_list.scroll_up(1);
+                        } else if mouse.row + 1 >= msg_bottom {
+                            state.message_list.scroll_down(1);
+                        }
                         state.needs_redraw = true;
                     }
                 }
@@ -579,6 +593,32 @@ fn handle_key(state: &mut AppState, key: crossterm::event::KeyEvent) {
         }
         InputResult::Consumed | InputResult::NotHandled => {}
     }
+}
+
+/// Compute the `(top_row, bottom_row_exclusive)` of the message area
+/// from the current TEA state, using the same layout math as
+/// `views/chat.rs::render_chat`. Used by the drag handler to
+/// auto-scroll when the cursor hits the edge of the visible
+/// messages, so the user can select content outside the current
+/// viewport without having to stop, scroll, and restart the drag.
+fn compute_message_area_bounds(state: &AppState) -> (u16, u16) {
+    let activity_height = state.activity_panel.height();
+    let thinking_height = if state.is_agent_working && activity_height == 0 {
+        1
+    } else {
+        activity_height
+    };
+    let input_height = (state.input.lines.len() as u16).clamp(1, 10);
+    // Layout constraints from render_chat: messages, activity,
+    // input+1 border, hint (1), status (1). The messages area is
+    // everything above those tail rows.
+    let tail = thinking_height
+        .saturating_add(input_height)
+        .saturating_add(1) // input border
+        .saturating_add(1) // hint bar
+        .saturating_add(1); // status bar
+    let bottom = state.terminal_size.1.saturating_sub(tail);
+    (0, bottom)
 }
 
 /// Push a single-line system message to the message list (toast-style).

@@ -212,12 +212,18 @@ fn render_right(state: &AppState, area: Rect, buf: &mut Buffer) {
 
     let mut spans: Vec<Span<'static>> = Vec::new();
 
-    // Context window meter (D5)
+    // Context window meter (D5).
+    //
+    // Uses `turn_input_tokens` — the size of the MOST RECENT request's
+    // input context — not `total_input_tokens` (which accumulates
+    // every request's size across the whole session and is the wrong
+    // metric for "how full is my context window right now"). The
+    // center section still shows the cumulative totals for billing.
     if let Some(ref model) = state.current_model {
         use temm1e_core::types::model_registry::model_limits;
         let (ctx_window, _) = model_limits(model);
         if ctx_window > 0 {
-            let used = state.token_counter.total_input_tokens as u64;
+            let used = state.token_counter.turn_input_tokens as u64;
             let window = ctx_window as u64;
             let pct = ((used * 100) / window.max(1)).min(100);
             let filled = ((pct * 10) / 100) as usize;

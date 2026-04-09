@@ -206,6 +206,13 @@ pub async fn launch_tui(config: Temm1eConfig) -> anyhow::Result<()> {
     terminal.draw(|frame| view(&mut state, frame))?;
     state.needs_redraw = false;
 
+    // Draw throttle — cap render rate at ~60 FPS so rapid-fire
+    // mouse drag events don't pile up into back-to-back full
+    // re-renders. Deferred draws catch up via the tick interval
+    // (every 33ms), so the final frame after a drag always happens.
+    let mut last_draw_at = std::time::Instant::now();
+    const MIN_DRAW_INTERVAL: Duration = Duration::from_millis(16);
+
     // 7. Main event loop
     loop {
         // Build select branches dynamically based on whether we have an agent
@@ -303,10 +310,11 @@ pub async fn launch_tui(config: Temm1eConfig) -> anyhow::Result<()> {
             state.needs_clear = false;
         }
 
-        // Render if needed
-        if state.needs_redraw {
+        // Render if needed — throttled to MIN_DRAW_INTERVAL
+        if state.needs_redraw && last_draw_at.elapsed() >= MIN_DRAW_INTERVAL {
             terminal.draw(|frame| view(&mut state, frame))?;
             state.needs_redraw = false;
+            last_draw_at = std::time::Instant::now();
         }
     }
 
@@ -799,12 +807,23 @@ fn normalized_selection(
 /// trimmed of trailing spaces (terminal cells are padded) and
 /// separated by `\n`. UTF-8 safe because `Cell::symbol()` returns a
 /// complete grapheme per cell.
+///
+/// Strips code-block decoration added by `widgets/markdown.rs`:
+///
+///   - Rows whose first non-space char is `╭` or `╰` are the top
+///     and bottom borders of a rendered code block — skipped
+///     entirely so the user's paste doesn't get `╭── rust ──` junk.
+///   - Rows starting with ` │ ` (space + U+2502 + space) are code
+///     content with a box-drawing gutter prefix — the prefix is
+///     stripped, indentation inside the prefix is preserved.
+///
+/// Everything else is passed through unchanged.
 fn extract_selection_text(
     buf: &ratatui::buffer::Buffer,
     start: (u16, u16),
     end: (u16, u16),
 ) -> String {
-    let mut out = String::new();
+    let mut rows: Vec<String> = Vec::new();
     let left_edge = buf.area.left();
     let right_edge = buf.area.right();
     let bottom_edge = buf.area.bottom();
@@ -813,23 +832,59 @@ fn extract_selection_text(
         if y >= bottom_edge {
             break;
         }
-        let x_start = if y == start.1 { start.0 } else { left_edge };
-        let x_end = if y == end.1 {
-            (end.0.saturating_add(1)).min(right_edge)
-        } else {
-            right_edge
-        };
+        // Always read the FULL row for decoration detection — the
+        // user might have dragged into the middle of a code block,
+        // and we still want to strip the `│ ` prefix even though
+        // they didn't select the leading cells.
         let mut row = String::new();
-        for x in x_start..x_end {
+        for x in left_edge..right_edge {
             row.push_str(buf[(x, y)].symbol());
         }
-        let trimmed = row.trim_end();
-        out.push_str(trimmed);
-        if y < end.1 && y + 1 < bottom_edge {
-            out.push('\n');
+        let row_trimmed_end = row.trim_end().to_string();
+
+        // Detect code-block borders (top: ╭, bottom: ╰) and skip.
+        let leading_non_space = row_trimmed_end.trim_start();
+        if leading_non_space.starts_with('\u{256d}') // ╭
+            || leading_non_space.starts_with('\u{2570}')
+        // ╰
+        {
+            continue;
+        }
+
+        // Detect code content rows: ` │ ` (space + │ + space) prefix.
+        // If the user's selection spans the prefix cells, we read the
+        // full row and strip it. If they dragged across only the
+        // code portion, the prefix isn't in `row_trimmed_end` yet so
+        // strip_prefix is a no-op.
+        let stripped = if let Some(rest) = row_trimmed_end.strip_prefix(" \u{2502} ") {
+            rest.to_string()
+        } else {
+            row_trimmed_end
+        };
+
+        // Now honor the user's actual column range for non-code rows.
+        // For code rows (which we already trimmed to full width), we
+        // preserve the whole content line because the user's intent
+        // when dragging code is "give me the code, not a fragment".
+        // For everything else, slice to the selected x range.
+        if row.starts_with(" \u{2502} ") {
+            rows.push(stripped);
+        } else {
+            let x_start = if y == start.1 { start.0 } else { left_edge };
+            let x_end = if y == end.1 {
+                (end.0.saturating_add(1)).min(right_edge)
+            } else {
+                right_edge
+            };
+            let mut partial = String::new();
+            for x in x_start..x_end {
+                partial.push_str(buf[(x, y)].symbol());
+            }
+            rows.push(partial.trim_end().to_string());
         }
     }
-    out
+
+    rows.join("\n")
 }
 
 /// Apply a REVERSED style modifier to every cell in the selection
