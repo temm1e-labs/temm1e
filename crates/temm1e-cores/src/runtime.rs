@@ -295,12 +295,40 @@ impl CoreRuntime {
                         })
                         .sum(),
                 };
-                text / 4 // rough token estimate
+                // Unicode-aware token estimate: count non-ASCII bytes from content
+                let non_ascii: usize = match &msg.content {
+                    MessageContent::Text(t) => t.as_bytes().iter().filter(|&&b| b > 127).count(),
+                    MessageContent::Parts(parts) => parts
+                        .iter()
+                        .map(|p| match p {
+                            ContentPart::Text { text } => {
+                                text.as_bytes().iter().filter(|&&b| b > 127).count()
+                            }
+                            _ => 0,
+                        })
+                        .sum(),
+                };
+                if text > 0 && non_ascii as f64 / text.max(1) as f64 > 0.3 {
+                    text / 2
+                } else {
+                    text / 4
+                }
             })
             .collect();
 
         // System prompt overhead (~estimate)
-        let system_overhead = self.system_prompt.len() / 4;
+        let sys_non_ascii = self
+            .system_prompt
+            .as_bytes()
+            .iter()
+            .filter(|&&b| b > 127)
+            .count();
+        let system_overhead = if sys_non_ascii as f64 / self.system_prompt.len().max(1) as f64 > 0.3
+        {
+            self.system_prompt.len() / 2
+        } else {
+            self.system_prompt.len() / 4
+        };
         let tool_defs_overhead = self.tools.len() * 100; // ~100 tokens per tool definition
         let available = self
             .max_context_tokens

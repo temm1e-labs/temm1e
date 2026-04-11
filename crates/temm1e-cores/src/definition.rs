@@ -76,7 +76,12 @@ pub fn parse_core_content(
     }
 
     // Warn if system prompt is over 800 tokens (~3200 chars)
-    let estimated_tokens = body.len() / 4;
+    let non_ascii = body.as_bytes().iter().filter(|&&b| b > 127).count();
+    let estimated_tokens = if non_ascii as f64 / body.len().max(1) as f64 > 0.3 {
+        body.len() / 2
+    } else {
+        body.len() / 4
+    };
     if estimated_tokens > 800 {
         tracing::warn!(
             core = %frontmatter.name,

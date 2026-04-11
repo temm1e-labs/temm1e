@@ -17,6 +17,7 @@ pub struct AnthropicProvider {
     keys: Vec<String>,
     key_index: AtomicUsize,
     base_url: String,
+    last_rotation: std::sync::Mutex<std::time::Instant>,
 }
 
 impl AnthropicProvider {
@@ -29,6 +30,9 @@ impl AnthropicProvider {
             keys: vec![api_key],
             key_index: AtomicUsize::new(0),
             base_url: "https://api.anthropic.com".to_string(),
+            last_rotation: std::sync::Mutex::new(
+                std::time::Instant::now() - std::time::Duration::from_secs(10),
+            ),
         }
     }
 
@@ -54,10 +58,19 @@ impl AnthropicProvider {
     }
 
     /// Advance to the next key (called on rate limit).
+    /// Skips rotation if the last rotation was less than 2 seconds ago
+    /// (all keys likely exhausted — cycling faster won't help).
     fn rotate_key(&self) {
         if self.keys.is_empty() {
             return;
         }
+        let mut last = self.last_rotation.lock().unwrap_or_else(|e| e.into_inner());
+        if last.elapsed() < std::time::Duration::from_secs(2) {
+            return;
+        }
+        *last = std::time::Instant::now();
+        drop(last);
+
         let old = self.key_index.fetch_add(1, Ordering::Relaxed);
         let new_idx = (old + 1) % self.keys.len();
         if self.keys.len() > 1 {

@@ -46,9 +46,19 @@ const MEMORY_BUDGET_FRACTION: f32 = 0.15;
 /// Fraction of total budget reserved for cross-task learnings.
 const LEARNING_BUDGET_FRACTION: f32 = 0.05;
 
-/// Estimate token count from a string (rough: 1 token ≈ 4 chars).
+/// Estimate token count from a string.
+///
+/// For ASCII-heavy text (English, code): uses `len / 4` (~4 chars per token).
+/// For non-ASCII-heavy text (CJK, Arabic): uses `len / 2` to avoid
+/// underestimation that causes context overflow on multi-byte scripts.
 pub(crate) fn estimate_tokens(s: &str) -> usize {
-    s.len() / 4
+    let non_ascii = s.as_bytes().iter().filter(|&&b| b > 127).count();
+    let ratio = non_ascii as f64 / s.len().max(1) as f64;
+    if ratio > 0.3 {
+        s.len() / 2
+    } else {
+        s.len() / 4
+    }
 }
 
 /// Approximate token cost per image for vision models.
