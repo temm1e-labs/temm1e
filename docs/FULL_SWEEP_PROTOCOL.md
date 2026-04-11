@@ -14,9 +14,89 @@ A failed task, a silent crash, a truncated response — every one of these is a 
 
 1. Every fix must have a research artifact written BEFORE any code changes.
 2. The artifact must include: full code path analysis, exact files/lines to change, behavioral diff (before vs after), and E2E test scenarios.
-3. If confidence is not 100% after research — the fix goes on the **Deferred List** and is revisited in the next sweep or when more context is available.
+3. If confidence is not 100% after research — the fix goes on the **Deferred List** and is revisited later.
 4. Deferred items are tracked in the sweep's `fix-plan.md` with the reason for deferral and what's needed to reach 100% confidence.
 5. There is no pressure to fix everything in one sweep. A fix that introduces a regression is worse than the original bug.
+
+---
+
+## Sweep Execution Workflow
+
+The sweep follows a strict pipeline. Every finding goes through this flow:
+
+```
+SCAN → CLASSIFY → RESEARCH → DECIDE → IMPLEMENT → TEST → COMMIT
+                                ↓
+                          DEFER or BIN
+```
+
+### Step 1: Scan (Phases 1-10)
+Run all 10 phases. Collect raw findings with the 15-dimension risk matrix.
+
+### Step 2: Triage into Priority Waves
+- **Wave 1 (P0):** Emergency fixes — implement first, each with own commit.
+- **Wave 2 (P1):** Critical fixes — before next release.
+- **Wave 3 (P2):** High — within 1 week.
+- **Wave 4 (P3):** Medium — within 1 sprint.
+- **Wave 5 (P4):** Low — opportunistic.
+
+### Step 3: Execute Waves (TRIVIAL items)
+Within each wave, implement **TRIVIAL fixes first** (1-5 lines, single file, no behavioral change for normal operation). These can be implemented immediately after reading the code — no full research artifact needed.
+
+After each fix: `cargo check && cargo clippy && cargo fmt --check && cargo test`.
+
+### Step 4: Research (MODERATE/COMPLEX items)
+For MODERATE and COMPLEX fixes:
+1. Launch deep research agents (parallel, one per fix).
+2. Each agent reads the ACTUAL code — not just grep patterns.
+3. Agent reports: exact code paths, all callers, all edge cases, proposed edit, risk assessment.
+4. Write research artifacts to `docs/full-sweep-<N>/`.
+
+### Step 5: Decide — IMPLEMENT, DEFER, or BIN
+
+**IMPLEMENT** (100% confidence, 0% risk):
+- Full code path understood.
+- Exact edit known (old_string → new_string with file:line).
+- All callers mapped and verified unaffected.
+- No behavioral change for existing correct usage.
+- Apply the fix, run all 4 compilation gates.
+
+**DEFER** (high confidence but not 100%):
+- Research is complete but the fix touches too many sites, needs E2E testing with live services, or requires a coordinated multi-file change that can't be verified in a code-only session.
+- Record in `fix-plan.md` with confidence % and specific blocker.
+- Revisit in next sweep or when blocker is resolved.
+
+**BIN** (proven impossible to reach 100/0):
+- Research proves the fix is architecturally impossible, would cause behavioral regression, provides negligible value, or has zero-risk alternatives that were already applied.
+- Record in `fix-plan.md` with full rationale.
+- A binned item can be **rescued** by re-research — ask "can this be done differently at 100/0?"
+
+### Step 6: Process ALL deferred items
+After initial waves complete, revisit every deferred item:
+1. Launch focused research agents for each deferred item.
+2. Determine: has the blocker been resolved? Is there a simpler approach?
+3. If 100/0 is reached → implement.
+4. If still not → remains deferred for next sweep.
+
+### Step 7: Final effort on binned items
+Before closing the sweep, re-examine every binned item one more time:
+- Ask: "Is there a DIFFERENT approach that reaches 100/0?"
+- Often, the original approach was impossible but a simpler alternative exists.
+- Examples from Sweep 1: chmod 600 instead of vault encryption, provenance text instead of role change, cache eviction instead of full ResilientMemory wiring.
+
+### Step 8: Exhaustive self-test
+After all fixes land:
+1. Run `cargo test --workspace` — full unit test suite.
+2. Build release binary.
+3. Run 10-turn CLI self-test (provider connectivity, memory recall, budget tracking).
+4. Verify sweep-specific items from logs (WAL mode, error counts, etc.).
+5. Write test report to `docs/full-sweep-<N>/test-report.md`.
+
+### Step 9: Create PR and merge
+1. Verify clean git status.
+2. Create PR with full summary of findings, fixes, deferred, and binned items.
+3. Wait for CI to pass.
+4. Merge.
 
 ---
 
