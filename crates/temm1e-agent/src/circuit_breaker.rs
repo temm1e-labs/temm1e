@@ -99,13 +99,25 @@ impl CircuitBreaker {
                     }
                 };
                 if should_try {
-                    self.state
-                        .store(CircuitState::HalfOpen as u8, Ordering::SeqCst);
-                    info!(
-                        timeout_secs = timeout.as_secs(),
-                        "Circuit breaker transitioning from Open to HalfOpen — allowing test request"
+                    // CAS: only one caller transitions Open → HalfOpen.
+                    // Losers see Err (another caller already transitioned)
+                    // and return false — only one test request goes through.
+                    let transitioned = self.state.compare_exchange(
+                        CircuitState::Open as u8,
+                        CircuitState::HalfOpen as u8,
+                        Ordering::SeqCst,
+                        Ordering::SeqCst,
                     );
-                    true
+                    if transitioned.is_ok() {
+                        info!(
+                            timeout_secs = timeout.as_secs(),
+                            "Circuit breaker transitioning from Open to HalfOpen — allowing test request"
+                        );
+                        true
+                    } else {
+                        // Another caller already transitioned — reject this one.
+                        false
+                    }
                 } else {
                     false
                 }
