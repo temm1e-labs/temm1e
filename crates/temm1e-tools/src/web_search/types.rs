@@ -26,9 +26,18 @@ pub const DEFAULT_BACKEND_TIMEOUT_SECS: u64 = 8;
 pub const DEFAULT_CACHE_TTL_SECS: u64 = 300;
 pub const DEFAULT_CACHE_CAPACITY: usize = 256;
 
-/// Per-backend HTTP body cap (matches PR #42 precedent for safety).
+/// Per-backend HTTP body cap.
 /// Bounds memory pressure during HTTP read, before any parsing.
-pub const MAX_BACKEND_RESPONSE_BYTES: usize = 64 * 1024;
+///
+/// **Why 512 KB, not 64 KB:** GitHub's `/search/repositories` returns ~5-8 KB
+/// per repo with full metadata (owner, license, topics, URLs, dates). Even at
+/// 20 results that's 100-160 KB. Brave can return similar. Cutting mid-response
+/// at 64 KB produced `EOF while parsing a string` errors in self-test. 512 KB
+/// covers realistic worst cases (50 results × 10 KB) with headroom, and still
+/// bounds memory pressure for the Tokio runtime. Beyond 512 KB indicates an
+/// API returning unexpectedly verbose data — we'd rather fail fast than
+/// accumulate multi-MB strings per call.
+pub const MAX_BACKEND_RESPONSE_BYTES: usize = 512 * 1024;
 
 /// Multiplier from `max_results` to per-backend raw hit cap.
 /// Each backend returns at most `max_results × this` hits before merge.

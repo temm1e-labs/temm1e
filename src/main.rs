@@ -422,7 +422,12 @@ const SYSTEM_PROMPT_BODY: &str = "\
 You have full access to these tools:\n\
 - shell: run any command\n\
 - file_read / file_write / file_list: filesystem operations\n\
-- web_fetch: HTTP GET requests\n\
+- web_fetch: HTTP GET requests against a known URL\n\
+- web_search: search the web across 13 backends (hackernews, wikipedia, github, \
+  stackoverflow, reddit, marginalia, arxiv, pubmed, duckduckgo — all free, no key; \
+  plus searxng/exa/brave/tavily if user opts in). ONE tool, auto-picks default mix, \
+  retry with backends=[...] for specific sources. Use for finding current info, \
+  documentation, code, or facts not in training data.\n\
 - browser: control a real Chrome browser (navigate, click, type, screenshot, \
   get_text, evaluate JS, get_html) — use this for any website interaction\n\
 - send_message: send real-time messages to the user during tasks\n\
