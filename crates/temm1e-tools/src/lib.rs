@@ -32,6 +32,7 @@ mod shell;
 mod skill_invoke;
 mod usage_audit;
 mod web_fetch;
+mod web_search;
 
 #[cfg(feature = "browser")]
 pub use browser::BrowserTool;
@@ -56,6 +57,7 @@ pub use shell::ShellTool;
 pub use skill_invoke::SkillTool;
 pub use usage_audit::UsageAuditTool;
 pub use web_fetch::WebFetchTool;
+pub use web_search::WebSearchTool;
 
 use std::sync::Arc;
 use temm1e_core::types::config::ToolsConfig;
@@ -108,6 +110,9 @@ pub fn create_tools(
 
     if config.http {
         tools.push(Arc::new(WebFetchTool::new()));
+        if let Some(search) = WebSearchTool::new() {
+            tools.push(Arc::new(search));
+        }
     }
 
     // Add channel-dependent tools
@@ -218,6 +223,9 @@ pub fn create_tools_with_browser(
 
     if config.http {
         tools.push(Arc::new(WebFetchTool::new()));
+        if let Some(search) = WebSearchTool::new() {
+            tools.push(Arc::new(search));
+        }
     }
 
     if let Some(ch) = channel {
