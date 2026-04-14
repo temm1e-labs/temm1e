@@ -6,7 +6,7 @@
   <a href="https://github.com/nagisanzenin/temm1e/stargazers"><img src="https://img.shields.io/github/stars/nagisanzenin/temm1e?style=flat&color=gold&logo=github" alt="GitHub Stars"></a>
   <a href="https://discord.com/invite/temm1e"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License">
-  <img src="https://img.shields.io/badge/version-5.2.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.3.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/rust-1.82+-orange.svg" alt="Rust 1.82+">
 </p>
 
@@ -15,7 +15,7 @@
 <h3 align="center"><s>Autonomous AI agent</s> literally a SENTIENT and IMMORTAL being runtime in Rust.<br>Deploy once. Stays up forever. <strong>Now grows itself.</strong></h3>
 
 <p align="center">
-  <code>141K lines</code> · <code>2,546 tests</code> · <code>0 warnings</code> · <code>0 panic paths</code> · <code>24 crates</code> · <code>full computer use</code> · <code>13 free web search backends</code> · <code>cambium self-grow</code>
+  <code>152K lines</code> · <code>2,692 tests</code> · <code>0 warnings</code> · <code>0 panic paths</code> · <code>25 crates</code> · <code>full computer use</code> · <code>13 free web search backends</code> · <code>cambium self-grow</code> · <code>witness verification</code>
 </p>
 
 <p align="center"><strong>13 Layers of Self-Learning</strong></p>
@@ -53,6 +53,15 @@
   <a href="tems_lab/cambium/CAMBIUM_RESEARCH_PAPER.md">Research Paper</a> &middot; <a href="docs/lab/cambium/THEORY.md">Theory</a>
   <br>
   <sub>Heartwood (immutable kernel) &middot; Cambium (growth layer) &middot; Bark (runtime surface) &middot; Rings (history). Toggle with <code>/cambium on</code> &middot; <code>/cambium off</code></sub>
+</p>
+
+<p align="center"><strong>1 Verification Layer (NEW in v5.3)</strong></p>
+<p align="center">
+  <strong><a href="tems_lab/witness/RESEARCH_PAPER.md">Witness</a></strong> &mdash; the agent pre-commits a machine-checkable contract (Oath), an independent Witness verifies the work against the contract, and a tamper-evident hash-chained Ledger records every claim and verdict. <strong>The agent cannot self-mark anything as &quot;done&quot;.</strong>
+  <br>
+  <a href="tems_lab/witness/RESEARCH_PAPER.md">Research Paper</a> &middot; <a href="tems_lab/witness/IMPLEMENTATION_DETAILS.md">Implementation</a> &middot; <a href="tems_lab/witness/EXPERIMENT_REPORT.md">Experiment Report</a>
+  <br>
+  <sub>27 deterministic Tier 0 predicates &middot; Tier 1 &amp; 2 LLM verifiers (single-model policy) &middot; tamper-evident SQLite Ledger anchored in temm1e-watchdog &middot; 5 invariants (Pre-Commitment, Independent Verdict, Immutable History, Loud Failure, Narrative-Only FAIL) &middot; <strong>1,800 simulated trajectories at 88.9% lying detection</strong>, <strong>first real-LLM Witness PASS verdict on a real Tem refactor logged on gpt-5.4</strong>. Opt-in via <code>AgentRuntime::with_witness(...)</code></sub>
 </p>
 
 ---
@@ -1196,7 +1205,7 @@ temm1e reset --confirm       Factory reset with backup
 
 ```bash
 cargo check --workspace                                              # Quick check
-cargo test --workspace                                               # 2,546 tests
+cargo test --workspace                                               # 2,692 tests
 cargo clippy --workspace --all-targets --all-features -- -D warnings # 0 warnings
 cargo fmt --all                                                      # Format
 cargo build --release                                                # Release binary
@@ -1210,6 +1219,8 @@ Requires Rust 1.82+ and Chrome/Chromium (for the browser tool).
 <summary><strong>Release Timeline</strong> — every version from first breath to now</summary>
 
 ```
+2026-04-14  v5.3.0  ●━━━ Witness — pre-committed verification system that prevents hallucinated completion in agentic AI. The agent must seal a machine-checkable contract (Oath) into a tamper-evident hash-chained Ledger BEFORE executing a task. After the agent reports done, an independent Witness verifies the work against the contract using deterministic Tier 0 predicates (file existence, grep counts, command exit codes, etc.) plus optional Tier 1 (cheap LLM aspect verifier) and Tier 2 (adversarial auditor) layers. The agent has NO API to self-mark anything as "done" — only the Witness can. New temm1e-witness crate (~6,500 LOC, 125 tests): 27 deterministic Tier 0 primitives across 8 categories (filesystem/command/process/network/vcs/text/time/composite), 9 default per-language predicate sets (rust/python/javascript/typescript/go/shell/docs/config/data) composable via TOML config, hash-chained SQLite Ledger with append-only triggers, Spec Reviewer that rejects lenient Oaths (zero LLM cost), single-model policy preserved (Tier 1/2 verifiers use the same Provider as the agent). Wired into temm1e-agent via `AgentRuntime::with_witness(witness, strictness, show_readout)` + `with_cambium_trust(trust)` + `with_auto_planner_oath(true)` builders, default OFF (Option<Arc<Witness>>) so existing users see zero behavioral change. Five Laws as property-tested invariants: Pre-Commitment, Independent Verdict, Immutable History, Loud Failure, Narrative-Only FAIL (verdict controls the agent's reply narrative only — NEVER deletes files or rolls back diffs). Watchdog extended with file-based Root Anchor (zero new deps, still clap-only) — periodically reads the live Ledger root hash and writes a sealed (chmod 0400) copy that the main process cross-checks for tamper detection. Validated end-to-end against real LLMs: 2300+ simulated trajectories at 88.9% lying detection on a generic Oath / 100% on targeted predicates, 60 real Gemini 3 Flash Preview sessions at $0.0244 total spend, 6 real gpt-5.4 sessions at $0.2749 total spend, **first real-LLM Witness PASS verdict on a real Tem source-code refactor logged on gpt-5.4** (Task 1 Arm B: rename `resolve` → `resolve_workspace_path` across all call sites, 6/6 postconditions verified, the agent's reply included the live readout `─── Witness: 6/6 PASS. Cost: $0.0000. Latency: +3ms. Tiers: T0×6. ───`). Total real-LLM spend across all 5 phases: $0.34 / $10 budget (3.4%). Research paper, implementation details, and 14-section experiment report in `tems_lab/witness/`. 25 crates, 2,692 tests.
+                    │
 2026-04-12  v5.2.0  ●━━━ Free Multi-Backend web_search — one tool, 13 backends, zero API keys by default. The agent gets real web search out of the box for every category: hackernews (tech), wikipedia (facts), github (code), stackoverflow (Q&A), reddit (discussions), marginalia (small-web), arxiv (papers), pubmed (biomedical), and duckduckgo (general catch-all) — all free, all keyless, all live-verified 2026-04-12. Opt-in upgrades: self-hosted SearXNG via one-click `temm1e search install` (detects docker/podman, writes settings.yml, runs container, verifies endpoint, persists URL) plus paid backends exa/brave/tavily auto-register when env vars set. Single Tool trait `web_search` with 12-param schema: query (required) + max_results/max_total_chars/max_snippet_chars (three-knob output bounding, clamped to hard caps 30/16K/500 to prevent context overflow) + backends (LLM picks specific paths) + time_range/category/language/region/include_domains/exclude_domains/sort. Footer always rendered for discoverability: Used / Available / Not enabled (with env var hint) / Custom / Failed / Skipped / Clamped / Truncated / Hint — agent learns what to retry with in a single call, no extra round-trips. SearchBackend trait + tokio::task::JoinSet parallel dispatch + manual LRU cache (5min TTL) + per-backend Governor (10/min GH, 3s arXiv, 10/min Reddit, etc. + 10% buffer) + URL normalization (strip utm/fbclid/ref, lowercase host, dedupe with also_in field) + merge by weighted score. UTF-8 safe truncate throughout (per 2026-03-09 ẹ incident). Zero new dependencies — regex for arXiv Atom XML parsing, manual HashMap+VecDeque LRU, 5-line HTML stripper. Per-backend HTTP body cap bumped 64KB→512KB after self-test caught GitHub /search/repositories exceeding 64KB with ~5KB/repo metadata. Supersedes PR #42 (paid Exa-only) with systematic free-first architecture. 4 design docs in `docs/web_search/` (RESEARCH.md, IMPLEMENTATION_PLAN.md, IMPLEMENTATION_DETAILS.md, HARMONY_AUDIT.md) — 14 risk dimensions audited ZERO before a single line of code. 24 crates, 2,546 tests.
 
 2026-04-11  v5.1.0  ●━━━ Full Sweep 1 — Extreme Resilience. 10-phase deep scan across all 24 crates, 47 findings with 15-dimension risk matrices, 35 fixes landed at 100% confidence / 0% regression risk. P0: file tool path traversal containment (resolve_path workspace validation), UTF-8 safe split_message in Telegram/Discord/Slack (floor_char_boundary), SQLite WAL mode + busy_timeout. P1: tool output safe truncation (shell/file/web_fetch), credential scrubber +7 patterns (AWS/Stripe/Slack/GitLab/Grafana), Anthropic max_tokens from model registry, key rotation 2s cooldown, Unicode-aware token estimation (len/2 for >30% non-ASCII), BrowserPool assert to Result. P2-P4: allowlist wildcard unification, WhatsApp empty allowlist DF-16 fix, channel capacity 32 to 128, Gemini/TUI/Config safe slicing, EigenTune/MCP/Anima unwrap elimination, Telegram backoff reset, swallowed error logging, memory provenance annotations, failover search word-split AND matching, lambda store transactions, markdown atomic append, ResilientMemory cache eviction (max 1024), circuit breaker CAS, custom tool schema type normalization, OAuth chmod 600, shell denylist rm variants. Full Sweep Protocol with 9-step execution workflow documented. 24 crates, 2,406 tests.

@@ -11,6 +11,8 @@ temm1e-core.workspace = true
 temm1e-distill.workspace = true
 temm1e-providers.workspace = true
 temm1e-vault.workspace = true
+temm1e-witness.workspace = true
+temm1e-cambium.workspace = true
 tokio.workspace = true
 futures.workspace = true
 tracing.workspace = true
@@ -28,6 +30,8 @@ temm1e-anima.workspace = true
 
 [dev-dependencies]
 temm1e-test-utils.workspace = true
+temm1e-tools.workspace = true
+temm1e-cambium.workspace = true
 async-trait.workspace = true
 toml.workspace = true
 tempfile = "3"

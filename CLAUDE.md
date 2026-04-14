@@ -4,7 +4,7 @@
 
 TEMM1E is a cloud-native Rust AI agent runtime. It connects to messaging channels (Telegram, Discord, WhatsApp, Slack, CLI), routes messages through an agent loop that calls AI providers (Anthropic, OpenAI-compatible), executes tools (shell, browser, file ops), and persists conversation history to memory backends (SQLite, Markdown).
 
-The codebase is a Cargo workspace with 23 crates plus a root `temm1e` binary plus a separate `temm1e-watchdog` supervisor binary (24 crates total).
+The codebase is a Cargo workspace with 24 crates plus a root `temm1e` binary plus a separate `temm1e-watchdog` supervisor binary (25 crates total).
 
 ## Build commands
 
@@ -74,7 +74,8 @@ crates/
   temm1e-anima       -- Tem Anima: emotional intelligence, user profiling, personality system
   temm1e-cores       -- TemDOS: specialist sub-agent cores (architecture, code-review, test, debug, web, desktop, research, creative)
   temm1e-cambium     -- Cambium: gap-driven self-grow (zone_checker, trust, budget, history, sandbox, pipeline, deploy)
-  temm1e-watchdog    -- Immutable supervisor binary that monitors temm1e PID and restarts on crash. Part of Cambium's immutable kernel.
+  temm1e-watchdog    -- Immutable supervisor binary that monitors temm1e PID and restarts on crash. Part of Cambium's immutable kernel. Also hosts the Witness Root Anchor: periodically reads the live Ledger root hash and writes a sealed (chmod 0400) copy that the main process cross-checks for tamper detection.
+  temm1e-witness     -- Witness verification system: pre-committed Oaths, hash-chained tamper-evident Ledger, three-tier predicate verifier (deterministic Tier 0 + LLM-backed Tier 1/2). Wires into AgentRuntime via with_witness(); enforces the Five Laws (Pre-Commitment, Independent Verdict, Immutable History, Loud Failure, Narrative-Only FAIL); validated end-to-end against gpt-5.4 + Gemini 3 Flash Preview on real Tem source-code refactors. See tems_lab/witness/RESEARCH_PAPER.md for the theory and tems_lab/witness/EXPERIMENT_REPORT.md for empirical results.
   temm1e-mcp         -- MCP client (stdio + HTTP, 14-server registry)
   temm1e-automation  -- Cron jobs and scheduled tasks
   temm1e-observable  -- OpenTelemetry tracing and metrics

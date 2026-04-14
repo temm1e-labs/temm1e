@@ -1,0 +1,145 @@
+{
+  "model": "gpt-5.4",
+  "budget_ceiling_usd": 5.0,
+  "tasks_attempted": 3,
+  "tasks_completed": 3,
+  "aborted_due_to_budget": false,
+  "cumulative_cost_usd": 0.27485125,
+  "per_task": [
+    {
+      "task": "rename_helper_in_predicates",
+      "arm_a": {
+        "arm": "A",
+        "final_reply": "",
+        "files_present": [
+          "src/predicates.rs"
+        ],
+        "file_size_after": 33066,
+        "file_size_delta": -14987,
+        "witness_outcome": "Fail",
+        "witness_pass": 5,
+        "witness_fail": 1,
+        "witness_inconclusive": 0,
+        "api_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0.0,
+        "latency_ms": 360003,
+        "witness_rewrote_reply": false,
+        "error": "timeout"
+      },
+      "arm_b": {
+        "arm": "B",
+        "final_reply": "done\n\n─── Witness: 6/6 PASS. Cost: $0.0000. Latency: +3ms. Tiers: T0×6. ───\n\n_Saving a new blueprint for this workflow — future runs will be faster._",
+        "files_present": [
+          "src/predicates.rs"
+        ],
+        "file_size_after": 31164,
+        "file_size_delta": -16889,
+        "witness_outcome": "Pass",
+        "witness_pass": 6,
+        "witness_fail": 0,
+        "witness_inconclusive": 0,
+        "api_calls": 10,
+        "input_tokens": 45196,
+        "output_tokens": 9367,
+        "cost_usd": 0.15016499999999997,
+        "latency_ms": 292020,
+        "witness_rewrote_reply": false,
+        "error": null
+      },
+      "cost_overhead_usd": 0.15016499999999997,
+      "latency_overhead_ms": -67983
+    },
+    {
+      "task": "add_doc_to_predicate_checkers",
+      "arm_a": {
+        "arm": "A",
+        "final_reply": "",
+        "files_present": [
+          "src/predicates.rs"
+        ],
+        "file_size_after": 48053,
+        "file_size_delta": 0,
+        "witness_outcome": "Fail",
+        "witness_pass": 2,
+        "witness_fail": 2,
+        "witness_inconclusive": 0,
+        "api_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0.0,
+        "latency_ms": 360006,
+        "witness_rewrote_reply": false,
+        "error": "timeout"
+      },
+      "arm_b": {
+        "arm": "B",
+        "final_reply": "",
+        "files_present": [
+          "src/predicates.rs"
+        ],
+        "file_size_after": 48053,
+        "file_size_delta": 0,
+        "witness_outcome": "Fail",
+        "witness_pass": 2,
+        "witness_fail": 2,
+        "witness_inconclusive": 0,
+        "api_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0.0,
+        "latency_ms": 287334,
+        "witness_rewrote_reply": false,
+        "error": "agent error: Provider error: OpenAI-compat API error (500 Internal Server Error): {\n  \"error\": {\n    \"message\": \"The server had an error while processing your request. Sorry about that!\",\n    \"type\": \"server_error\",\n    \"param\": null,\n    \"code\": null\n  }\n}"
+      },
+      "cost_overhead_usd": 0.0,
+      "latency_overhead_ms": -72672
+    },
+    {
+      "task": "add_check_predicate_dispatch_wrapper",
+      "arm_a": {
+        "arm": "A",
+        "final_reply": "done\n\n_Saving a new blueprint for this workflow — future runs will be faster._",
+        "files_present": [
+          "src/predicates.rs"
+        ],
+        "file_size_after": 33800,
+        "file_size_delta": -14253,
+        "witness_outcome": "seal_error:lenient oath: code-producing task must include a wiring check (GrepCountAtLeast n>=2)",
+        "witness_pass": 0,
+        "witness_fail": 0,
+        "witness_inconclusive": 0,
+        "api_calls": 7,
+        "input_tokens": 23309,
+        "output_tokens": 9555,
+        "cost_usd": 0.12468625,
+        "latency_ms": 275259,
+        "witness_rewrote_reply": false,
+        "error": null
+      },
+      "arm_b": {
+        "arm": "B",
+        "final_reply": "",
+        "files_present": [
+          "src/predicates.rs"
+        ],
+        "file_size_after": 37560,
+        "file_size_delta": -10493,
+        "witness_outcome": "no_active_oath",
+        "witness_pass": 0,
+        "witness_fail": 0,
+        "witness_inconclusive": 0,
+        "api_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0.0,
+        "latency_ms": 360003,
+        "witness_rewrote_reply": false,
+        "error": "timeout"
+      },
+      "cost_overhead_usd": -0.12468625,
+      "latency_overhead_ms": 84744
+    }
+  ]
+}

@@ -26,10 +26,11 @@ members = [
     "crates/temm1e-cores",
     "crates/temm1e-cambium",
     "crates/temm1e-watchdog",
+    "crates/temm1e-witness",
 ]
 
 [workspace.package]
-version = "5.2.0"
+version = "5.3.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/nagisanzenin/temm1e"
@@ -146,6 +147,7 @@ temm1e-perpetuum = { path = "crates/temm1e-perpetuum" }
 temm1e-anima = { path = "crates/temm1e-anima" }
 temm1e-cores = { path = "crates/temm1e-cores" }
 temm1e-cambium = { path = "crates/temm1e-cambium" }
+temm1e-witness = { path = "crates/temm1e-witness" }
 
 [package]
 name = "temm1e"

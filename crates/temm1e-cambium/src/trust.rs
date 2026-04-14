@@ -78,6 +78,30 @@ impl TrustEngine {
         }
     }
 
+    /// Record a Witness verdict outcome. Evidence-bound trust: the caller
+    /// passes a boolean `passed` derived from a Witness `Verdict::is_pass()`
+    /// plus the trust level at which the work was performed. `true` calls
+    /// `record_success(level)`; `false` calls `record_failure()`.
+    ///
+    /// This is the integration point for Witness Phase 2+. Keeping it as a
+    /// plain `bool` parameter avoids cambium depending on the witness crate
+    /// — the caller (e.g. the agent runtime hook) is responsible for
+    /// translating `Verdict` → `bool`.
+    ///
+    /// `Inconclusive` outcomes should NOT be mapped to this method. They
+    /// represent "Witness couldn't decide" and should not move trust in
+    /// either direction. The caller should skip `record_verdict` on
+    /// inconclusive.
+    pub fn record_verdict(&mut self, passed: bool, level: TrustLevel) {
+        if passed {
+            tracing::debug!(?level, "cambium trust: recording PASS verdict from witness");
+            self.record_success(level);
+        } else {
+            tracing::debug!(?level, "cambium trust: recording FAIL verdict from witness");
+            self.record_failure();
+        }
+    }
+
     /// Check whether the given trust level can operate autonomously.
     ///
     /// - Level 0 (Immutable): always `false` -- cannot be modified at all.
@@ -221,6 +245,46 @@ mod tests {
         engine.record_success(TrustLevel::ApprovalRequired);
         assert_eq!(engine.state().level3_streak, 0);
         assert_eq!(engine.state().level2_streak, 0);
+    }
+
+    // ── record_verdict (Witness integration) ────────────────────────
+
+    #[test]
+    fn record_verdict_pass_increments_level3_streak() {
+        let mut engine = fresh_engine();
+        engine.record_verdict(true, TrustLevel::AutonomousBasic);
+        assert_eq!(engine.state().level3_streak, 1);
+        assert_eq!(engine.state().recent_rollbacks, 0);
+    }
+
+    #[test]
+    fn record_verdict_fail_resets_streak_and_increments_rollbacks() {
+        let mut engine = fresh_engine();
+        for _ in 0..5 {
+            engine.record_success(TrustLevel::AutonomousBasic);
+        }
+        assert_eq!(engine.state().level3_streak, 5);
+        engine.record_verdict(false, TrustLevel::AutonomousBasic);
+        assert_eq!(engine.state().level3_streak, 0);
+        assert_eq!(engine.state().recent_rollbacks, 1);
+    }
+
+    #[test]
+    fn record_verdict_pass_after_failures_rebuilds_streak() {
+        let mut engine = fresh_engine();
+        engine.record_verdict(false, TrustLevel::AutonomousBasic);
+        engine.record_verdict(true, TrustLevel::AutonomousBasic);
+        engine.record_verdict(true, TrustLevel::AutonomousBasic);
+        assert_eq!(engine.state().level3_streak, 2);
+    }
+
+    #[test]
+    fn record_verdict_can_graduate_level3_autonomous() {
+        let mut engine = fresh_engine();
+        for _ in 0..10 {
+            engine.record_verdict(true, TrustLevel::AutonomousBasic);
+        }
+        assert!(engine.state().level3_autonomous);
     }
 
     #[test]

@@ -34,7 +34,7 @@
 //! ```
 
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -78,6 +78,25 @@ struct Args {
     /// Run one cycle and exit. Used for tests.
     #[arg(long, hide = true)]
     once: bool,
+
+    /// Path to the Witness live root hash file (written by the main process
+    /// after every ledger append). If provided, the watchdog spawns a
+    /// background thread that periodically reads this file and seals a
+    /// read-only copy at `witness_sealed_path`. The main process then
+    /// cross-checks the sealed copy before trusting any verdict — a
+    /// mismatch is a tamper alarm.
+    #[arg(long)]
+    witness_root_path: Option<PathBuf>,
+
+    /// Path where the watchdog writes the sealed (read-only) copy of the
+    /// witness root hash. If omitted, defaults to `<witness_root_path>.sealed`.
+    #[arg(long)]
+    witness_sealed_path: Option<PathBuf>,
+
+    /// How often the root anchor thread re-reads and re-seals the root
+    /// hash, in seconds.
+    #[arg(long, default_value = "5")]
+    witness_anchor_interval_secs: u64,
 }
 
 fn main() -> std::process::ExitCode {
@@ -89,8 +108,32 @@ fn main() -> std::process::ExitCode {
     eprintln!("  interval:            {}s", args.interval);
     eprintln!("  max_restarts:        {}", args.max_restarts);
     eprintln!("  restart_window_secs: {}s", args.restart_window_secs);
+    if let Some(p) = &args.witness_root_path {
+        eprintln!("  witness_root_path:   {}", p.display());
+        let sealed = args
+            .witness_sealed_path
+            .clone()
+            .unwrap_or_else(|| default_sealed_path(p));
+        eprintln!("  witness_sealed_path: {}", sealed.display());
+        eprintln!(
+            "  witness_interval:    {}s",
+            args.witness_anchor_interval_secs
+        );
+    }
 
     let stop_flag = Arc::new(AtomicBool::new(false));
+    let anchor_stop = stop_flag.clone();
+    if let Some(live_path) = args.witness_root_path.clone() {
+        let sealed_path = args
+            .witness_sealed_path
+            .clone()
+            .unwrap_or_else(|| default_sealed_path(&live_path));
+        let interval = args.witness_anchor_interval_secs.max(1);
+        thread::spawn(move || {
+            root_anchor_loop(live_path, sealed_path, interval, anchor_stop);
+        });
+    }
+
     let stop_flag_for_handler = stop_flag.clone();
     if let Err(e) = ctrlc_compatible(move || {
         eprintln!("temm1e-watchdog: signal received, exiting");
@@ -180,6 +223,107 @@ fn is_process_alive(pid: u32) -> bool {
             .map(|o| String::from_utf8_lossy(&o.stdout).contains(&pid.to_string()))
             .unwrap_or(false)
     }
+}
+
+/// Default sealed path when the user doesn't supply one: append `.sealed`
+/// to the live root path.
+fn default_sealed_path(live_path: &Path) -> PathBuf {
+    let mut s = live_path.as_os_str().to_owned();
+    s.push(".sealed");
+    PathBuf::from(s)
+}
+
+/// The Witness Root Anchor loop.
+///
+/// Periodically reads the live root hash file (written by the main process
+/// after every ledger append) and copies it to a read-only sealed path.
+/// The main process then cross-checks the sealed copy before trusting any
+/// verdict — a mismatch indicates tampering.
+///
+/// This runs in a separate OS thread, completely independent of the PID
+/// monitoring loop. If the anchor loop ever panics, the PID monitor keeps
+/// running (and vice versa).
+fn root_anchor_loop(
+    live_path: PathBuf,
+    sealed_path: PathBuf,
+    interval_secs: u64,
+    stop: Arc<AtomicBool>,
+) {
+    eprintln!("temm1e-watchdog: root anchor thread starting");
+    while !stop.load(Ordering::SeqCst) {
+        match std::fs::read(&live_path) {
+            Ok(bytes) => {
+                if let Err(e) = write_sealed(&sealed_path, &bytes) {
+                    eprintln!("temm1e-watchdog: seal write failed: {e}");
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Main process hasn't initialized the ledger yet; wait.
+            }
+            Err(e) => {
+                eprintln!("temm1e-watchdog: live root read failed: {e}");
+            }
+        }
+        thread::sleep(Duration::from_secs(interval_secs));
+    }
+    eprintln!("temm1e-watchdog: root anchor thread exiting");
+}
+
+/// Write `bytes` to `sealed_path` atomically and mark it read-only.
+/// Uses the tmp+rename pattern so a reader never sees a partial write.
+fn write_sealed(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let tmp = {
+        let mut s = path.as_os_str().to_owned();
+        s.push(".tmp");
+        PathBuf::from(s)
+    };
+    // Ensure parent directory exists.
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&tmp, bytes)?;
+    set_readonly(&tmp)?;
+    // The final destination must be writable first if we want to replace it.
+    // macOS/Linux `rename` allows replacing an existing file regardless of
+    // the destination's permissions — but Linux's default umask preserves
+    // source perms after rename, so we set readonly BEFORE rename.
+    if path.exists() {
+        // Temporarily make the destination writable so we can replace it.
+        let _ = unset_readonly(path);
+    }
+    std::fs::rename(&tmp, path)?;
+    set_readonly(path)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_readonly(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut perms = std::fs::metadata(path)?.permissions();
+    perms.set_mode(0o400);
+    std::fs::set_permissions(path, perms)
+}
+
+#[cfg(windows)]
+fn set_readonly(path: &Path) -> std::io::Result<()> {
+    let mut perms = std::fs::metadata(path)?.permissions();
+    perms.set_readonly(true);
+    std::fs::set_permissions(path, perms)
+}
+
+#[cfg(unix)]
+fn unset_readonly(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut perms = std::fs::metadata(path)?.permissions();
+    perms.set_mode(0o600);
+    std::fs::set_permissions(path, perms)
+}
+
+#[cfg(windows)]
+fn unset_readonly(path: &Path) -> std::io::Result<()> {
+    let mut perms = std::fs::metadata(path)?.permissions();
+    perms.set_readonly(false);
+    std::fs::set_permissions(path, perms)
 }
 
 /// Spawn the binary detached and write its PID to the PID file.
@@ -342,6 +486,140 @@ mod tests {
         let result = restart_binary(&bin, "start", &pid_file);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("does not exist"));
+    }
+
+    #[test]
+    fn default_sealed_path_appends_suffix() {
+        let live = PathBuf::from("/tmp/witness_root.hex");
+        let sealed = default_sealed_path(&live);
+        assert_eq!(sealed, PathBuf::from("/tmp/witness_root.hex.sealed"));
+    }
+
+    #[test]
+    fn write_sealed_creates_read_only_file() {
+        let tmp = tempdir().unwrap();
+        let sealed = tmp.path().join("witness_root.sealed");
+        write_sealed(&sealed, b"abcdef1234567890\n").unwrap();
+        assert!(sealed.exists());
+        let contents = std::fs::read(&sealed).unwrap();
+        assert_eq!(contents, b"abcdef1234567890\n");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&sealed).unwrap().permissions().mode();
+            // File should be 0400 (read-only owner, nothing else).
+            assert_eq!(mode & 0o777, 0o400, "sealed file should be chmod 0400");
+        }
+    }
+
+    #[test]
+    fn write_sealed_replaces_existing_read_only_file() {
+        let tmp = tempdir().unwrap();
+        let sealed = tmp.path().join("witness_root.sealed");
+        // First write.
+        write_sealed(&sealed, b"first").unwrap();
+        // Second write should succeed even though the destination is 0400.
+        write_sealed(&sealed, b"second").unwrap();
+        let contents = std::fs::read(&sealed).unwrap();
+        assert_eq!(contents, b"second");
+    }
+
+    #[test]
+    fn root_anchor_loop_copies_live_to_sealed() {
+        let tmp = tempdir().unwrap();
+        let live = tmp.path().join("live.hex");
+        let sealed = tmp.path().join("sealed.hex");
+        std::fs::write(&live, b"deadbeef").unwrap();
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_clone = stop.clone();
+        let live_clone = live.clone();
+        let sealed_clone = sealed.clone();
+        let handle = thread::spawn(move || {
+            root_anchor_loop(live_clone, sealed_clone, 1, stop_clone);
+        });
+
+        // Let the loop run at least once.
+        thread::sleep(Duration::from_millis(1100));
+        assert!(sealed.exists(), "sealed file should have been created");
+        let contents = std::fs::read(&sealed).unwrap();
+        assert_eq!(contents, b"deadbeef");
+
+        // Update live; next tick should re-seal.
+        // Since sealed is read-only, write_sealed's atomic replace handles it.
+        std::fs::write(&live, b"cafebabe").unwrap();
+        thread::sleep(Duration::from_millis(1100));
+        let contents2 = std::fs::read(&sealed).unwrap();
+        assert_eq!(contents2, b"cafebabe");
+
+        stop.store(true, Ordering::SeqCst);
+        let _ = handle.join();
+    }
+
+    #[test]
+    fn root_anchor_loop_tolerates_missing_live_file() {
+        let tmp = tempdir().unwrap();
+        let live = tmp.path().join("missing.hex");
+        let sealed = tmp.path().join("sealed.hex");
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_clone = stop.clone();
+        let live_clone = live.clone();
+        let sealed_clone = sealed.clone();
+        let handle = thread::spawn(move || {
+            root_anchor_loop(live_clone, sealed_clone, 1, stop_clone);
+        });
+
+        thread::sleep(Duration::from_millis(1100));
+        assert!(
+            !sealed.exists(),
+            "sealed file should not exist before live file"
+        );
+
+        // Now create the live file.
+        std::fs::write(&live, b"finally").unwrap();
+        thread::sleep(Duration::from_millis(1100));
+        assert!(
+            sealed.exists(),
+            "sealed file should exist after live appears"
+        );
+
+        stop.store(true, Ordering::SeqCst);
+        let _ = handle.join();
+    }
+
+    #[test]
+    fn args_parse_with_witness_root_path() {
+        let args = Args::try_parse_from([
+            "temm1e-watchdog",
+            "--binary",
+            "/x",
+            "--pid-file",
+            "/y",
+            "--witness-root-path",
+            "/tmp/live.hex",
+            "--witness-sealed-path",
+            "/tmp/sealed.hex",
+            "--witness-anchor-interval-secs",
+            "3",
+        ])
+        .unwrap();
+        assert_eq!(args.witness_root_path, Some(PathBuf::from("/tmp/live.hex")));
+        assert_eq!(
+            args.witness_sealed_path,
+            Some(PathBuf::from("/tmp/sealed.hex"))
+        );
+        assert_eq!(args.witness_anchor_interval_secs, 3);
+    }
+
+    #[test]
+    fn args_witness_defaults_are_none() {
+        let args = Args::try_parse_from(["temm1e-watchdog", "--binary", "/x", "--pid-file", "/y"])
+            .unwrap();
+        assert!(args.witness_root_path.is_none());
+        assert!(args.witness_sealed_path.is_none());
+        assert_eq!(args.witness_anchor_interval_secs, 5);
     }
 
     #[test]
