@@ -6987,6 +6987,7 @@ dependencies = [
  "temm1e-distill",
  "temm1e-providers",
  "temm1e-test-utils",
+ "temm1e-tools",
  "temm1e-vault",
  "temm1e-witness",
  "tempfile",

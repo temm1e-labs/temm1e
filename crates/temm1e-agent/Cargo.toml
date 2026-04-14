@@ -29,6 +29,7 @@ temm1e-anima.workspace = true
 
 [dev-dependencies]
 temm1e-test-utils.workspace = true
+temm1e-tools.workspace = true
 async-trait.workspace = true
 toml.workspace = true
 tempfile = "3"
