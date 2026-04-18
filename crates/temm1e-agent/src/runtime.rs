@@ -226,10 +226,12 @@ impl AgentRuntime {
             system_prompt,
             max_turns: 200,
             max_context_tokens: 30_000,
-            max_tool_rounds: 200,
-            // v5.3.1: 0 = unlimited. Cost + turn + tool-round caps are the
-            // real ceilings for reasoning-model workloads; wall-clock SLA is
-            // opt-in via [agent] max_task_duration_secs in the user's config.
+            // v5.3.6: max_tool_rounds = 0 means unlimited (matches
+            // max_task_duration_secs convention). Stagnation detection +
+            // budget + duration are the real safety nets; iteration count
+            // alone is a proxy, not a meaningful limit. Users who want a
+            // hard ceiling can set a positive value in their TOML config.
+            max_tool_rounds: 0,
             max_task_duration: Duration::from_secs(0),
             circuit_breaker: CircuitBreaker::default(),
             verification_enabled: true,
@@ -1041,7 +1043,6 @@ impl AgentRuntime {
                     info!(
                         complexity = ?complexity,
                         prompt_tier = ?profile.prompt_tier,
-                        max_iterations = profile.max_iterations,
                         "V2: Rule-based fallback classification"
                     );
                     Some(profile)
@@ -1128,6 +1129,12 @@ impl AgentRuntime {
         let task_start = Instant::now();
         let mut rounds: usize = 0;
         let mut interrupted = false;
+        // v5.3.6: stagnation detector — breaks the loop when the model gets
+        // stuck calling the same tool with the same input and getting the
+        // same result repeatedly. Conservative window (4) tolerates natural
+        // 2-3 step retry flows.
+        let mut stagnation = crate::stagnation::StagnationDetector::new();
+        let mut stagnation_detected = false;
         // Track if send_message tool was used — suppresses the final reply
         // to avoid duplicating content already delivered to the user.
         let mut send_message_used = false;
@@ -1168,7 +1175,9 @@ impl AgentRuntime {
                 break;
             }
 
-            if rounds > self.max_tool_rounds {
+            // v5.3.6: max_tool_rounds = 0 means unlimited. Only enforce the
+            // ceiling when the user has explicitly opted into a positive value.
+            if self.max_tool_rounds > 0 && rounds > self.max_tool_rounds {
                 warn!(
                     "Exceeded maximum tool rounds ({}), forcing text reply",
                     self.max_tool_rounds
@@ -2461,6 +2470,24 @@ impl AgentRuntime {
                     });
                 }
 
+                // ── Stagnation detection (P4) ─────────────────────────
+                // Observe (tool_name, input, result). When the same call with
+                // the same input produces the same result N times in a row,
+                // break the loop and let the final-reply block ask the model
+                // to synthesize what it has.
+                if let crate::stagnation::StagnationSignal::Stuck { count } =
+                    stagnation.observe(tool_name, arguments, &content)
+                {
+                    tracing::warn!(
+                        tool = %tool_name,
+                        count = count,
+                        "Stagnation detected — {} identical (call, result) pairs. Forcing synthesis.",
+                        count
+                    );
+                    stagnation_detected = true;
+                    break;
+                }
+
                 // ── Self-Correction: track failures and inject strategy rotation ──
                 if is_error {
                     failure_tracker.record_failure(tool_name, &content);
@@ -2560,6 +2587,12 @@ impl AgentRuntime {
             // tool-use loop too (the for-loop break above only exits the
             // inner tool iteration).
             if interrupted {
+                break;
+            }
+
+            // Stagnation break from inner for-loop → exit outer round loop too.
+            // The final-reply block below handles synthesis from what we have.
+            if stagnation_detected {
                 break;
             }
 
@@ -2683,11 +2716,14 @@ impl AgentRuntime {
             });
         }
 
-        // Fallback: exited loop due to interruption or max rounds
+        // Fallback: exited loop due to interruption, stagnation, or max rounds
         let text = if interrupted {
             // Task was cancelled — no resume capability exists.
             // Keep message short and factual. No false promises.
             "Task stopped.".to_string()
+        } else if stagnation_detected {
+            "I was looping on the same action without making progress. Here is what I have so far."
+                .to_string()
         } else {
             "I reached the maximum number of tool execution steps. Here is what I have so far."
                 .to_string()

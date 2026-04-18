@@ -3464,12 +3464,22 @@ mod tests {
 
     #[test]
     fn execution_profile_from_complexity() {
-        assert!(TaskComplexity::Trivial.execution_profile().skip_tool_loop);
-        assert!(!TaskComplexity::Simple.execution_profile().skip_tool_loop);
+        // P4: max_iterations + skip_tool_loop removed as dead; verify
+        // remaining fields map correctly across tiers.
+        assert_eq!(
+            TaskComplexity::Trivial.execution_profile().prompt_tier,
+            temm1e_core::types::optimization::PromptTier::Minimal
+        );
+        assert_eq!(
+            TaskComplexity::Simple.execution_profile().prompt_tier,
+            temm1e_core::types::optimization::PromptTier::Basic
+        );
         assert!(TaskComplexity::Standard.execution_profile().use_learn);
         assert_eq!(
-            TaskComplexity::Complex.execution_profile().max_iterations,
-            10
+            TaskComplexity::Complex
+                .execution_profile()
+                .max_tool_output_chars,
+            30_000
         );
     }
 

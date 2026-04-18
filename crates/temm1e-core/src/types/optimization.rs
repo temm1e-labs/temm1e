@@ -30,6 +30,11 @@ pub enum VerifyMode {
 
 /// Execution profile derived from task complexity. Immutable once created.
 /// Configures which pipeline stages activate for a given task.
+///
+/// Note (v5.3.6): `max_iterations` and `skip_tool_loop` were verified dead
+/// (never read at runtime) and removed in the P4 sweep. Loop ceilings are
+/// enforced by `AgentRuntime.max_tool_rounds` (default 0 = unlimited) plus
+/// stagnation detection + budget + duration.
 #[derive(Debug, Clone)]
 pub struct ExecutionProfile {
     /// The prompt tier to use for system prompt construction.
@@ -38,60 +43,48 @@ pub struct ExecutionProfile {
     pub verify_mode: VerifyMode,
     /// Whether the LEARN phase runs after this task.
     pub use_learn: bool,
-    /// Maximum tool loop iterations.
-    pub max_iterations: u32,
     /// Maximum tool output chars (complexity-aware cap).
     pub max_tool_output_chars: usize,
-    /// Whether to skip the tool loop entirely (Trivial fast-path).
-    pub skip_tool_loop: bool,
 }
 
 impl ExecutionProfile {
-    /// Profile for Trivial tasks: skip everything, just respond.
+    /// Profile for Trivial tasks: minimal prompt, no verification.
     pub fn trivial() -> Self {
         Self {
             prompt_tier: PromptTier::Minimal,
             verify_mode: VerifyMode::Skip,
             use_learn: false,
-            max_iterations: 1,
             max_tool_output_chars: 5_000,
-            skip_tool_loop: true,
         }
     }
 
-    /// Profile for Simple tasks: single tool call, rule-based verify.
+    /// Profile for Simple tasks: rule-based verify, compact output.
     pub fn simple() -> Self {
         Self {
             prompt_tier: PromptTier::Basic,
             verify_mode: VerifyMode::RuleBased,
             use_learn: false,
-            max_iterations: 2,
             max_tool_output_chars: 5_000,
-            skip_tool_loop: false,
         }
     }
 
-    /// Profile for Standard tasks: normal full loop.
+    /// Profile for Standard tasks: full prompt + LLM verification.
     pub fn standard() -> Self {
         Self {
             prompt_tier: PromptTier::Standard,
             verify_mode: VerifyMode::LlmVerify,
             use_learn: true,
-            max_iterations: 5,
             max_tool_output_chars: 15_000,
-            skip_tool_loop: false,
         }
     }
 
-    /// Profile for Complex tasks: full loop with higher limits.
+    /// Profile for Complex tasks: full prompt with higher output cap.
     pub fn complex() -> Self {
         Self {
             prompt_tier: PromptTier::Full,
             verify_mode: VerifyMode::LlmVerify,
             use_learn: true,
-            max_iterations: 10,
             max_tool_output_chars: 30_000,
-            skip_tool_loop: false,
         }
     }
 }
@@ -101,9 +94,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn trivial_profile_skips_tool_loop() {
+    fn trivial_profile_skips_verification() {
         let p = ExecutionProfile::trivial();
-        assert!(p.skip_tool_loop);
         assert!(!p.use_learn);
         assert_eq!(p.prompt_tier, PromptTier::Minimal);
         assert_eq!(p.verify_mode, VerifyMode::Skip);
@@ -112,7 +104,6 @@ mod tests {
     #[test]
     fn simple_profile_uses_rule_based_verify() {
         let p = ExecutionProfile::simple();
-        assert!(!p.skip_tool_loop);
         assert!(!p.use_learn);
         assert_eq!(p.prompt_tier, PromptTier::Basic);
         assert_eq!(p.verify_mode, VerifyMode::RuleBased);
@@ -121,16 +112,14 @@ mod tests {
     #[test]
     fn standard_profile_uses_llm_verify_and_learn() {
         let p = ExecutionProfile::standard();
-        assert!(!p.skip_tool_loop);
         assert!(p.use_learn);
         assert_eq!(p.prompt_tier, PromptTier::Standard);
         assert_eq!(p.verify_mode, VerifyMode::LlmVerify);
     }
 
     #[test]
-    fn complex_profile_highest_limits() {
+    fn complex_profile_highest_output_cap() {
         let p = ExecutionProfile::complex();
-        assert_eq!(p.max_iterations, 10);
         assert_eq!(p.max_tool_output_chars, 30_000);
         assert_eq!(p.prompt_tier, PromptTier::Full);
     }

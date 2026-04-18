@@ -773,7 +773,9 @@ impl Default for AgentConfig {
         Self {
             max_turns: 200,
             max_context_tokens: 30_000,
-            max_tool_rounds: 200,
+            // v5.3.6: 0 = unlimited (matches max_task_duration_secs convention).
+            // Stagnation detection + budget + duration are the real ceilings.
+            max_tool_rounds: 0,
             max_task_duration_secs: 0, // 0 = unlimited (see doc above)
             streaming_enabled: true,
             streaming_flush_interval_ms: 1000,
@@ -792,7 +794,9 @@ fn default_max_context_tokens() -> usize {
     30_000
 }
 fn default_max_tool_rounds() -> usize {
-    200
+    // v5.3.6: 0 = unlimited. Stagnation detection + budget + duration are
+    // the real safety nets; iteration count alone is a proxy, not a limit.
+    0
 }
 fn default_max_task_duration_secs() -> u64 {
     // 0 = unlimited. Reasoning models on long refactors routinely take 10-60+
@@ -1062,11 +1066,9 @@ impl AgentAccessibleConfig {
                 "agent.max_context_tokens must be >= 1000".to_string(),
             ));
         }
-        if self.agent.max_tool_rounds == 0 {
-            return Err(Temm1eError::Config(
-                "agent.max_tool_rounds must be > 0".to_string(),
-            ));
-        }
+        // v5.3.6: 0 = unlimited. Stagnation + budget + duration are the
+        // real safety nets; a bare iteration cap is a proxy, not a limit.
+        // Users who want a finite ceiling can still set a positive value.
         // 0 = unlimited (valid). Positive values < 10 are nonsensical
         // (a 9-second task ceiling will brick basically anything useful).
         if self.agent.max_task_duration_secs != 0 && self.agent.max_task_duration_secs < 10 {
@@ -1204,7 +1206,8 @@ mod tests {
 
         let agent = AgentConfig::default();
         assert_eq!(agent.max_turns, 200);
-        assert_eq!(agent.max_tool_rounds, 200);
+        // v5.3.6: max_tool_rounds default 0 = unlimited.
+        assert_eq!(agent.max_tool_rounds, 0);
         // v5.3.1: default is 0 (unlimited) — reasoning models on long tasks
         // need the cost/turn/tool-round caps as the real ceilings, not
         // wall-clock. Users opt in to a wall-clock SLA explicitly.

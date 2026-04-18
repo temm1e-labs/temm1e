@@ -383,6 +383,7 @@ fn extract_json(text: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use temm1e_core::types::optimization::PromptTier;
 
     #[test]
     fn parse_chat_classification() {
@@ -467,14 +468,16 @@ mod tests {
     #[test]
     fn difficulty_maps_to_execution_profile() {
         let simple = TaskDifficulty::Simple.execution_profile();
-        assert_eq!(simple.max_iterations, 2);
-        assert!(!simple.skip_tool_loop);
+        assert_eq!(simple.prompt_tier, PromptTier::Basic);
+        assert_eq!(simple.max_tool_output_chars, 5_000);
 
         let standard = TaskDifficulty::Standard.execution_profile();
-        assert_eq!(standard.max_iterations, 5);
+        assert_eq!(standard.prompt_tier, PromptTier::Standard);
+        assert!(standard.use_learn);
 
         let complex = TaskDifficulty::Complex.execution_profile();
-        assert_eq!(complex.max_iterations, 10);
+        assert_eq!(complex.prompt_tier, PromptTier::Full);
+        assert_eq!(complex.max_tool_output_chars, 30_000);
     }
 
     #[test]

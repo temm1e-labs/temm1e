@@ -24,6 +24,7 @@ pub mod prompted_tool_calling;
 pub mod recovery;
 pub mod runtime;
 pub mod self_correction;
+pub mod stagnation;
 pub mod startup;
 pub mod streaming;
 pub mod task_decomposition;
