@@ -234,9 +234,11 @@ impl Channel for WhatsAppWebChannel {
                     match event {
                         Event::PairingQrCode { ref code, .. } => {
                             if let Ok(qr) = qrcode::QrCode::new(code.as_bytes()) {
-                                // Save as SVG for easy scanning
+                                // Save as SVG for easy scanning. Fallback to the OS temp
+                                // dir (cross-platform) if the user's home dir can't be
+                                // resolved — `/tmp` doesn't exist on Windows.
                                 let svg_path = dirs::home_dir()
-                                    .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+                                    .unwrap_or_else(std::env::temp_dir)
                                     .join(".temm1e")
                                     .join("whatsapp_qr.svg");
                                 if let Some(parent) = svg_path.parent() {

@@ -98,8 +98,31 @@ impl Tool for ScriptToolAdapter {
         input: ToolInput,
         _ctx: &ToolContext,
     ) -> Result<ToolOutput, Temm1eError> {
+        // Platform-aware interpreter resolution for custom script tools.
+        //
+        // Python — Unix conventionally ships `python3`; Windows Python
+        // installers default to `python` (and the `py` launcher), and
+        // `python3.exe` is often absent from PATH entirely.
+        //
+        // Shell — always `bash`. On Windows this requires Git Bash, WSL, or
+        // MSYS2 on PATH. We intentionally do NOT fall back to `powershell.exe`
+        // here because the script author's syntax (bash) is not compatible
+        // with PowerShell's parser — silent wrong-interpreter execution is
+        // worse than a clear "bash not found" error. Windows users wanting
+        // native scripting should author their script with language "python"
+        // or "node", or author a `.ps1` equivalent and invoke it via the
+        // generic `shell` tool.
         let interpreter = match self.meta.language.as_str() {
-            "python" => "python3",
+            "python" => {
+                #[cfg(windows)]
+                {
+                    "python"
+                }
+                #[cfg(unix)]
+                {
+                    "python3"
+                }
+            }
             "node" => "node",
             _ => "bash",
         };
