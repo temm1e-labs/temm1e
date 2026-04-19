@@ -752,6 +752,12 @@ mod tests {
         assert!(result.is_err());
     }
 
+    // Executes an actual bash interpreter. On Windows `bash.exe` isn't
+    // guaranteed (requires Git Bash / WSL / MSYS2 on PATH) and the script
+    // itself uses POSIX shell semantics. The "language" → interpreter
+    // dispatch in `execute()` is cross-platform (see the cfg-gated block
+    // there); this test specifically exercises the bash path.
+    #[cfg(unix)]
     #[tokio::test]
     async fn execute_bash_script() {
         let dir = tempdir().unwrap();

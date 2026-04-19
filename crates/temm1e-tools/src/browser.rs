@@ -3149,11 +3149,15 @@ mod tests {
     #[test]
     fn sessions_dir_returns_correct_path() {
         let dir = sessions_dir().unwrap();
-        let path_str = dir.to_string_lossy();
+        // Compose the expected suffix with the OS-native separator so Windows
+        // (`\`) and Unix (`/`) both match. Hardcoding `/` in the assertion
+        // breaks on Windows where `to_string_lossy()` yields `\`.
+        let expected_suffix = std::path::Path::new(".temm1e").join("sessions");
         assert!(
-            path_str.ends_with(".temm1e/sessions"),
-            "Sessions dir should end with .temm1e/sessions, got: {}",
-            path_str
+            dir.ends_with(&expected_suffix),
+            "Sessions dir should end with {}, got: {}",
+            expected_suffix.display(),
+            dir.display()
         );
     }
 
