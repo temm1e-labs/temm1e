@@ -400,7 +400,8 @@ impl SpawnSwarmTool {
                         content: temm1e_core::types::message::MessageContent::Text(prompt),
                     }],
                     tools: vec![],
-                    max_tokens: Some(2048),
+                    // Per project rule (feedback_no_max_tokens): no hardcoded caps.
+                    max_tokens: None,
                     temperature: Some(0.0),
                     system: None,
                     system_volatile: None,

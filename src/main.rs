@@ -231,7 +231,8 @@ async fn validate_provider_key(
             content: temm1e_core::types::message::MessageContent::Text("Hi".to_string()),
         }],
         tools: Vec::new(),
-        max_tokens: Some(1),
+        // Per project rule (feedback_no_max_tokens): no hardcoded output caps.
+        max_tokens: None,
         temperature: Some(0.0),
         system: None,
         system_volatile: None,
@@ -2376,15 +2377,32 @@ async fn main() -> Result<()> {
 
             // Quick check: is [hive] enabled in config? (just the boolean, full init later)
             let hive_enabled_early = {
+                // v5.5.0: default-ON to match `HiveConfig::default()` at
+                // `temm1e_hive/src/config.rs:64` (comment: "Enabled by
+                // default since v3.0.0"). Previously this shadow struct
+                // silently overrode the crate default with bool::default()
+                // = false, keeping JIT Swarm dormant for upgrading users
+                // despite v5.4.0 having shipped it. Explicit opt-out via
+                // `[hive] enabled = false` still works.
                 #[derive(serde::Deserialize, Default)]
                 struct HiveCheck {
                     #[serde(default)]
                     hive: HiveEnabled,
                 }
-                #[derive(serde::Deserialize, Default)]
+                #[derive(serde::Deserialize)]
                 struct HiveEnabled {
-                    #[serde(default)]
+                    #[serde(default = "hive_default_enabled")]
                     enabled: bool,
+                }
+                impl Default for HiveEnabled {
+                    fn default() -> Self {
+                        Self {
+                            enabled: hive_default_enabled(),
+                        }
+                    }
+                }
+                fn hive_default_enabled() -> bool {
+                    true
                 }
 
                 config_path
@@ -2397,8 +2415,29 @@ async fn main() -> Result<()> {
                     .or_else(|| std::fs::read_to_string("temm1e.toml").ok())
                     .and_then(|content| toml::from_str::<HiveCheck>(&content).ok())
                     .map(|c| c.hive.enabled)
-                    .unwrap_or(false)
+                    .unwrap_or(true)
             };
+
+            // ── Witness attachments (built once, reused at every runtime
+            // rebuild — initial + ~20 provider/model switches). Returns None
+            // when [witness] enabled=false so wiring is a no-op for opt-out.
+            let witness_attachments: Option<temm1e_agent::witness_init::WitnessAttachments> =
+                match temm1e_agent::witness_init::build_witness_attachments(&config.witness).await {
+                    Ok(a) => {
+                        if a.is_some() {
+                            tracing::info!(
+                                strictness = %config.witness.strictness,
+                                auto_planner_oath = config.witness.auto_planner_oath,
+                                "Witness enabled — attachments built"
+                            );
+                        }
+                        a
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Witness init failed — continuing without Witness");
+                        None
+                    }
+                };
 
             // ── Agent state (None during onboarding) ───────────
             let agent_state: Arc<tokio::sync::RwLock<Option<Arc<temm1e_agent::AgentRuntime>>>> =
@@ -2625,6 +2664,9 @@ async fn main() -> Result<()> {
                         runtime = runtime.with_eigen_tune(et, eigentune_cfg.enable_local_routing);
                     }
 
+                    // Wire Witness attachments (no-op when disabled)
+                    runtime = runtime.with_witness_attachments(witness_attachments.as_ref());
+
                     let agent = Arc::new(runtime);
                     *agent_state.write().await = Some(agent);
                     tracing::info!(provider = %pname, model = %model, "Agent initialized");
@@ -2719,7 +2761,8 @@ async fn main() -> Result<()> {
                                     .with_social(
                                         social_storage.clone(),
                                         Some(social_config_captured.clone()),
-                                    ),
+                                    )
+                                    .with_witness_attachments(witness_attachments.as_ref()),
                                 );
                                 *agent_state.write().await = Some(agent);
                                 tracing::info!(provider = "openai-codex", model = %model, "Agent initialized via Codex OAuth");
@@ -3350,6 +3393,7 @@ async fn main() -> Result<()> {
                         let personality_for_worker = personality.clone();
                         let social_storage_for_worker = social_storage.clone();
                         let social_config_for_worker = social_config_captured.clone();
+                        let witness_attachments_for_worker = witness_attachments.clone();
                         let slot = slots.entry(chat_id.clone()).or_insert_with(|| {
                             let (chat_tx, mut chat_rx) =
                                 tokio::sync::mpsc::channel::<temm1e_core::types::message::InboundMessage>(32);
@@ -3400,6 +3444,7 @@ async fn main() -> Result<()> {
                             let personality = personality_for_worker;
                             let social_storage = social_storage_for_worker;
                             let social_config_captured = social_config_for_worker;
+                            let witness_attachments = witness_attachments_for_worker;
                             let setup_tokens_worker = setup_tokens_clone.clone();
                             let pending_raw_keys_worker = pending_raw_keys_clone.clone();
                             #[cfg(feature = "browser")]
@@ -3752,7 +3797,7 @@ async fn main() -> Result<()> {
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             tracing::info!(
                                                                 provider = "openai-codex",
@@ -3805,7 +3850,7 @@ async fn main() -> Result<()> {
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             tracing::info!(
                                                                 provider = %creds.active,
@@ -4301,7 +4346,7 @@ Just type a message to chat with the AI agent.",
                                                                     agent.model().to_string(),
                                                                     Some(build_system_prompt(&personality)),
                                                                     max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                                                ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                                ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                                 *agent_state.write().await = Some(new_agent);
                                                             }
                                                             mcp_mgr.take_tools_changed();
@@ -4330,7 +4375,7 @@ Just type a message to chat with the AI agent.",
                                                             agent.model().to_string(),
                                                             Some(build_system_prompt(&personality)),
                                                             max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                                        ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                        ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                         *agent_state.write().await = Some(new_agent);
                                                     }
                                                     mcp_mgr.take_tools_changed();
@@ -4357,7 +4402,7 @@ Just type a message to chat with the AI agent.",
                                                             agent.model().to_string(),
                                                             Some(build_system_prompt(&personality)),
                                                             max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                                        ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                        ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                         *agent_state.write().await = Some(new_agent);
                                                     }
                                                     mcp_mgr.take_tools_changed();
@@ -4443,7 +4488,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             tracing::info!(
                                                                 provider = %prov.name,
@@ -4966,7 +5011,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             let reply = temm1e_core::types::message::OutboundMessage {
                                                                 chat_id: msg.chat_id.clone(),
@@ -5121,7 +5166,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             let key_count = keys.len();
                                                             let reply = temm1e_core::types::message::OutboundMessage {
@@ -5362,6 +5407,15 @@ Just type a message to chat with the AI agent.",
                                                             let tools_h = tools_template.clone();
                                                             let memory_h = memory.clone();
                                                             let model_h = agent.model().to_string();
+                                                            // Hive worker witness wiring — ACTIVE mode (v5.5.0).
+                                                            // Workers now inherit the parent session's workspace_path
+                                                            // (propagated via workspace_for_hive → workspace_for_worker
+                                                            // below) so the Planner's file-path postconditions target
+                                                            // the user's real workspace, not the process cwd. This
+                                                            // closes the audit-trail gap where delegated work escaped
+                                                            // Witness oversight in passive mode.
+                                                            let witness_h = witness_attachments.clone();
+                                                            let workspace_for_hive = workspace_path.clone();
 
                                                             let swarm_result = hive.execute_order(
                                                                 &order_id, cancel,
@@ -5370,10 +5424,15 @@ Just type a message to chat with the AI agent.",
                                                                     let t = tools_h.clone();
                                                                     let m_clone = memory_h.clone();
                                                                     let mdl = model_h.clone();
+                                                                    let witness_for_worker = witness_h.clone();
+                                                                    let workspace_for_worker = workspace_for_hive.clone();
                                                                     async move {
                                                                         let scoped = temm1e_hive::worker::build_scoped_context(&task, &deps);
                                                                         let mini = temm1e_agent::AgentRuntime::with_limits(
                                                                             p, m_clone, t, mdl, None, 10, 30000, 50, 300, 0.0,
+                                                                        )
+                                                                        .with_witness_attachments(
+                                                                            witness_for_worker.as_ref(),
                                                                         );
                                                                         let mini_msg = temm1e_core::types::message::InboundMessage {
                                                                             id: uuid::Uuid::new_v4().to_string(),
@@ -5388,7 +5447,7 @@ Just type a message to chat with the AI agent.",
                                                                             chat_id: "hive".into(),
                                                                             role: temm1e_core::types::rbac::Role::Admin,
                                                                             history: vec![],
-                                                                            workspace_path: std::path::PathBuf::from("."),
+                                                                            workspace_path: workspace_for_worker,
                                                                             read_tracker: std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashSet::new())),
                                                                         };
                                                                         match mini.process_message(&mini_msg, &mut s, None, None, None, None, None).await {
@@ -5489,7 +5548,7 @@ Just type a message to chat with the AI agent.",
                                                                 agent.model().to_string(),
                                                                 Some(build_system_prompt(&personality)),
                                                                 max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                             let fallback_cancel = cancel_token_clone.clone();
                                                             match fallback_agent.process_message(&msg, &mut session, Some(interrupt_clone.clone()), Some(pending_for_worker.clone()), None, None, Some(fallback_cancel)).await {
                                                                 Ok((mut reply, _usage)) => {
@@ -5633,7 +5692,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                             *agent_state.write().await = Some(new_agent);
                                                             tracing::info!(provider = %new_name, model = %new_model, "Agent hot-reloaded (key validated)");
                                                         }
@@ -5682,7 +5741,7 @@ Just type a message to chat with the AI agent.",
                                                 agent.model().to_string(),
                                                 Some(build_system_prompt(&personality)),
                                                 max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                             *agent_state.write().await = Some(new_agent);
                                             tracing::info!("Agent rebuilt with updated MCP tools");
                                         }
@@ -5713,7 +5772,7 @@ Just type a message to chat with the AI agent.",
                                                 agent.model().to_string(),
                                                 Some(build_system_prompt(&personality)),
                                                 max_turns, max_ctx, max_rounds, max_task_duration, max_spend,
-                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                             *agent_state.write().await = Some(new_agent);
                                             tracing::info!("Agent rebuilt with updated custom tools");
                                         }
@@ -5772,7 +5831,7 @@ Just type a message to chat with the AI agent.",
                                                                 max_rounds,
                                                                 max_task_duration,
                                                                 max_spend,
-                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())));
+                                                            ).with_v2_optimizations(v2_opt).with_parallel_phases(pp_opt).with_hive_enabled(hive_on).with_shared_mode(shared_mode.clone()).with_shared_memory_strategy(shared_memory_strategy.clone()).with_personality(personality.clone()).with_social(social_storage.clone(), Some(social_config_captured.clone())).with_witness_attachments(witness_attachments.as_ref()));
                                                             *agent_state.write().await = Some(new_agent);
 
                                                             if let Err(e) = save_credentials(provider_name, &api_key, &model, custom_base_url.as_deref()).await {
@@ -6035,16 +6094,27 @@ Just type a message to chat with the AI agent.",
             println!("Type '/quit' or '/exit' to quit.\n");
 
             // Check hive config for CLI chat path
+            // v5.5.0: default-ON — same rationale as the Start path above.
             let hive_enabled_early = {
                 #[derive(serde::Deserialize, Default)]
                 struct HC {
                     #[serde(default)]
                     hive: HE,
                 }
-                #[derive(serde::Deserialize, Default)]
+                #[derive(serde::Deserialize)]
                 struct HE {
-                    #[serde(default)]
+                    #[serde(default = "hive_default_enabled_cli")]
                     enabled: bool,
+                }
+                impl Default for HE {
+                    fn default() -> Self {
+                        Self {
+                            enabled: hive_default_enabled_cli(),
+                        }
+                    }
+                }
+                fn hive_default_enabled_cli() -> bool {
+                    true
                 }
                 config_path
                     .and_then(|p| std::fs::read_to_string(p).ok())
@@ -6056,8 +6126,28 @@ Just type a message to chat with the AI agent.",
                     .or_else(|| std::fs::read_to_string("temm1e.toml").ok())
                     .and_then(|c| toml::from_str::<HC>(&c).ok())
                     .map(|c| c.hive.enabled)
-                    .unwrap_or(false)
+                    .unwrap_or(true)
             };
+
+            // ── Witness attachments (built once, reused across CLI chat
+            // rebuilds). None when [witness] enabled=false — wiring no-ops.
+            let witness_attachments: Option<temm1e_agent::witness_init::WitnessAttachments> =
+                match temm1e_agent::witness_init::build_witness_attachments(&config.witness).await {
+                    Ok(a) => {
+                        if a.is_some() {
+                            tracing::info!(
+                                strictness = %config.witness.strictness,
+                                auto_planner_oath = config.witness.auto_planner_oath,
+                                "Witness enabled for CLI chat"
+                            );
+                        }
+                        a
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Witness init failed — continuing without Witness");
+                        None
+                    }
+                };
 
             // ── Resolve API credentials ────────────────────────
             let credentials: Option<(String, String, String)> = {
@@ -6677,6 +6767,9 @@ Just type a message to chat with the AI agent.",
                                 tracing::info!("JIT spawn_swarm context wired (CLI)");
                             }
 
+                            // Wire Witness attachments (CLI chat, no-op if disabled)
+                            rt = rt.with_witness_attachments(witness_attachments.as_ref());
+
                             agent_opt = Some(rt);
                             println!("Connected to {} (model: {})", pname, model);
                             if max_spend > 0.0 {
@@ -6729,7 +6822,8 @@ Just type a message to chat with the AI agent.",
                                     .with_social(
                                         social_storage.clone(),
                                         Some(social_config_captured.clone()),
-                                    ),
+                                    )
+                                    .with_witness_attachments(witness_attachments.as_ref()),
                                 );
                                 println!(
                                     "Connected to openai-codex via Codex OAuth (model: {})",
@@ -7266,6 +7360,9 @@ Just type a message to chat with the AI agent.",
                                                 .with_social(
                                                     social_storage.clone(),
                                                     Some(social_config_captured.clone()),
+                                                )
+                                                .with_witness_attachments(
+                                                    witness_attachments.as_ref(),
                                                 ),
                                             );
                                         }
@@ -7319,7 +7416,8 @@ Just type a message to chat with the AI agent.",
                                         .with_social(
                                             social_storage.clone(),
                                             Some(social_config_captured.clone()),
-                                        ),
+                                        )
+                                        .with_witness_attachments(witness_attachments.as_ref()),
                                     );
                                 }
                                 mcp_manager.take_tools_changed();
@@ -7367,7 +7465,8 @@ Just type a message to chat with the AI agent.",
                                         .with_social(
                                             social_storage.clone(),
                                             Some(social_config_captured.clone()),
-                                        ),
+                                        )
+                                        .with_witness_attachments(witness_attachments.as_ref()),
                                     );
                                 }
                                 mcp_manager.take_tools_changed();
@@ -7598,7 +7697,8 @@ Just type a message to chat with the AI agent.",
                                             .with_social(
                                                 social_storage.clone(),
                                                 Some(social_config_captured.clone()),
-                                            ),
+                                            )
+                                            .with_witness_attachments(witness_attachments.as_ref()),
                                         );
                                         println!(
                                             "\nAPI key securely received and verified! Configured {} with model {}.",
@@ -7682,7 +7782,8 @@ Just type a message to chat with the AI agent.",
                                 .with_social(
                                     social_storage.clone(),
                                     Some(social_config_captured.clone()),
-                                ),
+                                )
+                                .with_witness_attachments(witness_attachments.as_ref()),
                             );
                             println!(
                                 "\nAPI key verified! Configured {} with model {}.",
@@ -7800,7 +7901,8 @@ Just type a message to chat with the AI agent.",
                                     max_spend,
                                 )
                                 .with_v2_optimizations(v2_opt)
-                                .with_parallel_phases(pp_opt);
+                                .with_parallel_phases(pp_opt)
+                                .with_witness_attachments(witness_attachments.as_ref());
                                 let re_msg = temm1e_core::types::message::InboundMessage {
                                     id: uuid::Uuid::new_v4().to_string(),
                                     channel: "cli".into(),

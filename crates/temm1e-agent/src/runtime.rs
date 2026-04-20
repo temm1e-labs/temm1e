@@ -94,6 +94,60 @@ use temm1e_anima::SocialStorage;
 // Eigen-Tune self-tuning distillation engine
 use temm1e_distill::EigenTuneEngine;
 
+/// Returns true when the user's turn looks like code / file / tool work
+/// that benefits from layer-2 observers (Witness Planner Oath, Tem
+/// Conscious pre/post observation). Chat, Q&A, and channel-style turns
+/// return false — those observers have nothing postcondition-shaped to
+/// ground against on conversational prompts, and their LLM round-trips
+/// would just add latency (5-10s per observer) for zero user-visible
+/// benefit.
+///
+/// The rule is intentionally simple and fully local (no LLM call):
+///   1) complexity bucket must be above Trivial / Simple
+///   2) the prompt must carry at least one code-signal substring
+///      (file ext, `fn `, `pub fn`, `workspace`, code fence, etc.)
+///
+/// Both conditions together: catches "write a Rust file ..." and
+/// "use file_write to create ..." while correctly skipping "write a
+/// haiku" and "hey".
+///
+/// When this returns false, observers still stay attached to the
+/// runtime — only the *proactive* LLM call is suppressed. Gate hooks
+/// (e.g., Witness verifier) run as no-ops when no observation has
+/// been seeded for the session.
+pub(crate) fn turn_is_code_shaped(
+    history_len: usize,
+    user_text: &str,
+) -> (bool, crate::model_router::TaskComplexity) {
+    // We don't need full history for this classifier — it's a per-turn
+    // rule. Empty tool slice is fine; the classifier only uses tools for
+    // "multi_tool_types > 2" which isn't load-bearing here.
+    let _ = history_len; // kept as parameter for future tuning
+    let router = ModelRouter::new(ModelRouterConfig::default());
+    let complexity = router.classify_complexity(&[], &[], user_text);
+    let trivial_or_simple = matches!(
+        complexity,
+        crate::model_router::TaskComplexity::Trivial | crate::model_router::TaskComplexity::Simple
+    );
+    let t = user_text.to_ascii_lowercase();
+    let has_code_signal = t.contains("file_")
+        || t.contains("workspace")
+        || t.contains(".rs")
+        || t.contains(".py")
+        || t.contains(".ts")
+        || t.contains(".js")
+        || t.contains(".json")
+        || t.contains(".toml")
+        || t.contains(".md")
+        || t.contains("pub fn")
+        || t.contains("fn ")
+        || t.contains("class ")
+        || t.contains("struct ")
+        || t.contains("```");
+    let is_code_shaped = !trivial_or_simple && has_code_signal;
+    (is_code_shaped, complexity)
+}
+
 /// Shared runtime mode handle (same type used by mode_switch tool).
 pub type SharedMode = Arc<RwLock<Temm1eMode>>;
 
@@ -620,36 +674,64 @@ impl AgentRuntime {
         // non-fatal — Law 5: zero downside. The hook simply skips on failure
         // and the runtime proceeds with no sealed Oath, making the gate hook
         // a no-op for this session.
+        //
+        // We track the sealed Oath in a turn-local Option and verify THAT
+        // Oath directly at end of turn (see Witness gate around line 2050).
+        // We deliberately do NOT fall back to `active_oath()` — a turn that
+        // did not seal its own Oath must not verify someone else's. This
+        // prevents orphan Oaths (from e.g. HiveRoute early-returns, or
+        // Planner-sealed turns whose workspace state was mutated by a
+        // sibling session) from being applied to unrelated replies.
+        let mut oath_sealed_this_turn: Option<temm1e_witness::types::Oath> = None;
         if self.auto_seal_planner_oath {
             if let Some(ref witness) = self.witness {
                 let user_text = msg.text.as_deref().unwrap_or("");
                 if !user_text.trim().is_empty() {
-                    let planner_req = temm1e_witness::planner::PlannerOathRequest {
-                        witness,
-                        provider: self.provider.clone(),
-                        model: self.model.clone(),
-                        user_request: user_text,
-                        workspace_root: &session.workspace_path,
-                        session_id: session.session_id.clone(),
-                        root_goal_id: format!("root-{}", session.session_id),
-                        subtask_id: format!("rootst-{}", session.session_id),
-                    };
-                    match temm1e_witness::planner::seal_oath_via_planner(planner_req).await {
-                        Ok((sealed, entry_id)) => {
-                            tracing::info!(
-                                session_id = %session.session_id,
-                                oath_hash = %sealed.sealed_hash[..16.min(sealed.sealed_hash.len())],
-                                ledger_entry_id = entry_id,
-                                postcondition_count = sealed.postconditions.len(),
-                                "phase4: planner oath sealed for session"
-                            );
-                        }
-                        Err(e) => {
-                            tracing::warn!(
-                                session_id = %session.session_id,
-                                error = %e,
-                                "phase4: planner oath generation failed (Law 5: continuing without)"
-                            );
+                    // Complexity gate (Phase 4.5): fire the Planner LLM only
+                    // when the turn is code-shaped. Law 5 still applies: even
+                    // if the gate lets a non-code turn through, the Spec
+                    // Reviewer will reject the Oath (no concrete
+                    // postconditions) and the runtime proceeds with no
+                    // sealed Oath — the verifier becomes a no-op. The gate
+                    // just avoids paying the Planner's +5-10s on turns we
+                    // know can't produce grounded verification.
+                    let (is_code_shaped, complexity) =
+                        turn_is_code_shaped(session.history.len(), user_text);
+                    if !is_code_shaped {
+                        tracing::debug!(
+                            session_id = %session.session_id,
+                            complexity = ?complexity,
+                            "phase4.5: planner oath skipped (turn not code-shaped)"
+                        );
+                    } else {
+                        let planner_req = temm1e_witness::planner::PlannerOathRequest {
+                            witness,
+                            provider: self.provider.clone(),
+                            model: self.model.clone(),
+                            user_request: user_text,
+                            workspace_root: &session.workspace_path,
+                            session_id: session.session_id.clone(),
+                            root_goal_id: format!("root-{}", session.session_id),
+                            subtask_id: format!("rootst-{}", session.session_id),
+                        };
+                        match temm1e_witness::planner::seal_oath_via_planner(planner_req).await {
+                            Ok((sealed, entry_id)) => {
+                                tracing::info!(
+                                    session_id = %session.session_id,
+                                    oath_hash = %sealed.sealed_hash[..16.min(sealed.sealed_hash.len())],
+                                    ledger_entry_id = entry_id,
+                                    postcondition_count = sealed.postconditions.len(),
+                                    "phase4: planner oath sealed for session"
+                                );
+                                oath_sealed_this_turn = Some(sealed);
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    session_id = %session.session_id,
+                                    error = %e,
+                                    "phase4: planner oath generation failed (Law 5: continuing without)"
+                                );
+                            }
                         }
                     }
                 }
@@ -1328,8 +1410,16 @@ impl AgentRuntime {
             }
 
             // ── Tem Conscious: PRE-LLM consciousness (LLM-powered) ──────────
-            // A separate LLM call that THINKS about the upcoming turn.
-            if let Some(ref consciousness_observer) = self.consciousness {
+            // A separate LLM call that THINKS about the upcoming turn. Gated
+            // by `turn_is_code_shaped` — on chat / channel turns the observer
+            // has no codebase trajectory to reason about, so the LLM call is
+            // pure +3-5s latency tax. On code-shaped turns we still want the
+            // observer so it can flag drift or inefficiency.
+            let consciousness_should_fire = self.consciousness.is_some()
+                && turn_is_code_shaped(session.history.len(), &user_text).0;
+            if let (true, Some(consciousness_observer)) =
+                (consciousness_should_fire, self.consciousness.as_ref())
+            {
                 let pre_obs = crate::consciousness_engine::PreObservation {
                     user_message: user_text.clone(),
                     category: classification_label.clone(),
@@ -1960,87 +2050,81 @@ impl AgentRuntime {
                 }
 
                 // ── Witness gate ─────────────────────────────────────
-                // Phase 2: if a Witness is attached AND a sealed Oath exists
-                // for this session, run the Tier 0/1 verification pipeline
+                // Phase 2: if a Witness is attached AND THIS turn sealed its
+                // own Oath (via the Planner hook at the start of
+                // process_message), run the Tier 0/1 verification pipeline
                 // and rewrite reply_text per the configured strictness.
                 //
-                // Law 5 (Narrative-Only FAIL): any error in Witness lookup
-                // or verification leaves reply_text untouched — delivery is
-                // never blocked, files are never mutated. Witness only
-                // controls the narrative.
-                if let Some(ref witness) = self.witness {
-                    match witness.active_oath(&session.session_id).await {
-                        Ok(Some(oath)) => match witness.verify_oath(&oath).await {
-                            Ok(verdict) => {
-                                tracing::info!(
-                                    session_id = %session.session_id,
-                                    outcome = ?verdict.outcome,
-                                    pass = verdict.pass_count(),
-                                    fail = verdict.fail_count(),
-                                    inconclusive = verdict.inconclusive_count(),
-                                    cost_usd = verdict.cost_usd,
-                                    latency_ms = verdict.latency_ms,
-                                    "witness verdict rendered"
-                                );
+                // We deliberately do NOT call `active_oath(session_id)` — a
+                // turn that didn't seal its own Oath must not verify someone
+                // else's (orphan Oaths from HiveRoute early-returns or
+                // mid-session manual seals would otherwise get applied to
+                // unrelated replies, producing false footers).
+                //
+                // Law 5 (Narrative-Only FAIL): any error in verification
+                // leaves reply_text untouched — delivery is never blocked,
+                // files are never mutated. Witness only controls the
+                // narrative.
+                if let (Some(witness), Some(oath)) =
+                    (self.witness.as_ref(), oath_sealed_this_turn.as_ref())
+                {
+                    match witness.verify_oath(oath).await {
+                        Ok(verdict) => {
+                            tracing::info!(
+                                session_id = %session.session_id,
+                                outcome = ?verdict.outcome,
+                                pass = verdict.pass_count(),
+                                fail = verdict.fail_count(),
+                                inconclusive = verdict.inconclusive_count(),
+                                cost_usd = verdict.cost_usd,
+                                latency_ms = verdict.latency_ms,
+                                "witness verdict rendered"
+                            );
 
-                                // Phase 4: feed the verdict outcome into the
-                                // Cambium TrustEngine if one is attached.
-                                // Inconclusive verdicts are deliberately
-                                // skipped — Witness couldn't decide, so trust
-                                // shouldn't move either way.
-                                if let Some(ref trust) = self.cambium_trust {
-                                    use temm1e_witness::types::VerdictOutcome;
-                                    match verdict.outcome {
-                                        VerdictOutcome::Pass => {
-                                            let mut t = trust.lock().await;
-                                            t.record_verdict(
-                                                true,
-                                                temm1e_core::types::cambium::TrustLevel::AutonomousBasic,
-                                            );
-                                            tracing::debug!("cambium trust: recorded PASS verdict");
-                                        }
-                                        VerdictOutcome::Fail => {
-                                            let mut t = trust.lock().await;
-                                            t.record_verdict(
-                                                false,
-                                                temm1e_core::types::cambium::TrustLevel::AutonomousBasic,
-                                            );
-                                            tracing::debug!("cambium trust: recorded FAIL verdict");
-                                        }
-                                        VerdictOutcome::Inconclusive => {
-                                            tracing::debug!(
-                                                "cambium trust: skipping inconclusive verdict"
-                                            );
-                                        }
+                            // Phase 4: feed the verdict outcome into the
+                            // Cambium TrustEngine if one is attached.
+                            // Inconclusive verdicts are deliberately skipped
+                            // — Witness couldn't decide, so trust shouldn't
+                            // move either way.
+                            if let Some(ref trust) = self.cambium_trust {
+                                use temm1e_witness::types::VerdictOutcome;
+                                match verdict.outcome {
+                                    VerdictOutcome::Pass => {
+                                        let mut t = trust.lock().await;
+                                        t.record_verdict(
+                                            true,
+                                            temm1e_core::types::cambium::TrustLevel::AutonomousBasic,
+                                        );
+                                        tracing::debug!("cambium trust: recorded PASS verdict");
+                                    }
+                                    VerdictOutcome::Fail => {
+                                        let mut t = trust.lock().await;
+                                        t.record_verdict(
+                                            false,
+                                            temm1e_core::types::cambium::TrustLevel::AutonomousBasic,
+                                        );
+                                        tracing::debug!("cambium trust: recorded FAIL verdict");
+                                    }
+                                    VerdictOutcome::Inconclusive => {
+                                        tracing::debug!(
+                                            "cambium trust: skipping inconclusive verdict"
+                                        );
                                     }
                                 }
+                            }
 
-                                reply_text = witness.compose_final_reply_ex(
-                                    &reply_text,
-                                    &verdict,
-                                    self.witness_strictness,
-                                    self.witness_show_readout,
-                                );
-                            }
-                            Err(e) => {
-                                tracing::warn!(
-                                    session_id = %session.session_id,
-                                    error = %e,
-                                    "witness verification error; reply unchanged (Law 5)"
-                                );
-                            }
-                        },
-                        Ok(None) => {
-                            tracing::debug!(
-                                session_id = %session.session_id,
-                                "witness has no active oath for this session; skipping gate"
+                            reply_text = witness.compose_final_reply_ex(
+                                &reply_text,
+                                &verdict,
+                                self.witness_strictness,
+                                self.witness_show_readout,
                             );
                         }
                         Err(e) => {
                             tracing::warn!(
                                 session_id = %session.session_id,
                                 error = %e,
-                                "witness active_oath lookup failed; reply unchanged (Law 5)"
+                                "witness verification error; reply unchanged (Law 5)"
                             );
                         }
                     }
@@ -2271,7 +2355,14 @@ impl AgentRuntime {
 
                 // ── Tem Conscious: POST-LLM consciousness (LLM-powered) ────
                 // A separate LLM call that EVALUATES what just happened.
-                if let Some(ref consciousness_observer) = self.consciousness {
+                // Gated to code-shaped turns to match pre_observe — avoid
+                // paying the post-LLM round-trip when pre-observer also
+                // skipped. Symmetric: observer fires as a pair or not at all.
+                let post_consciousness_should_fire = self.consciousness.is_some()
+                    && turn_is_code_shaped(session.history.len(), &user_text).0;
+                if let (true, Some(consciousness_observer)) =
+                    (post_consciousness_should_fire, self.consciousness.as_ref())
+                {
                     let obs = crate::consciousness::TurnObservation {
                         turn_number: turn_api_calls,
                         session_id: session.session_id.clone(),
@@ -2932,7 +3023,9 @@ async fn author_blueprint(
             content: MessageContent::Text(prompt.to_string()),
         }],
         tools: vec![],
-        max_tokens: Some(4096),
+        // Per project rule (feedback_no_max_tokens): never hardcode output
+        // caps. Let the provider adapter route to the model's declared max.
+        max_tokens: None,
         temperature: Some(0.3),
         system: Some(
             "You are a technical writer. Output SKIP if the task is not worth a blueprint, \
@@ -2977,7 +3070,8 @@ async fn refine_blueprint(
             content: MessageContent::Text(prompt.to_string()),
         }],
         tools: vec![],
-        max_tokens: Some(4096),
+        // Per project rule (feedback_no_max_tokens): never hardcode caps.
+        max_tokens: None,
         temperature: Some(0.3),
         system: Some(
             "You are a technical writer. Output only the updated Blueprint document, nothing else."
@@ -3214,6 +3308,71 @@ pub fn model_supports_vision(model: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── turn_is_code_shaped — shared gate for Witness + Consciousness ──
+
+    #[test]
+    fn turn_is_code_shaped_skips_trivial_and_simple() {
+        assert!(!turn_is_code_shaped(0, "hey").0);
+        assert!(!turn_is_code_shaped(0, "ok thanks").0);
+        assert!(!turn_is_code_shaped(0, "yes").0);
+    }
+
+    #[test]
+    fn turn_is_code_shaped_skips_standard_without_code_signal() {
+        // These classify as Standard but have no code signal → skip.
+        assert!(
+            !turn_is_code_shaped(
+                0,
+                "Write a single haiku about the Rust borrow checker. Reply with only the haiku."
+            )
+            .0,
+            "haiku request should not activate observers"
+        );
+        assert!(
+            !turn_is_code_shaped(
+                0,
+                "What is 73 * 84? Show the multiplication step-by-step in two short lines."
+            )
+            .0,
+            "math QA should not activate observers"
+        );
+        assert!(
+            !turn_is_code_shaped(
+                0,
+                "Suggest 3 catchy product names for an AI agent runtime. Just the names, comma-separated."
+            ).0,
+            "creative chat should not activate observers"
+        );
+    }
+
+    #[test]
+    fn turn_is_code_shaped_fires_on_code_prompts() {
+        assert!(
+            turn_is_code_shaped(
+                0,
+                "In the workspace, write `demo.rs` with pub fn greet(name: &str) -> String."
+            )
+            .0,
+            "Rust file work should activate observers"
+        );
+        assert!(
+            turn_is_code_shaped(0, "use file_write to create manifest.json with two fields").0,
+            "file_write tool request should activate observers"
+        );
+        assert!(
+            turn_is_code_shaped(0, "refactor src/oath.rs to split the helper").0,
+            "source file path should activate observers"
+        );
+    }
+
+    #[test]
+    fn turn_is_code_shaped_respects_code_fence() {
+        assert!(
+            turn_is_code_shaped(0, "Here is a snippet:\n```rust\nfn x() {}\n```\nexplain it").0,
+            "triple-backtick code fence is a valid code signal"
+        );
+    }
 
     // ── P5: outcome-derived difficulty helper ───────────────────
 

@@ -31,6 +31,7 @@ pub mod streaming;
 pub mod task_decomposition;
 pub mod task_queue;
 pub mod watchdog;
+pub mod witness_init;
 
 pub use agent_task_status::{AgentTaskPhase, AgentTaskStatus};
 pub use blueprint::{Blueprint, BlueprintPhase};
