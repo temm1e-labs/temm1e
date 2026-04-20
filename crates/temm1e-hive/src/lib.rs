@@ -202,16 +202,23 @@ impl Hive {
         };
         self.blackboard.create_order(&order).await?;
 
+        // v5.5.0 fix: namespace task IDs by order_id to prevent UNIQUE
+        // constraint violations when spawn_swarm is invoked multiple times
+        // per session. The Queen's decomposition prompt always emits
+        // "t1, t2, t3..." as task IDs — collide across orders. We prefix
+        // with the order_id (UUID, guaranteed unique) here and transform
+        // dependency references the same way so the DAG stays intact.
+        let task_id_ns = |raw: &str| format!("{}:{}", order_id, raw);
         let hive_tasks: Vec<HiveTask> = decomposition
             .tasks
             .iter()
             .map(|dt| HiveTask {
-                id: dt.id.clone(),
+                id: task_id_ns(&dt.id),
                 order_id: order_id.clone(),
                 description: dt.description.clone(),
                 status: HiveTaskStatus::Pending,
                 claimed_by: None,
-                dependencies: dt.dependencies.clone(),
+                dependencies: dt.dependencies.iter().map(|d| task_id_ns(d)).collect(),
                 context_tags: dt.context_tags.clone(),
                 estimated_tokens: dt.estimated_tokens,
                 actual_tokens: 0,

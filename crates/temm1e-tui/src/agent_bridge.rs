@@ -577,6 +577,9 @@ pub async fn spawn_agent(
                 setup.config.agent.max_spend_usd,
             )),
             cancel: tokio_util::sync::CancellationToken::new(),
+            workspace_path: std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            witness_attachments: tui_witness_attachments.clone(),
         };
         *handle.write().await = Some(ctx);
         tracing::info!("JIT spawn_swarm context wired (TUI)");

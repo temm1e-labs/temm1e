@@ -78,6 +78,15 @@ pub struct SpawnSwarmContext {
     pub model: String,
     pub parent_budget: Arc<BudgetTracker>,
     pub cancel: CancellationToken,
+    /// Parent's workspace_path. Workers use this so Witness Planner
+    /// Oaths ground against the user's real filesystem instead of the
+    /// process cwd. Defaults to "." if construction site passed None.
+    pub workspace_path: std::path::PathBuf,
+    /// Parent's Witness attachments. When Some, each JIT swarm worker
+    /// is constructed with `.with_witness_attachments(...)` so Oath
+    /// sealing + verification happens per-worker-turn just like the
+    /// main agent. None = JIT workers run without Witness oversight.
+    pub witness_attachments: Option<crate::witness_init::WitnessAttachments>,
 }
 
 /// Shared handle to the swarm context. The tool is registered early in
@@ -221,6 +230,8 @@ impl Tool for SpawnSwarmTool {
         let memory = swarm_ctx.memory.clone();
         let tools_template = swarm_ctx.tools_template.clone();
         let model = swarm_ctx.model.clone();
+        let witness_attachments_for_closure = swarm_ctx.witness_attachments.clone();
+        let workspace_for_closure = swarm_ctx.workspace_path.clone();
         let shared_context = args.shared_context.clone();
 
         let execute_fn = Arc::new(
@@ -230,6 +241,8 @@ impl Tool for SpawnSwarmTool {
                 let tools = tools_template.clone();
                 let model = model.clone();
                 let shared_context = shared_context.clone();
+                let witness_for_worker = witness_attachments_for_closure.clone();
+                let workspace_for_worker = workspace_for_closure.clone();
                 async move {
                     // Tool filter: strip spawn_swarm so the worker can't recurse.
                     let filter: crate::runtime::ToolFilter =
@@ -247,7 +260,8 @@ impl Tool for SpawnSwarmTool {
                         WORKER_MAX_TASK_DURATION,
                         0.0,
                     )
-                    .with_tool_filter(filter);
+                    .with_tool_filter(filter)
+                    .with_witness_attachments(witness_for_worker.as_ref());
 
                     let deps_text = format_dep_results(&dep_results);
                     let initial_msg = format!(
@@ -276,7 +290,7 @@ impl Tool for SpawnSwarmTool {
                         chat_id: format!("jit-swarm-{}", task.id),
                         role: temm1e_core::types::rbac::Role::Admin,
                         history: vec![],
-                        workspace_path: std::path::PathBuf::from("."),
+                        workspace_path: workspace_for_worker.clone(),
                         read_tracker: std::sync::Arc::new(tokio::sync::RwLock::new(
                             std::collections::HashSet::new(),
                         )),

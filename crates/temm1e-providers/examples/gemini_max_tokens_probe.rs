@@ -21,9 +21,11 @@ use temm1e_core::traits::Provider;
 use temm1e_core::types::message::{ChatMessage, CompletionRequest, MessageContent, Role};
 
 const SHORT_PROMPT: &str = "Reply with exactly one word: pong";
-const MEDIUM_PROMPT: &str = "Write a 3-line haiku about the Rust borrow checker. Reply only with the haiku.";
+const MEDIUM_PROMPT: &str =
+    "Write a 3-line haiku about the Rust borrow checker. Reply only with the haiku.";
 const LONG_PROMPT: &str = "Explain Rust's ownership model in detail with 5 code examples. Include the borrow checker, lifetimes, and move semantics. Write at least 400 words.";
-const JSON_PROMPT: &str = "Emit a JSON object with this exact shape (no preamble, no explanation): \
+const JSON_PROMPT: &str =
+    "Emit a JSON object with this exact shape (no preamble, no explanation): \
     {\"goal\": \"refactor hello.py\", \"postconditions\": [\
     {\"type\": \"FileExists\", \"path\": \"hello.py\"},\
     {\"type\": \"GrepPresent\", \"pattern\": \"def greet\", \"path\": \"hello.py\"},\
@@ -40,7 +42,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .find(|p| p.name == "gemini")
         .ok_or("no gemini provider in credentials")?;
-    let api_key = gemini_cfg.keys.first().cloned().ok_or("gemini has no key")?;
+    let api_key = gemini_cfg
+        .keys
+        .first()
+        .cloned()
+        .ok_or("gemini has no key")?;
 
     let provider: Arc<dyn Provider> = Arc::new(temm1e_providers::GeminiProvider::new(api_key));
     let model = gemini_cfg.model.clone();

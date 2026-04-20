@@ -2969,6 +2969,9 @@ async fn main() -> Result<()> {
                             config.agent.max_spend_usd,
                         )),
                         cancel: tokio_util::sync::CancellationToken::new(),
+                        workspace_path: std::env::current_dir()
+                            .unwrap_or_else(|_| std::path::PathBuf::from(".")),
+                        witness_attachments: witness_attachments.clone(),
                     };
                     *handle.write().await = Some(ctx);
                     tracing::info!("JIT spawn_swarm context wired");
@@ -6762,6 +6765,9 @@ Just type a message to chat with the AI agent.",
                                         temm1e_agent::budget::BudgetTracker::new(max_spend),
                                     ),
                                     cancel: tokio_util::sync::CancellationToken::new(),
+                                    workspace_path: std::env::current_dir()
+                                        .unwrap_or_else(|_| std::path::PathBuf::from(".")),
+                                    witness_attachments: witness_attachments.clone(),
                                 };
                                 *handle.write().await = Some(ctx);
                                 tracing::info!("JIT spawn_swarm context wired (CLI)");
