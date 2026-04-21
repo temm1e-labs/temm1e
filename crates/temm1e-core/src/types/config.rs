@@ -76,6 +76,8 @@ pub struct Temm1eConfig {
     pub social: SocialConfig,
     #[serde(default)]
     pub cambium: CambiumConfig,
+    #[serde(default)]
+    pub witness: WitnessConfig,
 }
 
 /// Social intelligence configuration — user profiling and emotional intelligence.
@@ -210,6 +212,70 @@ impl Default for CambiumConfig {
             wish_detection_enabled: true,
         }
     }
+}
+
+/// Witness verification configuration — pre-committed Oath + verdict gating.
+///
+/// Wires three independent hooks into the agent runtime:
+/// - `with_witness` — verifier gate at end of `process_message`
+/// - `with_cambium_trust` — telemetry only (verdict counts feed TrustEngine)
+/// - `with_auto_planner_oath` — clean-slate Planner LLM call before each turn
+///
+/// Default rollout: `Warn` strictness. Verdicts append a footer on FAIL/Inconclusive
+/// but the agent's reply is preserved (never destroyed). Promote to `Block` after
+/// production telemetry shows acceptable false-positive rate per task class.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WitnessConfig {
+    /// Master switch. When false, no Witness wiring occurs.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Strictness mode applied to verdicts: "observe" | "warn" | "block" | "block_with_retry".
+    /// Default: "warn" (visible footer on FAIL, agent reply preserved).
+    #[serde(default = "default_witness_strictness")]
+    pub strictness: String,
+    /// When true, runs the Planner LLM (clean-slate) before each `process_message`
+    /// to seal a Root Oath. Adds ~1 LLM call per turn (~$0.001 on Claude 3.5 Sonnet).
+    #[serde(default = "default_true")]
+    pub auto_planner_oath: bool,
+    /// When true, append a one-line readout (`Witness: 4/5 PASS. Cost: $X. Latency: +Yms.`)
+    /// to every reply regardless of strictness. Default false (telemetry-only).
+    #[serde(default)]
+    pub show_readout: bool,
+    /// Maximum LLM cost overhead allowed (% of base agent cost) before degrading
+    /// to Tier 0 only. Default 15.0 (matches lab theory's 12-14% target with margin).
+    #[serde(default = "default_witness_max_overhead_pct")]
+    pub max_overhead_pct: f64,
+    /// Enable Tier 1 LLM-backed AspectVerifier. Default true.
+    #[serde(default = "default_true")]
+    pub tier1_enabled: bool,
+    /// Enable Tier 2 LLM-backed AdversarialJudge (advisory only). Default true.
+    #[serde(default = "default_true")]
+    pub tier2_enabled: bool,
+    /// Path to the Witness Ledger SQLite DB. None = ~/.temm1e/witness.db.
+    #[serde(default)]
+    pub ledger_path: Option<String>,
+}
+
+impl Default for WitnessConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            strictness: default_witness_strictness(),
+            auto_planner_oath: true,
+            show_readout: false,
+            max_overhead_pct: default_witness_max_overhead_pct(),
+            tier1_enabled: true,
+            tier2_enabled: true,
+            ledger_path: None,
+        }
+    }
+}
+
+fn default_witness_strictness() -> String {
+    "warn".to_string()
+}
+fn default_witness_max_overhead_pct() -> f64 {
+    15.0
 }
 
 /// Perpetuum configuration — perpetual time-aware entity framework.
@@ -1173,6 +1239,7 @@ mod tests {
             vigil: VigilConfig::default(),
             social: SocialConfig::default(),
             cambium: CambiumConfig::default(),
+            witness: WitnessConfig::default(),
         };
 
         let toml_str = toml::to_string(&config).unwrap();

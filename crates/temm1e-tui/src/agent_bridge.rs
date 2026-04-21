@@ -24,23 +24,37 @@ use crate::event::{AgentResponseEvent, Event};
 /// Read the `[hive] enabled` flag directly from the config TOML file
 /// (mirrors the pattern in main.rs since HiveConfig is not part of
 /// the main Temm1eConfig struct — circular-dep constraint).
+///
+/// v5.5.0: default-ON to match `HiveConfig::default()` at
+/// `temm1e_hive/src/config.rs:64`. Explicit opt-out via
+/// `[hive] enabled = false` still works.
 fn read_hive_enabled() -> bool {
     #[derive(serde::Deserialize, Default)]
     struct HC {
         #[serde(default)]
         hive: HE,
     }
-    #[derive(serde::Deserialize, Default)]
+    #[derive(serde::Deserialize)]
     struct HE {
-        #[serde(default)]
+        #[serde(default = "hive_default_enabled_tui")]
         enabled: bool,
+    }
+    impl Default for HE {
+        fn default() -> Self {
+            Self {
+                enabled: hive_default_enabled_tui(),
+            }
+        }
+    }
+    fn hive_default_enabled_tui() -> bool {
+        true
     }
     dirs::home_dir()
         .and_then(|h| std::fs::read_to_string(h.join(".temm1e/config.toml")).ok())
         .or_else(|| std::fs::read_to_string("temm1e.toml").ok())
         .and_then(|c| toml::from_str::<HC>(&c).ok())
         .map(|c| c.hive.enabled)
-        .unwrap_or(false)
+        .unwrap_or(true)
 }
 
 fn read_hive_config() -> temm1e_hive::HiveConfig {
@@ -529,6 +543,26 @@ pub async fn spawn_agent(
         agent = agent.with_eigen_tune(et, tui_eigentune_cfg.enable_local_routing);
     }
 
+    // ── Witness attachments (if enabled; no-op otherwise) ──
+    let tui_witness_attachments =
+        match temm1e_agent::witness_init::build_witness_attachments(&setup.config.witness).await {
+            Ok(a) => {
+                if a.is_some() {
+                    tracing::info!(
+                        strictness = %setup.config.witness.strictness,
+                        auto_planner_oath = setup.config.witness.auto_planner_oath,
+                        "Witness enabled (TUI)"
+                    );
+                }
+                a
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Witness init failed — continuing without Witness");
+                None
+            }
+        };
+    agent = agent.with_witness_attachments(tui_witness_attachments.as_ref());
+
     // ── Fill JIT spawn_swarm handle (TUI path) ──
     // Context uses the tool snapshot captured before spawn_swarm was
     // pushed — workers physically cannot see it (recursion block).
@@ -543,6 +577,9 @@ pub async fn spawn_agent(
                 setup.config.agent.max_spend_usd,
             )),
             cancel: tokio_util::sync::CancellationToken::new(),
+            workspace_path: std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            witness_attachments: tui_witness_attachments.clone(),
         };
         *handle.write().await = Some(ctx);
         tracing::info!("JIT spawn_swarm context wired (TUI)");
@@ -704,7 +741,10 @@ pub async fn validate_provider_key(
             content: temm1e_core::types::message::MessageContent::Text("Hi".to_string()),
         }],
         tools: Vec::new(),
-        max_tokens: Some(1),
+        // Per project rule (feedback_no_max_tokens): no hardcoded output caps.
+        // This is a key-validation probe — model will respond with a short
+        // ack anyway. The cost is minimal compared to correctness.
+        max_tokens: None,
         temperature: Some(0.0),
         system: None,
         system_volatile: None,

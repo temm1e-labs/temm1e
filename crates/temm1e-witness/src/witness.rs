@@ -72,7 +72,6 @@ pub trait Tier2Verifier: Send + Sync {
 pub struct ProviderTier1Verifier {
     provider: Arc<dyn Provider>,
     model: String,
-    max_tokens: u32,
 }
 
 impl ProviderTier1Verifier {
@@ -80,7 +79,6 @@ impl ProviderTier1Verifier {
         Self {
             provider,
             model: model.into(),
-            max_tokens: 200,
         }
     }
 }
@@ -117,7 +115,7 @@ impl Tier1Verifier for ProviderTier1Verifier {
                 content: MessageContent::Text(user_prompt),
             }],
             tools: vec![],
-            max_tokens: Some(self.max_tokens),
+            max_tokens: None,
             temperature: Some(0.0),
             system: Some(TIER1_SYSTEM_PROMPT.to_string()),
             system_volatile: None,
@@ -158,7 +156,6 @@ fn extract_text(content: &[temm1e_core::types::message::ContentPart]) -> String 
 pub struct ProviderTier2Verifier {
     provider: Arc<dyn Provider>,
     model: String,
-    max_tokens: u32,
 }
 
 impl ProviderTier2Verifier {
@@ -166,7 +163,6 @@ impl ProviderTier2Verifier {
         Self {
             provider,
             model: model.into(),
-            max_tokens: 300,
         }
     }
 }
@@ -209,7 +205,7 @@ impl Tier2Verifier for ProviderTier2Verifier {
                 content: MessageContent::Text(user_prompt),
             }],
             tools: vec![],
-            max_tokens: Some(self.max_tokens),
+            max_tokens: None,
             temperature: Some(0.0),
             system: Some(TIER2_SYSTEM_PROMPT.to_string()),
             system_volatile: None,

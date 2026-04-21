@@ -164,7 +164,14 @@ pub async fn seal_oath_via_planner(
             content: MessageContent::Text(user_prompt),
         }],
         tools: vec![],
-        max_tokens: Some(1024),
+        // v5.5.0: removed hardcoded 1024 cap. Release integration testing
+        // showed the Planner truncated mid-JSON with 1024, leaving Witness
+        // dormant on every code turn. Per project rule (feedback_no_max_tokens),
+        // we set None — the provider adapter falls back to the model's
+        // declared output limit (Anthropic: model_registry; OpenAI-compat:
+        // field omitted, model default applies). Planner output is bounded
+        // naturally by the JSON structure, typically 500-1500 tokens.
+        max_tokens: None,
         temperature: Some(0.0),
         system: Some(OATH_GENERATION_PROMPT.to_string()),
         system_volatile: None,
