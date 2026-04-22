@@ -182,9 +182,19 @@ impl OpenAICompatProvider {
         // Gemini 3 models require a `thought_signature` on the first tool_call
         // in each assistant message. Inject the documented bypass value for
         // tool_calls that don't carry a real signature (old history, other
-        // providers). Non-Gemini providers ignore the extra_content field.
-        // See: https://ai.google.dev/gemini-api/docs/thought-signatures
-        inject_thought_signature_bypass(&mut messages);
+        // providers). See https://ai.google.dev/gemini-api/docs/thought-signatures.
+        //
+        // GH-59 (follow-up): gate to Gemini target models only. The previous
+        // comment claimed "non-Gemini providers ignore the extra_content
+        // field" — MiniMax proves that wrong. MiniMax (and likely other
+        // strict OpenAI-compat backends) rejects the Google-specific
+        // `extra_content.google.thought_signature` field with error 2013
+        // "invalid params". Only inject when the target is actually Gemini,
+        // matching both native naming (`gemini-*`) and OpenRouter's prefixed
+        // variant (`google/gemini-*`).
+        if is_gemini_target(&request.model) {
+            inject_thought_signature_bypass(&mut messages);
+        }
 
         let mut body = serde_json::json!({
             "model": request.model,
@@ -457,6 +467,14 @@ fn sanitize_tool_ordering(messages: &mut Vec<serde_json::Value>) {
             }
         }
     }
+}
+
+/// Return true if the model name targets a Gemini endpoint. Matches native
+/// names (`gemini-3-flash-preview`, `gemini-2.0-pro`) and OpenRouter's
+/// `google/gemini-*` prefix. Case-insensitive.
+fn is_gemini_target(model: &str) -> bool {
+    let m = model.to_ascii_lowercase();
+    m.starts_with("gemini") || m.starts_with("google/gemini")
 }
 
 /// Inject Gemini 3 thought_signature bypass on assistant messages with tool_calls.
@@ -1506,6 +1524,120 @@ mod tests {
         assert_eq!(msgs[2]["role"], "assistant");
         assert_eq!(msgs[3]["role"], "user");
         assert_eq!(msgs[3]["content"], "follow up");
+    }
+
+    /// GH-59 follow-up: `extra_content.google.thought_signature` is a
+    /// Google-specific field. It must NOT leak to non-Gemini OpenAI-compat
+    /// backends — MiniMax (and likely others) reject it with error 2013.
+    /// Gate by target model.
+    #[test]
+    fn thought_signature_gated_to_gemini_target() {
+        let provider = OpenAICompatProvider::new("key".to_string());
+        // Build a request with a prior assistant tool_call in history —
+        // this is the shape that used to trigger extra_content injection.
+        let mk_request = |model: &str| CompletionRequest {
+            model: model.to_string(),
+            messages: vec![
+                ChatMessage {
+                    role: Role::User,
+                    content: MessageContent::Text("use a tool".to_string()),
+                },
+                ChatMessage {
+                    role: Role::Assistant,
+                    content: MessageContent::Parts(vec![ContentPart::ToolUse {
+                        id: "call_1".to_string(),
+                        name: "read_file".to_string(),
+                        input: serde_json::json!({"path": "/tmp/x"}),
+                        thought_signature: None,
+                    }]),
+                },
+                ChatMessage {
+                    role: Role::Tool,
+                    content: MessageContent::Parts(vec![ContentPart::ToolResult {
+                        tool_use_id: "call_1".to_string(),
+                        content: "contents".to_string(),
+                        is_error: false,
+                    }]),
+                },
+                ChatMessage {
+                    role: Role::User,
+                    content: MessageContent::Text("now what?".to_string()),
+                },
+            ],
+            tools: Vec::new(),
+            max_tokens: None,
+            temperature: None,
+            system: None,
+            system_volatile: None,
+        };
+
+        // MiniMax: no extra_content anywhere in the body.
+        let body = provider
+            .build_request_body(&mk_request("MiniMax-M2.5"), false)
+            .unwrap();
+        let serialized = serde_json::to_string(&body).unwrap();
+        assert!(
+            !serialized.contains("extra_content"),
+            "extra_content leaked to MiniMax body: {serialized}"
+        );
+        assert!(
+            !serialized.contains("thought_signature"),
+            "thought_signature leaked to MiniMax body: {serialized}"
+        );
+
+        // GPT / OpenAI: also no extra_content.
+        let body = provider
+            .build_request_body(&mk_request("gpt-4o"), false)
+            .unwrap();
+        let serialized = serde_json::to_string(&body).unwrap();
+        assert!(
+            !serialized.contains("extra_content"),
+            "extra_content leaked to OpenAI body: {serialized}"
+        );
+
+        // Grok: also no extra_content.
+        let body = provider
+            .build_request_body(&mk_request("grok-4"), false)
+            .unwrap();
+        let serialized = serde_json::to_string(&body).unwrap();
+        assert!(
+            !serialized.contains("extra_content"),
+            "extra_content leaked to Grok body: {serialized}"
+        );
+
+        // Gemini native-ish name: thought_signature bypass MUST still fire.
+        let body = provider
+            .build_request_body(&mk_request("gemini-3-flash-preview"), false)
+            .unwrap();
+        let serialized = serde_json::to_string(&body).unwrap();
+        assert!(
+            serialized.contains("skip_thought_signature_validator"),
+            "thought_signature bypass missing for Gemini: {serialized}"
+        );
+
+        // Gemini via OpenRouter prefix: bypass still fires.
+        let body = provider
+            .build_request_body(&mk_request("google/gemini-3-flash-preview"), false)
+            .unwrap();
+        let serialized = serde_json::to_string(&body).unwrap();
+        assert!(
+            serialized.contains("skip_thought_signature_validator"),
+            "thought_signature bypass missing for OpenRouter-Gemini: {serialized}"
+        );
+    }
+
+    #[test]
+    fn is_gemini_target_matches_native_and_openrouter() {
+        assert!(is_gemini_target("gemini-3-flash-preview"));
+        assert!(is_gemini_target("gemini-2.0-pro"));
+        assert!(is_gemini_target("GEMINI-3"));
+        assert!(is_gemini_target("google/gemini-3-flash-preview"));
+        assert!(is_gemini_target("Google/Gemini-3"));
+        assert!(!is_gemini_target("gpt-4o"));
+        assert!(!is_gemini_target("grok-4"));
+        assert!(!is_gemini_target("MiniMax-M2.5"));
+        assert!(!is_gemini_target("deepseek-chat"));
+        assert!(!is_gemini_target("claude-sonnet-4-6"));
     }
 
     /// System-only consolidation still works when `request.system` is None
