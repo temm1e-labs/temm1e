@@ -39,6 +39,20 @@ interval = "30m"
 checklist = "HEARTBEAT.md"
 # report_to = ""  # Set to your Telegram chat ID for heartbeat reports
 
+# System notifications — startup / shutdown messages to the owner.
+# Default-off. When enabled with no [[notifications.recipients]] entries,
+# the notifier falls back to heartbeat.report_to + your primary channel.
+# [notifications]
+# enabled = true
+#
+# [[notifications.recipients]]
+# channel = "telegram"
+# chat_id = "123456789"
+#
+# [[notifications.recipients]]
+# channel = "discord"
+# chat_id = "987654321"
+
 [cron]
 storage = "sqlite"
 

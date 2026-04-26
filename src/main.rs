@@ -2187,6 +2187,40 @@ async fn main() -> Result<()> {
             let channel_map: Arc<HashMap<String, Arc<dyn temm1e_core::Channel>>> =
                 Arc::new(channel_map);
 
+            // ── SystemNotifier (GH-41 + future system events) ─────
+            // Default-off; only constructed when [notifications] enabled = true.
+            // Recipient resolution: explicit list, else fall back to
+            // heartbeat.report_to + primary channel (kimptoc-compat).
+            let system_notifier: Option<Arc<temm1e_automation::SystemNotifier>> =
+                if config.notifications.enabled {
+                    let primary_name = primary_channel.as_ref().map(|c| c.name().to_string());
+                    let recipients = temm1e_automation::resolve_recipients(
+                        &config.notifications,
+                        &config.heartbeat,
+                        primary_name.as_deref(),
+                    );
+                    if recipients.is_empty() {
+                        tracing::warn!(
+                            "[notifications] enabled but no recipients resolved \
+                             (notifications.recipients empty, no heartbeat.report_to fallback \
+                             available) — system events will not be sent"
+                        );
+                        None
+                    } else {
+                        let notifier = Arc::new(temm1e_automation::SystemNotifier::new(
+                            recipients,
+                            channel_map.clone(),
+                        ));
+                        tracing::info!(
+                            recipients = notifier.recipient_count(),
+                            "SystemNotifier ready"
+                        );
+                        Some(notifier)
+                    }
+                } else {
+                    None
+                };
+
             // ── Pending messages ───────────────────────────────
             let pending_messages: temm1e_tools::PendingMessages =
                 Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
@@ -6072,9 +6106,38 @@ Just type a message to chat with the AI agent.",
                 }
             }
 
+            // ── SystemNotifier: fire Startup ───────────────────────
+            // Spawned (fire-and-forget) so a slow channel POST does not
+            // delay reaching the ctrl_c handler.
+            if let Some(notifier) = system_notifier.as_ref() {
+                let n = notifier.clone();
+                let channel_names: Vec<String> = channel_map.keys().cloned().collect();
+                task_handles.push(tokio::spawn(async move {
+                    n.notify(temm1e_core::types::system_event::SystemEvent::Startup {
+                        version: env!("CARGO_PKG_VERSION").to_string(),
+                        channels: channel_names,
+                    })
+                    .await;
+                }));
+            }
+
             // Block until Ctrl+C, then drain gracefully
             tokio::signal::ctrl_c().await?;
             println!("\nTEMM1E shutting down gracefully...");
+
+            // ── SystemNotifier: fire Shutdown ──────────────────────
+            // Bounded by 5s so a wedged channel cannot extend shutdown.
+            // Awaited inline (before drop(msg_tx)) so the message goes out
+            // while the runtime is still healthy.
+            if let Some(notifier) = system_notifier.as_ref() {
+                let _ = tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    notifier.notify(temm1e_core::types::system_event::SystemEvent::Shutdown {
+                        reason: temm1e_core::types::system_event::ShutdownReason::CtrlC,
+                    }),
+                )
+                .await;
+            }
 
             // Drop the inbound message sender so the dispatcher loop exits
             // when its receiver sees the channel closed.

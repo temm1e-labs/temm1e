@@ -7,3 +7,4 @@ pub mod model_registry;
 pub mod optimization;
 pub mod rbac;
 pub mod session;
+pub mod system_event;

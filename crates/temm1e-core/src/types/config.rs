@@ -53,6 +53,8 @@ pub struct Temm1eConfig {
     #[serde(default)]
     pub heartbeat: HeartbeatConfig,
     #[serde(default)]
+    pub notifications: NotificationsConfig,
+    #[serde(default)]
     pub cron: CronConfig,
     #[serde(default)]
     pub channel: HashMap<String, ChannelConfig>,
@@ -760,6 +762,29 @@ fn default_heartbeat_checklist() -> String {
     "HEARTBEAT.md".to_string()
 }
 
+/// System-event notifications — out-of-band lifecycle messages (startup,
+/// shutdown, etc.) sent directly via `Channel.send_message`. Distinct from
+/// the heartbeat, which is in-band agent-loop messaging.
+///
+/// Default-off. When `enabled = true` and `recipients` is empty, the
+/// notifier auto-derives a single recipient from `heartbeat.report_to` +
+/// the primary channel (kimptoc-compat for GH-41).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NotificationsConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub recipients: Vec<NotifierRecipientConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotifierRecipientConfig {
+    /// Channel name as registered under [channel.<name>] (e.g. "telegram", "discord").
+    pub channel: String,
+    /// Chat ID on that channel.
+    pub chat_id: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CronConfig {
     #[serde(default = "default_cron_storage")]
@@ -1227,6 +1252,7 @@ mod tests {
                 enabled: true,
                 ..Default::default()
             },
+            notifications: NotificationsConfig::default(),
             cron: CronConfig::default(),
             channel: HashMap::new(),
             agent: AgentConfig::default(),
@@ -1707,5 +1733,39 @@ mod tests {
         assert!(restored.heartbeat.enabled);
         assert_eq!(restored.memory.search.keyword_weight, 0.4);
         assert_eq!(restored.observability.log_level, "trace");
+    }
+
+    #[test]
+    fn notifications_default_when_block_missing() {
+        let toml_str = r#"
+            [provider]
+            name = "anthropic"
+        "#;
+        let config: Temm1eConfig = toml::from_str(toml_str).unwrap();
+        assert!(!config.notifications.enabled);
+        assert!(config.notifications.recipients.is_empty());
+    }
+
+    #[test]
+    fn notifications_recipients_array_round_trips() {
+        let toml_str = r#"
+            [notifications]
+            enabled = true
+
+            [[notifications.recipients]]
+            channel = "telegram"
+            chat_id = "123456789"
+
+            [[notifications.recipients]]
+            channel = "discord"
+            chat_id = "987654321"
+        "#;
+        let config: Temm1eConfig = toml::from_str(toml_str).unwrap();
+        assert!(config.notifications.enabled);
+        assert_eq!(config.notifications.recipients.len(), 2);
+        assert_eq!(config.notifications.recipients[0].channel, "telegram");
+        assert_eq!(config.notifications.recipients[0].chat_id, "123456789");
+        assert_eq!(config.notifications.recipients[1].channel, "discord");
+        assert_eq!(config.notifications.recipients[1].chat_id, "987654321");
     }
 }
