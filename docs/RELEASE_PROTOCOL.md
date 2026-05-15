@@ -222,12 +222,55 @@ cargo test --workspace 2>&1 | grep 'test result' | awk '{sum += $4} END {print s
 
 Confirm test count still matches what you wrote in README.
 
-### 9. Commit and Push
+### 9. Commit and Push — PR-based flow
+
+`main` is branch-protected: direct pushes are rejected, and merging a PR
+requires **1 approving review** (per `gh api repos/temm1e-labs/temm1e/branches/main/protection`).
+The release workflow is therefore:
 
 ```bash
-git add -A
+# 1. Commit on a release branch (not main)
+git checkout -b release/vX.Y.Z   # or use whatever feature branch is active
+git add <only files actually changed by the release>
 git commit -m "vX.Y.Z: <one-line summary>"
-git push origin main
+git push -u origin release/vX.Y.Z
+
+# 2. Open the PR
+gh pr create --title "vX.Y.Z: <one-line summary>" --body "<details>"
+
+# 3. Wait for CI checks to pass on the PR
+gh pr checks <PR_NUMBER>    # all rows must say "pass"
+```
+
+#### Merging the PR
+
+Once CI is green:
+
+- **If a second reviewer is available**: have them `gh pr review <N> --approve`,
+  then `gh pr merge <N> --squash --subject "vX.Y.Z: ... (#<N>)" --body "..."`.
+- **Solo maintainer (no second reviewer)**: admin override is the only path
+  because `enforce_admins: false` on this repo. Authorized usage:
+
+  ```bash
+  gh pr merge <PR_NUMBER> --squash --admin \
+      --subject "vX.Y.Z: <summary> (#<PR_NUMBER>)" \
+      --body "<details>"
+  ```
+
+  `--admin` bypasses the required-review gate. **Only use when**:
+  1. All CI checks on the PR have passed (verified via `gh pr checks`).
+  2. You are the only maintainer with merge rights for this release.
+  3. The release commit was self-reviewed end-to-end (compilation gates,
+     test count, README/CLAUDE.md updates, interactive parity gate).
+
+  Document the admin merge in the release notes for traceability. Established
+  v5.6.1 (2026-05-15) as the first explicit-admin-bypass release on record.
+
+#### After merge
+
+```bash
+git checkout main
+git pull --ff-only      # main now contains the squashed release commit
 ```
 
 ### 10. Tag and Release
