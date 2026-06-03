@@ -171,6 +171,7 @@ fn fact_type_label(t: &temm1e_core::FactType) -> &'static str {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn build_context(
     session: &SessionContext,
     memory: &dyn Memory,

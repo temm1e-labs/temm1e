@@ -2053,6 +2053,17 @@ async fn main() -> Result<()> {
                     tracing::info!(seeded = seeded_bp, "Seeded built-in blueprints at startup");
                 }
 
+                // Engram permanent-memory GC: prune stale, non-user-pinned facts.
+                let engram_now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                if let Ok(n) = memory.engram_gc(engram_now).await {
+                    if n > 0 {
+                        tracing::info!(pruned = n, "Engram GC completed at startup");
+                    }
+                }
+
                 // Lambda memory dedup: merge near-duplicate entries before GC
                 let lambda_config = &config.memory.lambda;
                 if lambda_config.enabled {

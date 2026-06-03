@@ -2569,6 +2569,119 @@ impl AgentRuntime {
                     }
                 }
 
+                // ── Engram curator: auto-capture durable facts (gated, background) ──
+                // After a substantive turn, one bounded LLM call extracts durable
+                // facts and stores them as Agent-pinned Engram facts. Best-effort
+                // and detached so it never blocks the reply. User pins are never
+                // overwritten; subject_key dedups/supersedes.
+                if self.engram_config.enabled
+                    && self.engram_config.curator == "substantive"
+                    && msg
+                        .text
+                        .as_deref()
+                        .map(|t| t.trim().len() > 40)
+                        .unwrap_or(false)
+                {
+                    let digest = build_engram_digest(&session.history);
+                    let provider = Arc::clone(&self.provider);
+                    let model = self.model.clone();
+                    let memory = Arc::clone(&self.memory);
+                    let user_id = msg.user_id.clone();
+                    let chat_id = msg.chat_id.clone();
+                    let cap = self.engram_config.max_facts.min(3);
+                    tokio::spawn(async move {
+                        let facts = curate_engram_facts(provider.as_ref(), &model, &digest).await;
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
+                        for cf in facts.into_iter().take(cap) {
+                            let content = cf.content.trim().to_string();
+                            if content.is_empty() {
+                                continue;
+                            }
+                            let existing = match cf.subject_key.as_deref() {
+                                Some(sk) => memory
+                                    .engram_by_subject(sk, &user_id, &chat_id)
+                                    .await
+                                    .ok()
+                                    .flatten(),
+                                None => None,
+                            };
+                            // Trust boundary: never overwrite a user pin.
+                            if existing
+                                .as_ref()
+                                .is_some_and(|e| e.pinned_by == temm1e_core::PinnedBy::User)
+                            {
+                                continue;
+                            }
+                            // De-dup: if no subject match but a near-identical fact
+                            // already exists (e.g. the agent's own in-loop tool call
+                            // this same turn), skip to avoid a duplicate permanent entry.
+                            if existing.is_none() {
+                                let visible = memory
+                                    .engram_list(&user_id, &chat_id, 50)
+                                    .await
+                                    .unwrap_or_default();
+                                if visible.iter().any(|e| near_duplicate(&e.content, &content)) {
+                                    continue;
+                                }
+                            }
+                            let id = existing.as_ref().map(|e| e.id.clone()).unwrap_or_else(|| {
+                                use std::hash::{Hash, Hasher};
+                                let mut h = std::collections::hash_map::DefaultHasher::new();
+                                format!(
+                                    "global|curator|{}",
+                                    cf.subject_key.as_deref().unwrap_or(&content)
+                                )
+                                .hash(&mut h);
+                                format!("eg{:016x}", h.finish())
+                            });
+                            let fact_type = match cf.fact_type.as_str() {
+                                "identity" => temm1e_core::FactType::Identity,
+                                "preference" => temm1e_core::FactType::Preference,
+                                "project" => temm1e_core::FactType::Project,
+                                "constraint" => temm1e_core::FactType::Constraint,
+                                _ => temm1e_core::FactType::Reference,
+                            };
+                            let summary: String = content
+                                .lines()
+                                .next()
+                                .unwrap_or(&content)
+                                .chars()
+                                .take(160)
+                                .collect();
+                            let essence: String = summary
+                                .split_whitespace()
+                                .take(6)
+                                .collect::<Vec<_>>()
+                                .join(" ");
+                            let created = existing.as_ref().map(|e| e.created_at).unwrap_or(now);
+                            let fact = temm1e_core::EngramFact {
+                                id,
+                                content: content.clone(),
+                                summary,
+                                essence,
+                                fact_type,
+                                scope: temm1e_core::MemoryScope::Global,
+                                pinned_by: temm1e_core::PinnedBy::Agent,
+                                subject_key: cf.subject_key.clone(),
+                                importance: 4.0,
+                                created_at: created,
+                                last_accessed: now,
+                                tags: Vec::new(),
+                                links: Vec::new(),
+                            };
+                            match memory.engram_store(fact).await {
+                                Ok(()) => {
+                                    info!(content = %content, "Engram curator captured a durable fact")
+                                }
+                                Err(e) => warn!(error = %e, "Engram curator store failed"),
+                            }
+                        }
+                    });
+                }
+
                 // ── Task Queue: mark completed ───────────────────────
                 if let (Some(ref tq), Some(ref tid)) = (&self.task_queue, &task_id) {
                     if let Err(e) = tq
@@ -3363,6 +3476,126 @@ fn extract_latest_user_text(history: &[temm1e_core::types::message::ChatMessage]
                 .join(" "),
         })
         .unwrap_or_default()
+}
+
+// ── Engram curator (auto-capture durable facts; gated, background) ──
+
+#[derive(serde::Deserialize)]
+struct CuratedFact {
+    content: String,
+    #[serde(default)]
+    fact_type: String,
+    #[serde(default)]
+    subject_key: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct CuratedFacts {
+    #[serde(default)]
+    facts: Vec<CuratedFact>,
+}
+
+/// Build a compact recent-conversation digest for the curator (last ~8 turns).
+fn build_engram_digest(history: &[temm1e_core::types::message::ChatMessage]) -> String {
+    use temm1e_core::types::message::{ContentPart, MessageContent, Role};
+    let recent: Vec<_> = history.iter().rev().take(8).collect();
+    let mut out = String::new();
+    for m in recent.into_iter().rev() {
+        let who = match m.role {
+            Role::User => "User",
+            Role::Assistant => "Tem",
+            _ => continue,
+        };
+        let text = match &m.content {
+            MessageContent::Text(t) => t.clone(),
+            MessageContent::Parts(parts) => parts
+                .iter()
+                .filter_map(|p| match p {
+                    ContentPart::Text { text } => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join(" "),
+        };
+        let text = text.trim();
+        if !text.is_empty() {
+            let snippet: String = text.chars().take(500).collect();
+            out.push_str(&format!("{who}: {snippet}\n"));
+        }
+    }
+    out
+}
+
+/// Extract the first `{...}` JSON object span from possibly-fenced LLM output.
+fn extract_json_object(s: &str) -> &str {
+    match (s.find('{'), s.rfind('}')) {
+        (Some(a), Some(b)) if b >= a => &s[a..=b],
+        _ => s,
+    }
+}
+
+/// One LLM call: extract durable facts worth permanent memory from the digest.
+/// Best-effort — returns an empty vec on any failure or non-JSON output.
+async fn curate_engram_facts(provider: &dyn Provider, model: &str, digest: &str) -> Vec<CuratedFact> {
+    use temm1e_core::types::message::{CompletionRequest, MessageContent, Role};
+    if digest.trim().is_empty() {
+        return Vec::new();
+    }
+    let prompt = format!(
+        "From the conversation below, extract any DURABLE facts about the user or project \
+         worth remembering permanently across future sessions — standing preferences, \
+         identity details, hard constraints, or stable project facts. Ignore one-off or \
+         transient details. Respond with ONLY JSON of the form:\n\
+         {{\"facts\": [{{\"content\": \"<fact, third person>\", \"fact_type\": \
+         \"identity|preference|project|constraint|reference\", \"subject_key\": \"<short-stable-key>\"}}]}}\n\
+         If there is nothing durable, respond {{\"facts\": []}}.\n\nConversation:\n{digest}"
+    );
+    let request = CompletionRequest {
+        model: model.to_string(),
+        messages: vec![ChatMessage {
+            role: Role::User,
+            content: MessageContent::Text(prompt),
+        }],
+        tools: vec![],
+        max_tokens: None,
+        temperature: Some(0.2),
+        system: Some("You are a precise long-term-memory curator. Output only JSON.".to_string()),
+        system_volatile: None,
+    };
+    let resp = match provider.complete(request).await {
+        Ok(r) => r,
+        Err(e) => {
+            warn!(error = %e, "Engram curator LLM call failed");
+            return Vec::new();
+        }
+    };
+    let text = extract_text_from_response(&resp.content);
+    match serde_json::from_str::<CuratedFacts>(extract_json_object(&text)) {
+        Ok(c) => c.facts,
+        Err(e) => {
+            debug!(error = %e, "Engram curator produced non-JSON output; skipping");
+            Vec::new()
+        }
+    }
+}
+
+/// Word-set Jaccard near-duplicate check (ignores order/short words). Used so the
+/// curator doesn't re-store a fact the agent already captured in-loop via the tool.
+fn near_duplicate(a: &str, b: &str) -> bool {
+    fn words(s: &str) -> std::collections::HashSet<String> {
+        s.to_lowercase()
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| w.len() > 2)
+            .map(|w| w.to_string())
+            .collect()
+    }
+    let (wa, wb) = (words(a), words(b));
+    if wa.is_empty() || wb.is_empty() {
+        return false;
+    }
+    let inter = wa.intersection(&wb).count() as f32;
+    let union = wa.union(&wb).count() as f32;
+    inter / union >= 0.6
 }
 
 /// Truncate a string to a maximum number of characters.

@@ -801,7 +801,7 @@ impl Memory for SqliteMemory {
         let user_key = format!("user:{user_id}");
         let chat_key = format!("chat:{chat_id}");
         // Sanitize LIKE wildcards from the query, then substring-match.
-        let pat = format!("%{}%", query.replace('%', "").replace('_', ""));
+        let pat = format!("%{}%", query.replace(['%', '_'], ""));
         let rows: Vec<EngramRow> = sqlx::query_as(
             "SELECT id, content, summary, essence, fact_type, scope, pinned_by, subject_key, \
              importance, created_at, last_accessed, tags, links \
