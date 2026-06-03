@@ -18,9 +18,10 @@
   <code>160K lines</code> · <code>2,889 tests</code> · <code>0 warnings</code> · <code>0 panic paths</code> · <code>25 crates</code> · <code>Windows · macOS · Linux</code> · <code>full computer use</code> · <code>13 free web search backends</code> · <code>JIT swarm</code> · <code>prompt caching</code> · <code>witness verification (default-on)</code>
 </p>
 
-<p align="center"><strong>13 Layers of Self-Learning</strong></p>
+<p align="center"><strong>14 Layers of Self-Learning</strong></p>
 <p align="center">
   <strong><a href="tems_lab/LAMBDA_MEMORY.md">Lambda Memory</a></strong> &mdash; episodic facts that fade, not disappear<br>
+  <strong><a href="tems_lab/ENGRAM_MEMORY.md">Engram Memory</a></strong> &mdash; permanent facts the agent curates itself, always-on yet never overflowing the window<br>
   <strong><a href="tems_lab/ARTIFACT_VALUE_FUNCTION.md#cross-task-learnings">Cross-Task Learnings</a></strong> &mdash; strategic lessons that persist across tasks<br>
   <strong><a href="docs/design/BLUEPRINT_SYSTEM.md">Blueprints</a></strong> &mdash; proven multi-step procedures with fitness scores<br>
   <strong><a href="tems_lab/ARTIFACT_VALUE_FUNCTION.md#tem-anima--user-profile-learning">Tem Anima</a></strong> &mdash; user personality and communication style profiling<br>
@@ -298,6 +299,14 @@ When the context window holds everything, simple keyword search wins. The moment
 
 Hot-switchable at runtime: `/memory lambda` or `/memory echo`. Default: λ-Memory.
 
+### Engram — Permanent Memory That Earns Its Keep
+
+λ-Memory remembers *conversations* and lets them fade. **Engram** is the layer above it: a small, always-present set of **durable facts** about you and your projects — identity, standing preferences, hard constraints — that I curate myself. Tell me *"remember my birthday is March 2"* and it's pinned permanently; mention a preference in passing and I'll capture it on my own. No commands, no `MEMORY.md` to hand-edit.
+
+Permanence is **earned and self-maintaining**. Facts are scored by a two-component model (retrievability × stability after Bjork & FSRS): a confidently-judged fact is permanent at once, an unsure one is promoted only as it proves durable, and anything that stops mattering is demoted by **pure math** (a lazy time-anneal) — so the set stays relevant and **never overflows the context window** (it's a hard-capped slice of the Skull budget). After each substantive turn an optional curator re-reads the conversation and updates the set; your explicit *"remember / forget / correct"* always wins and is never auto-touched. Scope-isolated (global or per-chat), built on the λ-Memory engine, on by default.
+
+The intelligence is the agent's own tool calls plus one small gated curator call; everything else — decay, promotion, demotion, packing, dedup — is deterministic and free. [Design + research →](tems_lab/ENGRAM_MEMORY.md)
+
 ### Tem's Mind v2.0 — Complexity-Aware Agentic Loop
 
 v1 treats every message the same. v2 classifies each message into a complexity tier **before** calling the LLM, using zero-cost rule-based heuristics. Result: fewer API rounds on compound tasks, same quality.
@@ -437,6 +446,7 @@ V(a, t) = Q(a) × R(a, t) × U(a)
 | Subsystem | Quality Q | Decay R (half-life) | Drain Mechanism |
 |-----------|-----------|:-------------------:|-----------------|
 | [Lambda Memory](tems_lab/LAMBDA_MEMORY.md) | `(importance + recall_boost)` | 29 days | Exponential decay + GC + dedup |
+| [Engram (permanent)](tems_lab/ENGRAM_MEMORY.md) | `importance` (EMA of curator judgments) | 42 days (user pins: never) | Lazy anneal → demotion + curator dedup |
 | [Cross-Task Learnings](docs/design/SELF_LEARNING_AUDIT.md) | Beta(alpha, beta) posterior | 46 days | Value threshold + supersession |
 | [Blueprints](docs/design/BLUEPRINT_SYSTEM.md) | Wilson lower bound^2 | 139 days | Fitness GC + forced retirement |
 | [Eigen-Tune](tems_lab/eigen/DESIGN.md) | Beta quality score | No decay | Reservoir eviction (5K/tier) |
