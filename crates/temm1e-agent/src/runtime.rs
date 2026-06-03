@@ -650,10 +650,7 @@ impl AgentRuntime {
     }
 
     /// Set the Engram permanent-memory configuration (default-on).
-    pub fn with_engram_config(
-        mut self,
-        cfg: temm1e_core::types::config::EngramConfig,
-    ) -> Self {
+    pub fn with_engram_config(mut self, cfg: temm1e_core::types::config::EngramConfig) -> Self {
         self.engram_config = cfg;
         self
     }
@@ -1462,8 +1459,7 @@ impl AgentRuntime {
 
             // ── Engram: prepend the permanent-memory block (scoped, capped) ──
             if self.engram_config.enabled {
-                let (skull, _mo) =
-                    temm1e_core::types::model_registry::model_limits(&self.model);
+                let (skull, _mo) = temm1e_core::types::model_registry::model_limits(&self.model);
                 let p_max = ((skull as f32) * self.engram_config.p_max_frac) as usize;
                 if p_max > 0 {
                     let (block, _t) = crate::context::render_permanent_block(
@@ -3536,7 +3532,11 @@ fn extract_json_object(s: &str) -> &str {
 
 /// One LLM call: extract durable facts worth permanent memory from the digest.
 /// Best-effort — returns an empty vec on any failure or non-JSON output.
-async fn curate_engram_facts(provider: &dyn Provider, model: &str, digest: &str) -> Vec<CuratedFact> {
+async fn curate_engram_facts(
+    provider: &dyn Provider,
+    model: &str,
+    digest: &str,
+) -> Vec<CuratedFact> {
     use temm1e_core::types::message::{CompletionRequest, MessageContent, Role};
     if digest.trim().is_empty() {
         return Vec::new();

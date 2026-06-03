@@ -109,15 +109,23 @@ async fn main() {
         .engram_recall("deploy", "", "cur-chat", 10)
         .await
         .unwrap_or_default();
-    let facts2 = memory.engram_recall("Lambda", "", "cur-chat", 10).await.unwrap_or_default();
+    let facts2 = memory
+        .engram_recall("Lambda", "", "cur-chat", 10)
+        .await
+        .unwrap_or_default();
     let mut all = facts;
     all.extend(facts2);
     all.dedup_by(|a, b| a.id == b.id);
     println!("\n=== CAPTURED FACTS ({}) ===", all.len());
     for f in &all {
-        println!("  - pin={:?} type={:?} imp={} :: {}", f.pinned_by, f.fact_type, f.importance, f.content);
+        println!(
+            "  - pin={:?} type={:?} imp={} :: {}",
+            f.pinned_by, f.fact_type, f.importance, f.content
+        );
     }
-    let captured = all.iter().any(|f| f.content.to_lowercase().contains("lambda"));
+    let captured = all
+        .iter()
+        .any(|f| f.content.to_lowercase().contains("lambda"));
     let by_curator = all.iter().any(|f| f.pinned_by == PinnedBy::Agent);
 
     // Turn 2: ask — must answer from the injected permanent block.
@@ -138,9 +146,22 @@ async fn main() {
     let recalled = r2.text.to_lowercase().contains("lambda");
 
     println!("\n=== VERDICT ===");
-    println!("  durable fact captured (no 'remember'): {}", if captured { "PASS" } else { "FAIL" });
-    println!("  captured by curator (Agent pin)?       : {}", if by_curator { "yes" } else { "no (tool captured it)" });
-    println!("  recalled on turn 2                     : {}", if recalled { "PASS" } else { "FAIL" });
+    println!(
+        "  durable fact captured (no 'remember'): {}",
+        if captured { "PASS" } else { "FAIL" }
+    );
+    println!(
+        "  captured by curator (Agent pin)?       : {}",
+        if by_curator {
+            "yes"
+        } else {
+            "no (tool captured it)"
+        }
+    );
+    println!(
+        "  recalled on turn 2                     : {}",
+        if recalled { "PASS" } else { "FAIL" }
+    );
     if captured && recalled {
         println!("\nLIVE CURATOR TEST: PASS ✅");
     } else {

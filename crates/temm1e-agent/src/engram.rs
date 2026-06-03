@@ -216,7 +216,10 @@ mod tests {
         let now = 100 * DAY;
         // after tau days the factor is 1/e ≈ 0.368
         let v = effective_importance(4.0, now - 60 * DAY, now, false, 60.0);
-        assert!((v - 4.0 * std::f32::consts::E.recip()).abs() < 0.05, "v={v}");
+        assert!(
+            (v - 4.0 * std::f32::consts::E.recip()).abs() < 0.05,
+            "v={v}"
+        );
     }
 
     #[test]
@@ -297,6 +300,10 @@ mod tests {
         // 90 days of disuse anneals it below theta_down ⇒ auto-demote, no LLM
         let later = t0 + 90 * DAY;
         let i_eff = effective_importance(i, t0, later, false, P.tau_days);
-        assert_eq!(tier(i_eff, Tier::Permanent, false, &P), Tier::Active, "i_eff={i_eff}");
+        assert_eq!(
+            tier(i_eff, Tier::Permanent, false, &P),
+            Tier::Active,
+            "i_eff={i_eff}"
+        );
     }
 }

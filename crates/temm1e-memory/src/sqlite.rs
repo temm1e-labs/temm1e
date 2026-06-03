@@ -1457,12 +1457,24 @@ mod tests {
     #[tokio::test]
     async fn engram_store_is_upsert() {
         let mem = SqliteMemory::new("sqlite::memory:").await.unwrap();
-        mem.engram_store(mk_fact("x", MemoryScope::Global, None, 2.0, PinnedBy::Agent))
-            .await
-            .unwrap();
-        mem.engram_store(mk_fact("x", MemoryScope::Global, None, 4.5, PinnedBy::Agent))
-            .await
-            .unwrap();
+        mem.engram_store(mk_fact(
+            "x",
+            MemoryScope::Global,
+            None,
+            2.0,
+            PinnedBy::Agent,
+        ))
+        .await
+        .unwrap();
+        mem.engram_store(mk_fact(
+            "x",
+            MemoryScope::Global,
+            None,
+            4.5,
+            PinnedBy::Agent,
+        ))
+        .await
+        .unwrap();
         let got = mem.engram_get("x").await.unwrap().unwrap();
         assert_eq!(got.importance, 4.5, "second store replaces the first");
         let all = mem.engram_list("anyone", "anywhere", 50).await.unwrap();

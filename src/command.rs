@@ -159,7 +159,10 @@ mod tests {
 
     #[test]
     fn normalize_only_when_botname_present() {
-        assert_eq!(normalize_command_text("/help@Bot").as_deref(), Some("/help"));
+        assert_eq!(
+            normalize_command_text("/help@Bot").as_deref(),
+            Some("/help")
+        );
         assert_eq!(
             normalize_command_text("/model@Bot gpt-4o").as_deref(),
             Some("/model gpt-4o")

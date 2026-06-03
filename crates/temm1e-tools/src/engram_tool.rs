@@ -114,7 +114,13 @@ impl EngramTool {
         let scope = Self::parse_scope(scope_s, ctx);
         let id = Self::make_id(&scope, subject_key, content);
         let now = Self::now();
-        let summary: String = content.lines().next().unwrap_or(content).chars().take(160).collect();
+        let summary: String = content
+            .lines()
+            .next()
+            .unwrap_or(content)
+            .chars()
+            .take(160)
+            .collect();
         let essence: String = summary
             .split_whitespace()
             .take(6)
@@ -186,7 +192,10 @@ impl EngramTool {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .ok_or_else(|| Temm1eError::Tool("Missing required parameter: query".into()))?;
-        let matches = self.memory.engram_recall(query, "", &ctx.chat_id, 1).await?;
+        let matches = self
+            .memory
+            .engram_recall(query, "", &ctx.chat_id, 1)
+            .await?;
         match matches.into_iter().next() {
             Some(f) => {
                 self.memory.engram_forget(&f.id).await?;

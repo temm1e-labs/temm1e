@@ -136,11 +136,19 @@ async fn main() {
     println!("Tem: {}", reply2.text);
 
     let recalled = reply2.text.contains("1994")
-        && (reply2.text.contains("March") || reply2.text.contains("3/2") || reply2.text.contains("2"));
+        && (reply2.text.contains("March")
+            || reply2.text.contains("3/2")
+            || reply2.text.contains("2"));
 
     println!("\n=== VERDICT ===");
-    println!("  wrote permanent fact via tool : {}", if wrote_fact { "PASS" } else { "FAIL" });
-    println!("  recalled it on turn 2          : {}", if recalled { "PASS" } else { "FAIL" });
+    println!(
+        "  wrote permanent fact via tool : {}",
+        if wrote_fact { "PASS" } else { "FAIL" }
+    );
+    println!(
+        "  recalled it on turn 2          : {}",
+        if recalled { "PASS" } else { "FAIL" }
+    );
 
     if wrote_fact && recalled {
         println!("\nLIVE ENGRAM TEST: PASS ✅");
