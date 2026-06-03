@@ -1,0 +1,208 @@
+\documentclass[11pt]{article}
+\usepackage{fontspec}
+\setmonofont{Menlo}[Scale=0.75]
+\usepackage{amsmath,amssymb}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{xcolor}
+\definecolor{ink}{HTML}{1A1A2E}\definecolor{accent}{HTML}{0F4C81}
+\definecolor{mathgreen}{HTML}{1B5E20}\definecolor{llmred}{HTML}{8E1B1B}
+\definecolor{boxbg}{HTML}{F2F5F9}\definecolor{rule}{HTML}{C9D3DF}
+\usepackage{booktabs}\usepackage{array}
+\usepackage{enumitem}\setlist{leftmargin=1.4em,topsep=2pt,itemsep=1pt}
+\usepackage{mdframed}\usepackage{titlesec}
+\usepackage{tikz}\usetikzlibrary{positioning,arrows.meta,fit,backgrounds}
+\titleformat{\section}{\large\bfseries\color{accent}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{ink}}{\thesubsection}{0.5em}{}
+\usepackage{fancyhdr}\pagestyle{fancy}\fancyhf{}
+\lhead{\small\color{accent}Engram — Permanent Memory (rev 4, hardened)}\rhead{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\usepackage[hidelinks]{hyperref}
+\setlength{\parindent}{0pt}\setlength{\parskip}{4.5pt}
+\newmdenv[linecolor=rule,backgroundcolor=boxbg,linewidth=0.8pt,roundcorner=3pt,
+  innertopmargin=6pt,innerbottommargin=6pt,innerleftmargin=8pt,innerrightmargin=8pt]{keybox}
+\newcommand{\mtag}{\textcolor{mathgreen}{\textbf{[MATH]}}}
+\newcommand{\ltag}{\textcolor{llmred}{\textbf{[LLM]}}}
+
+\begin{document}
+\begin{center}
+{\LARGE\bfseries\color{accent} Engram Memory}\\[1pt]
+{\large Permanent, self-curating long-term memory for TEMM1E — a core tool (v5.7.0, rev 4 — hardened)}\\[3pt]
+{\small \emph{$\lambda$-Memory forgets; Engram remembers.} Default-on; when disabled, degrades to a simple capped \texttt{MEMORY.md}.}
+\end{center}
+\hrule\vspace{5pt}
+
+\section{Requirements}
+\begin{enumerate}[itemsep=0pt]
+\item \textbf{Core tool, NL-driven} — ``hey Tem, remember my birthday'' just works; no slash commands.
+\item \textbf{Self-sustaining, no repetition} — the agent curates; the user never repeats a fact.
+\item \textbf{Skull-bound} — never exceeds the window; permanent tier has a hard ceiling.
+\item \textbf{Decay \& demotion} — stale facts fade and demote automatically (even with the curator off).
+\item \textbf{Immediate control} — ``remember / forget / correct'' applies instantly and sticks.
+\item \textbf{Default-on; off $\Rightarrow$ simple \texttt{MEMORY.md}} — one flag, two paths; the fallback reuses the same tool + render, minus curator/decay/tiers.
+\item \textbf{Coexists with $\lambda$-Memory} (opt-in, conversation-only today) without changing it.
+\end{enumerate}
+
+\section{Architecture}
+\begin{center}
+\resizebox{0.97\textwidth}{!}{%
+\begin{tikzpicture}[font=\footnotesize,>={Stealth[round]},
+  base/.style={draw,rounded corners,align=center},
+  io/.style={base,fill=blue!8,minimum height=9mm,text width=150mm},
+  tool/.style={base,very thick,fill=orange!20,minimum height=12mm,text width=70mm},
+  llm/.style={base,dashed,fill=red!8,minimum height=12mm,text width=62mm},
+  smath/.style={base,fill=green!13,minimum height=11mm,text width=150mm},
+  store/.style={base,fill=gray!14,minimum height=11mm,text width=150mm},
+  tier/.style={base,fill=blue!7,minimum height=15mm,text width=42mm},
+  outbox/.style={base,fill=violet!13,minimum height=9mm,text width=150mm}]
+\node[io](in){\textbf{User} — NL: ``remember / forget / correct''\hfill$|$\hfill \textbf{Agent loop} — writes in-loop \& at end-of-loop};
+\node[tool,below=8mm of in.south,xshift=-40mm,anchor=north](tool){\textbf{ENGRAM TOOL} \;(core, every turn)\\ remember $\cdot$ update $\cdot$ forget $\cdot$ recall $\cdot$ reorganize};
+\node[llm,below=8mm of in.south,xshift=44mm,anchor=north](cur){\textbf{Curator} \textcolor{llmred}{[LLM]}\\ optional $\cdot$ gated $\cdot$ auto-diff};
+\node[smath,below=32mm of in](math){\textbf{APPLY / MATH SUBSTRATE} \textcolor{mathgreen}{[no LLM]} \;— the trust boundary\\ validate diff $\cdot$ EMA + lazy anneal $\cdot$ hysteresis $\cdot$ dedup/merge/supersede $\cdot$ scope filter $\cdot$ skull packer $(\le P_{\max})$};
+\node[store,below=8mm of math](store){\textbf{STORAGE} \texttt{lambda\_memories} (shared, scoped) \;+\; periodic GC\\ \fbox{\textbf{Permanent = Engram} (on)} \qquad \fbox{Conversation $=\lambda$ (opt-in)}};
+\node[tier,below=10mm of store](t2){\textbf{$\lambda$-ACTIVE}\\ decays (opt-in)};
+\node[tier,left=12mm of t2](t1){\textbf{PERMANENT}\\ always injected\\ capped $P_{\max}$};
+\node[tier,right=12mm of t2](t3){\textbf{ARCHIVED}\\ hash + recall};
+\node[outbox,below=10mm of t2](ctx){\textbf{build\_context} (Skull budget, scope-filtered) $\;\Rightarrow\;$ Model};
+\draw[->](in.south)--(tool.north);\draw[->](in.south)--(cur.north);
+\draw[->](tool.south)--(math.north);\draw[->,dashed](cur.south)--(math.north);
+\draw[->](math)--(store);
+\draw[->](store.south)--(t1.north);\draw[->](store.south)--(t2.north);\draw[->](store.south)--(t3.north);
+\draw[->](t1.south)--(ctx.north);\draw[->](t2.south)--(ctx.north);\draw[->](t3.south)--(ctx.north);
+\end{tikzpicture}}
+\end{center}
+\textbf{Legend:} \textcolor{mathgreen}{green = pure math} (every turn, free); \textcolor{llmred}{red dashed = the only LLM touchpoint}. Writes come from the agent's in-loop tool calls; the Curator is an optional safety-net doing the same automatically. The math layer is the \emph{trust boundary} — it never lets the LLM violate an invariant.
+
+\section{Memory as a core tool}
+Slash commands are redundant; the agent calls a tool in natural language. Extends the existing \texttt{memory\_manage} tool.
+\begin{center}\small
+\begin{tabular}{@{}p{4.4cm}p{10.2cm}@{}}
+\toprule
+\textbf{Action} & \textbf{When the agent calls it}\\
+\midrule
+\texttt{remember\{content,type,scope\}} & you say ``remember\dots'' or it learns a durable fact (in-loop / end-of-loop)\\
+\texttt{update\{target,content\}} & a fact changed (``actually it's RunPod now'') $\to$ supersede\\
+\texttt{forget\{target\}} & ``forget that''\\
+\texttt{recall\{query\}} & needs a fact not currently in context (FTS over all tiers)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Coexistence with $\lambda$-Memory (no conflict)}
+$\lambda$-Memory today is off by default (gated by \texttt{shared\_memory\_strategy}; opt-in via \texttt{/memory lambda}) and stores only \texttt{Conversation} turns. Engram reuses its storage + decay/FTS code but is a separate feature: distinct \texttt{memory\_type=Permanent}, its own write path (the tool), its own default-on flag (works in Echo mode), and always-on (scope-filtered) injection. \texttt{/memory echo|lambda} is unchanged.
+
+\section{Scoring \& lifecycle (hardened formulas)}
+Each fact stores an importance $I$ and \texttt{last\_accessed}; everything else is derived lazily at read time (scores are never stored — same principle as $\lambda$).
+\begin{keybox}
+\textbf{Seed} (first time a fact is judged, importance $\hat I\in[0,5]$): \quad $I \gets \hat I$\\[2pt]
+\textbf{Update} (re-judged or reinforced): \quad $I \gets \mathrm{clip}\big((1-\eta)\,I + \eta\,\hat I,\;0,\;5\big)$,\quad $\texttt{last\_accessed}\gets\text{now}$\\[2pt]
+\textbf{Effective importance} (lazy, read-time):\quad $I_{\text{eff}} = I\cdot e^{-\Delta t/\tau}$,\quad $\Delta t=\max(0,\ \text{now}-\texttt{last\_accessed})$\\[2pt]
+\textbf{User pin}: $I_{\text{eff}}=5$ always (no anneal; only the user unpins).
+\end{keybox}
+\textbf{Tiering (hysteresis, no flapping):} pinned $\lor\ I_{\text{eff}}\ge\theta_\uparrow \Rightarrow$ \textsc{Permanent};\quad (\textsc{Permanent} $\land\ I_{\text{eff}}\le\theta_\downarrow) \Rightarrow$ demote to $\lambda$;\quad $I_{\text{eff}}<\varepsilon \Rightarrow$ archived (hash).
+\begin{itemize}[itemsep=0pt]
+\item \textbf{``Stated once is enough''} — a confidently-judged fact ($\hat I\ge\theta_\uparrow$) is permanent on first write; an unsure one ($\hat I$ low) stays in $\lambda$ and is promoted only if the agent keeps judging it relevant. No \emph{user} repetition either way.
+\item \textbf{Forgetting is curator-independent} — the lazy anneal drags $I_{\text{eff}}$ down with disuse, so stale facts demote by pure math even if the curator is off.
+\item \textbf{Recency is free} — using a fact resets \texttt{last\_accessed}, so $I_{\text{eff}}$ already encodes ``recently relevant'' — one constant $\tau$, no separate recency term.
+\end{itemize}
+
+\section{Skull binding (holds on every model)}
+\[ \text{bone}+\text{active}+\text{blueprint}+\underbrace{\text{permanent}}_{\le P_{\max}}+\underbrace{\lambda\text{-rem}}_{\text{absorbs rest}}+\text{reserve}+\text{guard}\ \le\ \text{skull}. \]
+$\text{permanent}_{\text{render}}=\min\!\big(P_{\max},\ \text{free space}\big)$, ranked by $I_{\text{eff}}$. If a small-context model leaves little room, permanent \textbf{degrades fidelity} (full$\to$summary$\to$essence), then renders only the top-$I_{\text{eff}}$ subset \emph{this turn} — it is never demoted for lack of space, and the window never overflows. Budgeted against $1.15\times\texttt{estimate\_tokens}$ for the $\text{len}/4$ heuristic's error.
+
+\section{Robustness — bulletproof (failure mode $\to$ guard)}
+\begin{center}\small
+\begin{tabular}{@{}p{7.2cm}p{7.4cm}@{}}
+\toprule
+\textbf{Failure mode} & \textbf{Guard}\\
+\midrule
+Curator hallucinates / malformed diff & apply layer validates schema; unknown ids rejected\\
+Curator tries to demote/delete a user pin & pins \textbf{immutable} in apply layer — LLM cannot touch\\
+Permanent set exceeds the window & cap $P_{\max}$ + fidelity degrade + drop-this-turn\\
+Tiny-context model (bone+active large) & render top-$I_{\text{eff}}$ subset at lowest fidelity\\
+Stale fact never re-judged (curator off) & lazy time-anneal demotes it (no LLM)\\
+$\lambda$ store grows forever on disk & scheduled GC prunes old low-$I_{\text{eff}}$ non-pinned\\
+Multi-user / multi-chat leakage & scope (global/user/chat) filter at injection\\
+Clock skew (now $<$ last\_accessed) & $\Delta t=\max(0,\cdot)$ (saturating)\\
+Token estimate undercount & budget against $1.15\times$ + 2\% guard band\\
+Score thrash turn-to-turn & EMA smoothing + hysteresis band $[\theta_\downarrow,\theta_\uparrow]$\\
+Supersession clobbers wrong fact & match on subject-key + similarity; old kept as provenance\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Long-term behavior — timeproof}
+Over months/years nothing drifts or saturates: $I\in[0,5]$ is clipped; context is bounded by $P_{\max}$; on-disk storage is bounded by GC; the anneal guarantees forgetting \emph{without} an LLM; no counter grows unbounded (timestamps are \texttt{u64} seconds). Behavior is identical across models because every budget is \emph{Skull-relative}, not a flat number. A fact's whole life — promote, persist, anneal, demote, recall — is one formula evaluated lazily.
+
+\section{Where the LLM is vs math}
+\begin{center}\small
+\begin{tabular}{@{}p{6.6cm} c p{5.4cm}@{}}
+\toprule
+\textbf{Operation} & \textbf{Engine} & \textbf{When}\\
+\midrule
+seed / EMA / anneal / hysteresis / tiering & \mtag & every turn, free\\
+budget pack, fidelity, scope filter, apply diff & \mtag & every turn, free\\
+dedup / merge / supersede, GC & \mtag & deterministic / scheduled\\
+\midrule
+agent tool call (remember/update/\dots) & \ltag & part of the normal loop\\
+Curator re-evaluation & \ltag & 1 bounded call / substantive run (gated, optional)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Cost \& cadence}
+Three buckets; only the Curator is new vs a plain \texttt{MEMORY.md}.
+\begin{center}\small
+\begin{tabular}{@{}p{3.0cm} p{3.4cm} p{4.0cm} p{3.6cm}@{}}
+\toprule
+\textbf{Bucket} & \textbf{When} & \textbf{$\sim$Tokens} & \textbf{New vs MEMORY.md}\\
+\midrule
+Read (inject block) & every turn & $\le P_{\max}$ in, cacheable & No (file injected too)\\
+Write (tool call) & memory-write turns & +1 round-trip & No (file edit is a tool)\\
+Curator (self-heal) & substantive runs, gated & 1 call: $\sim$1--3k in + $\sim$150--300 out & \textbf{Yes} (the only one)\\
+\bottomrule
+\end{tabular}
+\end{center}
+Heavy user ($\sim$100 turns/day, $\sim$30\% substantive $\Rightarrow$ $\sim$30 curator calls/day): $\sim$1.2M in + 120k out / month. Illustrative: self-hosted $\approx\$0$; mid-tier $\approx\$0.8$/mo; flagship $\approx\$5$/mo. Prompt caching cuts the input further. \textbf{Cadence is the cost dial:} per-substantive-run (default) $\cdot$ every $N$ $\cdot$ session-end $\cdot$ off. \textbf{Engram off (MEMORY.md fallback) $\Rightarrow$ Curator $=\$0$.}
+
+\section{Dry run (hardened model)}
+\textbf{B}=baseline call (with or without Engram); \textbf{+E}=Engram-added.
+\begin{center}\small
+\begin{tabular}{@{}p{5.7cm} p{4.7cm} p{3.6cm}@{}}
+\toprule
+event & memory action & added LLM\\
+\midrule
+``remember my birthday 2/3/1994'' & \texttt{remember} $\to$ \textbf{User-pin} $I_{\text{eff}}{=}5$ (date normalized) & B (tool round-trip)\\
+deploy task; ``I use Lambda Labs'' (clear pref) & \texttt{remember} $\hat I{=}4 \Rightarrow I{=}4\ge\theta_\uparrow$ $\to$ \textbf{permanent day 0} & B + Curator $\times1$\\
+\,(if only a passing mention, $\hat I{=}2.4$) & stays $\lambda$; promotes later only if re-judged & --\\
+60 days, no deploy talk & anneal: $I_{\text{eff}}{=}4e^{-60/60}{=}1.5\le\theta_\downarrow$ $\to$ \textbf{auto-demote} (no user, no LLM) & none\\
+``actually I moved to RunPod'' & \texttt{update} supersede; new $\hat I{=}4.5$ $\to$ permanent now & B (tool round-trip)\\
+new session: ``when's my birthday?'' & already in Permanent block (scope=user) & B only\\
+``what was that fix last month?'' & \texttt{recall} $\to$ FTS hit, reheated & B (tool round-trip)\\
+\bottomrule
+\end{tabular}
+\end{center}
+No repetition anywhere; user pin instant; promotion by the agent's judgment; demotion by math.
+
+\section{Data model \& config}
+\begin{verbatim}
+  LambdaMemoryEntry  (+ fields, additive)
+    + importance:  f32     // I (seed=judgment, EMA on update)
+    + pinned_by:   enum { None, Agent, User }      // User => I_eff=5, locked
+    + scope:       enum { Global, User(id), Chat(id) }   // injection filter
+    + subject_key: String  // supersession ("pref:gpu-provider")
+    + fact_type:   enum { Identity, Preference, Project,
+                          Constraint, Reference }
+    + links:       Vec<Hash>
+    memory_type = Permanent          // distinct from Conversation (lambda)
+    derived lazily: I_eff, tier      // never stored
+
+  config [memory.engram]
+    enabled       = true             // off => simple capped MEMORY.md
+    curator       = "substantive"    // | "every:N" | "session-end" | "off"
+    p_max_frac    = 0.10 ; max_facts = 32
+    eta = 0.4 ; theta_up = 3.5 ; theta_down = 2.0 ; tau_days = 60
+\end{verbatim}
+
+\section{Summary}
+\textbf{Engram} is a default-on \emph{core tool}: the agent remembers/updates/forgets in natural language; a deterministic math layer seeds, smooths (EMA), forgets (lazy anneal), bounds (Skull cap), scopes, and GCs — and is the trust boundary that the optional LLM Curator cannot violate. Promotion is the agent's judgment (once is enough); demotion is pure math (timeproof even with the curator off); user pins are instant and immutable. It reuses $\lambda$-Memory's engine yet coexists cleanly, and degrades to a simple capped \texttt{MEMORY.md} when disabled. Bulletproof (failure-mode guards), timeproof (clipped + bounded + Skull-relative), token-efficient, and low-touch.
+\end{document}
