@@ -236,6 +236,9 @@ pub struct AgentRuntime {
     /// actually persisted. Default false (silent). When enabled, the notice is
     /// sent only after a real store succeeds — never optimistically (issue #64).
     blueprint_notice: bool,
+    /// Engram permanent-memory configuration (default-on). Drives the always-on
+    /// permanent block injection and the post-run curator.
+    engram_config: temm1e_core::types::config::EngramConfig,
     /// Shared personality mode (PLAY or WORK). When set, the current mode is
     /// injected into the system prompt on every request so the LLM adapts
     /// its voice accordingly. Updated at runtime by the mode_switch tool.
@@ -339,6 +342,7 @@ impl AgentRuntime {
             v2_optimizations: true,
             parallel_phases: false,
             blueprint_notice: false,
+            engram_config: temm1e_core::types::config::EngramConfig::default(),
             shared_mode: None,
             shared_memory_strategy: None,
             consciousness: None,
@@ -518,6 +522,7 @@ impl AgentRuntime {
             v2_optimizations: true,
             parallel_phases: false,
             blueprint_notice: false,
+            engram_config: temm1e_core::types::config::EngramConfig::default(),
             shared_mode: None,
             shared_memory_strategy: None,
             consciousness: None,
@@ -641,6 +646,15 @@ impl AgentRuntime {
     /// never appended optimistically, so it cannot claim a save that didn't happen.
     pub fn with_blueprint_notice(mut self, enabled: bool) -> Self {
         self.blueprint_notice = enabled;
+        self
+    }
+
+    /// Set the Engram permanent-memory configuration (default-on).
+    pub fn with_engram_config(
+        mut self,
+        cfg: temm1e_core::types::config::EngramConfig,
+    ) -> Self {
+        self.engram_config = cfg;
         self
     }
 
@@ -1445,6 +1459,32 @@ impl AgentRuntime {
                 self.personality.as_deref(),
             )
             .await;
+
+            // ── Engram: prepend the permanent-memory block (scoped, capped) ──
+            if self.engram_config.enabled {
+                let (skull, _mo) =
+                    temm1e_core::types::model_registry::model_limits(&self.model);
+                let p_max = ((skull as f32) * self.engram_config.p_max_frac) as usize;
+                if p_max > 0 {
+                    let (block, _t) = crate::context::render_permanent_block(
+                        self.memory.as_ref(),
+                        &session.user_id,
+                        &session.chat_id,
+                        &self.engram_config,
+                        p_max,
+                    )
+                    .await;
+                    if !block.is_empty() {
+                        request.messages.insert(
+                            0,
+                            temm1e_core::types::message::ChatMessage {
+                                role: temm1e_core::types::message::Role::System,
+                                content: temm1e_core::types::message::MessageContent::Text(block),
+                            },
+                        );
+                    }
+                }
+            }
 
             // ── Personality mode injection ──────────────────────────────
             // P2: route to volatile tail so the stable base stays cacheable.

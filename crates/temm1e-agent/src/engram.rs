@@ -132,6 +132,19 @@ pub fn tier(i_eff: f32, current: Tier, pinned_by_user: bool, p: &EngramParams) -
     }
 }
 
+/// Whether a fact belongs in the always-on permanent block, derived from its
+/// pin state and effective importance — no stored tier needed. User pins always
+/// show; agent pins show until they anneal to the demote floor; an unpinned fact
+/// shows only once it crosses the promote threshold.
+pub fn is_visible_permanent(
+    i_eff: f32,
+    pinned_user: bool,
+    pinned_agent: bool,
+    p: &EngramParams,
+) -> bool {
+    pinned_user || (pinned_agent && i_eff > p.theta_down) || i_eff >= p.theta_up
+}
+
 /// Greedy budget packer for the Permanent block under the `P_max` cap.
 ///
 /// Given items as `(i_eff, token_cost)`, returns the indices to render, highest
@@ -245,6 +258,15 @@ mod tests {
     #[test]
     fn tier_pin_always_permanent() {
         assert_eq!(tier(0.0, Tier::Archived, true, &P), Tier::Permanent);
+    }
+
+    #[test]
+    fn visible_permanent_rules() {
+        assert!(is_visible_permanent(0.0, true, false, &P)); // user pin: always
+        assert!(is_visible_permanent(3.0, false, true, &P)); // agent pin above demote floor
+        assert!(!is_visible_permanent(1.5, false, true, &P)); // agent pin annealed below floor
+        assert!(is_visible_permanent(3.6, false, false, &P)); // unpinned + hot
+        assert!(!is_visible_permanent(3.0, false, false, &P)); // unpinned in-band: hidden
     }
 
     #[test]

@@ -88,6 +88,89 @@ fn estimate_message_tokens(msg: &ChatMessage) -> usize {
 /// automatically selects the best one, injects its body/outline, and adds a
 /// compact catalog section. Pass an empty slice when no blueprints matched.
 #[allow(clippy::too_many_arguments)]
+/// Render the always-on Engram permanent-memory block for a session — scope-
+/// filtered and capped at `p_max` tokens. Returns `(text, tokens)`; empty when
+/// there are no visible permanent facts. Pure read (no writes). Injected at the
+/// top of the prompt by the runtime, ahead of the elastic λ remainder.
+pub async fn render_permanent_block(
+    memory: &dyn Memory,
+    user_id: &str,
+    chat_id: &str,
+    cfg: &temm1e_core::types::config::EngramConfig,
+    p_max: usize,
+) -> (String, usize) {
+    use temm1e_core::PinnedBy;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let params = crate::engram::EngramParams {
+        eta: cfg.eta,
+        theta_up: cfg.theta_up,
+        theta_down: cfg.theta_down,
+        tau_days: cfg.tau_days,
+        ..Default::default()
+    };
+    let facts = memory
+        .engram_list(user_id, chat_id, cfg.max_facts)
+        .await
+        .unwrap_or_default();
+    // Keep only facts visible in the permanent tier; cost each as one line.
+    let mut lines: Vec<(String, f32, usize)> = Vec::new();
+    for f in &facts {
+        let pin_user = f.pinned_by == PinnedBy::User;
+        let pin_agent = f.pinned_by == PinnedBy::Agent;
+        let i_eff = crate::engram::effective_importance(
+            f.importance,
+            f.last_accessed,
+            now,
+            pin_user,
+            params.tau_days,
+        );
+        if !crate::engram::is_visible_permanent(i_eff, pin_user, pin_agent, &params) {
+            continue;
+        }
+        let body = if f.summary.trim().is_empty() {
+            f.content.trim()
+        } else {
+            f.summary.trim()
+        };
+        let line = format!("- [{}] {}", fact_type_label(&f.fact_type), body);
+        let cost = estimate_tokens(&line);
+        lines.push((line, i_eff, cost));
+    }
+    if lines.is_empty() {
+        return (String::new(), 0);
+    }
+    let header = "## Permanent Memory (Engram) — durable facts about this user/project\n";
+    let header_cost = estimate_tokens(header);
+    let body_budget = p_max.saturating_sub(header_cost);
+    let items: Vec<(f32, usize)> = lines.iter().map(|(_, i, c)| (*i, *c)).collect();
+    let picked = crate::engram::pack_by_budget(&items, body_budget);
+    if picked.is_empty() {
+        return (String::new(), 0);
+    }
+    let mut out = String::from(header);
+    let mut toks = header_cost;
+    for idx in &picked {
+        out.push_str(&lines[*idx].0);
+        out.push('\n');
+        toks += lines[*idx].2;
+    }
+    (out, toks)
+}
+
+fn fact_type_label(t: &temm1e_core::FactType) -> &'static str {
+    use temm1e_core::FactType;
+    match t {
+        FactType::Identity => "identity",
+        FactType::Preference => "pref",
+        FactType::Project => "project",
+        FactType::Constraint => "constraint",
+        FactType::Reference => "ref",
+    }
+}
+
 pub async fn build_context(
     session: &SessionContext,
     memory: &dyn Memory,
