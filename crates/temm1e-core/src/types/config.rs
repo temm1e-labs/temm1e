@@ -1430,6 +1430,7 @@ mod tests {
                     keyword_weight: 0.2,
                 },
                 lambda: LambdaMemoryConfig::default(),
+                engram: EngramConfig::default(),
             },
             observability: ObservabilityConfig {
                 log_level: "debug".to_string(),
