@@ -51,6 +51,101 @@ pub enum LambdaMemoryType {
     Learning,
 }
 
+// ── Engram (permanent memory) types ────────────────────────────
+
+/// Who pinned an Engram fact. `User` pins are sacrosanct — never annealed,
+/// never auto-demoted, and the curator may not touch them.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PinnedBy {
+    #[default]
+    None,
+    Agent,
+    User,
+}
+
+/// Visibility scope of an Engram fact — the injection filter that prevents
+/// cross-user / cross-chat leakage on a multi-channel gateway.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum MemoryScope {
+    /// Visible in every session.
+    #[default]
+    Global,
+    /// Visible only to a specific user id (across that user's chats).
+    User(String),
+    /// Visible only within a specific chat id.
+    Chat(String),
+}
+
+impl MemoryScope {
+    /// Whether a fact with this scope is visible in the given session.
+    pub fn visible_in(&self, user_id: &str, chat_id: &str) -> bool {
+        match self {
+            MemoryScope::Global => true,
+            MemoryScope::User(u) => u == user_id,
+            MemoryScope::Chat(c) => c == chat_id,
+        }
+    }
+    /// Stable string key for storage ("global" | "user:ID" | "chat:ID").
+    pub fn as_key(&self) -> String {
+        match self {
+            MemoryScope::Global => "global".to_string(),
+            MemoryScope::User(u) => format!("user:{u}"),
+            MemoryScope::Chat(c) => format!("chat:{c}"),
+        }
+    }
+    /// Parse the stored key form back into a scope.
+    pub fn from_key(s: &str) -> Self {
+        if let Some(u) = s.strip_prefix("user:") {
+            MemoryScope::User(u.to_string())
+        } else if let Some(c) = s.strip_prefix("chat:") {
+            MemoryScope::Chat(c.to_string())
+        } else {
+            MemoryScope::Global
+        }
+    }
+}
+
+/// Semantic category of an Engram fact (drives grouping in the rendered block).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum FactType {
+    Identity,
+    Preference,
+    Project,
+    Constraint,
+    #[default]
+    Reference,
+}
+
+/// A single Engram (permanent-memory) fact. Stored in its own `engram_facts`
+/// table; reuses the Engram scoring engine (`temm1e_agent::engram`) for tiering.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngramFact {
+    /// Stable id (12-hex content hash, or a uuid).
+    pub id: String,
+    /// Full-fidelity content.
+    pub content: String,
+    /// One-line summary (mid fidelity).
+    pub summary: String,
+    /// Five-word-max essence (low fidelity).
+    pub essence: String,
+    pub fact_type: FactType,
+    pub scope: MemoryScope,
+    pub pinned_by: PinnedBy,
+    /// Supersession key — a newer fact with the same key replaces the older.
+    pub subject_key: Option<String>,
+    /// Stored importance `I ∈ [0,5]` (seed = first judgment, EMA on update).
+    pub importance: f32,
+    /// Unix epoch seconds when created.
+    pub created_at: u64,
+    /// Unix epoch seconds — reset on use; drives the lazy anneal.
+    pub last_accessed: u64,
+    pub tags: Vec<String>,
+    /// Ids of related facts (`[[links]]`).
+    pub links: Vec<String>,
+}
+
 /// A single memory entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryEntry {
@@ -252,6 +347,60 @@ pub trait Memory: Send + Sync {
         _model: &str,
     ) -> Result<Option<ModelDiscipline>, Temm1eError> {
         Ok(None)
+    }
+
+    // ── Engram (permanent memory) methods (default no-op) ─────────
+
+    /// Store (insert-or-replace) an Engram fact.
+    async fn engram_store(&self, _fact: EngramFact) -> Result<(), Temm1eError> {
+        Ok(())
+    }
+
+    /// List Engram facts visible in the given session scope, importance DESC.
+    async fn engram_list(
+        &self,
+        _user_id: &str,
+        _chat_id: &str,
+        _limit: usize,
+    ) -> Result<Vec<EngramFact>, Temm1eError> {
+        Ok(Vec::new())
+    }
+
+    /// Fetch one Engram fact by id.
+    async fn engram_get(&self, _id: &str) -> Result<Option<EngramFact>, Temm1eError> {
+        Ok(None)
+    }
+
+    /// Look up an Engram fact by its supersession `subject_key` within a scope.
+    async fn engram_by_subject(
+        &self,
+        _subject_key: &str,
+        _user_id: &str,
+        _chat_id: &str,
+    ) -> Result<Option<EngramFact>, Temm1eError> {
+        Ok(None)
+    }
+
+    /// Delete an Engram fact by id.
+    async fn engram_forget(&self, _id: &str) -> Result<(), Temm1eError> {
+        Ok(())
+    }
+
+    /// FTS recall over Engram facts visible in the given scope.
+    async fn engram_recall(
+        &self,
+        _query: &str,
+        _user_id: &str,
+        _chat_id: &str,
+        _limit: usize,
+    ) -> Result<Vec<EngramFact>, Temm1eError> {
+        Ok(Vec::new())
+    }
+
+    /// GC: delete non-pinned Engram facts whose effective importance has
+    /// annealed below the archive floor. Returns the count deleted.
+    async fn engram_gc(&self, _now_epoch: u64) -> Result<usize, Temm1eError> {
+        Ok(0)
     }
 }
 

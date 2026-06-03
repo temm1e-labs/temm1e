@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use temm1e_core::error::Temm1eError;
-use temm1e_core::{Memory, MemoryEntry, SearchOpts};
+use temm1e_core::{EngramFact, Memory, MemoryEntry, SearchOpts};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
@@ -520,6 +520,52 @@ impl Memory for ResilientMemory {
 
     fn backend_name(&self) -> &str {
         "resilient"
+    }
+
+    // ── Engram (permanent memory) — delegate to the primary backend ──
+    // (Must be implemented, not left to the trait's no-op default, or Engram
+    //  would silently vanish behind the failover wrapper.)
+
+    async fn engram_store(&self, fact: EngramFact) -> Result<(), Temm1eError> {
+        self.primary.engram_store(fact).await
+    }
+    async fn engram_list(
+        &self,
+        user_id: &str,
+        chat_id: &str,
+        limit: usize,
+    ) -> Result<Vec<EngramFact>, Temm1eError> {
+        self.primary.engram_list(user_id, chat_id, limit).await
+    }
+    async fn engram_get(&self, id: &str) -> Result<Option<EngramFact>, Temm1eError> {
+        self.primary.engram_get(id).await
+    }
+    async fn engram_by_subject(
+        &self,
+        subject_key: &str,
+        user_id: &str,
+        chat_id: &str,
+    ) -> Result<Option<EngramFact>, Temm1eError> {
+        self.primary
+            .engram_by_subject(subject_key, user_id, chat_id)
+            .await
+    }
+    async fn engram_forget(&self, id: &str) -> Result<(), Temm1eError> {
+        self.primary.engram_forget(id).await
+    }
+    async fn engram_recall(
+        &self,
+        query: &str,
+        user_id: &str,
+        chat_id: &str,
+        limit: usize,
+    ) -> Result<Vec<EngramFact>, Temm1eError> {
+        self.primary
+            .engram_recall(query, user_id, chat_id, limit)
+            .await
+    }
+    async fn engram_gc(&self, now_epoch: u64) -> Result<usize, Temm1eError> {
+        self.primary.engram_gc(now_epoch).await
     }
 }
 

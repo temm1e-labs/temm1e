@@ -5,7 +5,8 @@ use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use std::time::Duration;
 use temm1e_core::error::Temm1eError;
 use temm1e_core::{
-    LambdaMemoryEntry, LambdaMemoryType, Memory, MemoryEntry, MemoryEntryType, SearchOpts,
+    EngramFact, FactType, LambdaMemoryEntry, LambdaMemoryType, Memory, MemoryEntry,
+    MemoryEntryType, MemoryScope, PinnedBy, SearchOpts,
 };
 use tokio::time::{sleep, timeout};
 use tracing::{debug, info, warn};
@@ -130,6 +131,43 @@ impl SqliteMemory {
         .execute(&self.pool)
         .await
         .map_err(|e| Temm1eError::Memory(format!("Failed to create lambda FTS5: {e}")))?;
+
+        // ── Engram permanent-memory table (v5.7.0) ───────────────────
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS engram_facts (
+                id            TEXT PRIMARY KEY,
+                content       TEXT NOT NULL,
+                summary       TEXT NOT NULL,
+                essence       TEXT NOT NULL,
+                fact_type     TEXT NOT NULL DEFAULT 'reference',
+                scope         TEXT NOT NULL DEFAULT 'global',
+                pinned_by     TEXT NOT NULL DEFAULT 'none',
+                subject_key   TEXT,
+                importance    REAL NOT NULL DEFAULT 1.0,
+                created_at    INTEGER NOT NULL,
+                last_accessed INTEGER NOT NULL,
+                tags          TEXT NOT NULL DEFAULT '[]',
+                links         TEXT NOT NULL DEFAULT '[]'
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("Failed to create engram_facts: {e}")))?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_eg_scope ON engram_facts(scope)")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Temm1eError::Memory(format!("Failed to create engram index: {e}")))?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_eg_subject ON engram_facts(subject_key)")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Temm1eError::Memory(format!("Failed to create engram index: {e}")))?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_eg_importance ON engram_facts(importance)")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Temm1eError::Memory(format!("Failed to create engram index: {e}")))?;
 
         // ── Tool reliability table (v4.6.0) ──────────────────────────
         sqlx::query(
@@ -653,6 +691,152 @@ impl Memory for SqliteMemory {
         Ok(())
     }
 
+    // ── Engram (permanent memory) ─────────────────────────────────
+
+    async fn engram_store(&self, fact: EngramFact) -> Result<(), Temm1eError> {
+        let tags = serde_json::to_string(&fact.tags).unwrap_or_else(|_| "[]".into());
+        let links = serde_json::to_string(&fact.links).unwrap_or_else(|_| "[]".into());
+        sqlx::query(
+            "INSERT OR REPLACE INTO engram_facts \
+             (id, content, summary, essence, fact_type, scope, pinned_by, subject_key, \
+              importance, created_at, last_accessed, tags, links) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&fact.id)
+        .bind(&fact.content)
+        .bind(&fact.summary)
+        .bind(&fact.essence)
+        .bind(fact_type_to_str(&fact.fact_type))
+        .bind(fact.scope.as_key())
+        .bind(pinned_by_to_str(&fact.pinned_by))
+        .bind(&fact.subject_key)
+        .bind(fact.importance)
+        .bind(fact.created_at as i64)
+        .bind(fact.last_accessed as i64)
+        .bind(&tags)
+        .bind(&links)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("engram_store: {e}")))?;
+        debug!(id = %fact.id, "Stored Engram fact");
+        Ok(())
+    }
+
+    async fn engram_list(
+        &self,
+        user_id: &str,
+        chat_id: &str,
+        limit: usize,
+    ) -> Result<Vec<EngramFact>, Temm1eError> {
+        let user_key = format!("user:{user_id}");
+        let chat_key = format!("chat:{chat_id}");
+        let rows: Vec<EngramRow> = sqlx::query_as(
+            "SELECT id, content, summary, essence, fact_type, scope, pinned_by, subject_key, \
+             importance, created_at, last_accessed, tags, links \
+             FROM engram_facts WHERE scope IN ('global', ?, ?) \
+             ORDER BY importance DESC LIMIT ?",
+        )
+        .bind(&user_key)
+        .bind(&chat_key)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("engram_list: {e}")))?;
+        Ok(rows.into_iter().map(engram_row_to_fact).collect())
+    }
+
+    async fn engram_get(&self, id: &str) -> Result<Option<EngramFact>, Temm1eError> {
+        let row: Option<EngramRow> = sqlx::query_as(
+            "SELECT id, content, summary, essence, fact_type, scope, pinned_by, subject_key, \
+             importance, created_at, last_accessed, tags, links \
+             FROM engram_facts WHERE id = ? LIMIT 1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("engram_get: {e}")))?;
+        Ok(row.map(engram_row_to_fact))
+    }
+
+    async fn engram_by_subject(
+        &self,
+        subject_key: &str,
+        user_id: &str,
+        chat_id: &str,
+    ) -> Result<Option<EngramFact>, Temm1eError> {
+        let user_key = format!("user:{user_id}");
+        let chat_key = format!("chat:{chat_id}");
+        let row: Option<EngramRow> = sqlx::query_as(
+            "SELECT id, content, summary, essence, fact_type, scope, pinned_by, subject_key, \
+             importance, created_at, last_accessed, tags, links \
+             FROM engram_facts WHERE subject_key = ? AND scope IN ('global', ?, ?) \
+             ORDER BY last_accessed DESC LIMIT 1",
+        )
+        .bind(subject_key)
+        .bind(&user_key)
+        .bind(&chat_key)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("engram_by_subject: {e}")))?;
+        Ok(row.map(engram_row_to_fact))
+    }
+
+    async fn engram_forget(&self, id: &str) -> Result<(), Temm1eError> {
+        sqlx::query("DELETE FROM engram_facts WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Temm1eError::Memory(format!("engram_forget: {e}")))?;
+        debug!(id = %id, "Forgot Engram fact");
+        Ok(())
+    }
+
+    async fn engram_recall(
+        &self,
+        query: &str,
+        user_id: &str,
+        chat_id: &str,
+        limit: usize,
+    ) -> Result<Vec<EngramFact>, Temm1eError> {
+        let user_key = format!("user:{user_id}");
+        let chat_key = format!("chat:{chat_id}");
+        // Sanitize LIKE wildcards from the query, then substring-match.
+        let pat = format!("%{}%", query.replace('%', "").replace('_', ""));
+        let rows: Vec<EngramRow> = sqlx::query_as(
+            "SELECT id, content, summary, essence, fact_type, scope, pinned_by, subject_key, \
+             importance, created_at, last_accessed, tags, links \
+             FROM engram_facts WHERE scope IN ('global', ?, ?) \
+             AND (summary LIKE ? OR essence LIKE ? OR content LIKE ? OR tags LIKE ?) \
+             ORDER BY importance DESC LIMIT ?",
+        )
+        .bind(&user_key)
+        .bind(&chat_key)
+        .bind(&pat)
+        .bind(&pat)
+        .bind(&pat)
+        .bind(&pat)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("engram_recall: {e}")))?;
+        Ok(rows.into_iter().map(engram_row_to_fact).collect())
+    }
+
+    async fn engram_gc(&self, now_epoch: u64) -> Result<usize, Temm1eError> {
+        // Storage hygiene only: drop non-user-pinned facts unused >180 days with
+        // low importance. Tier/visibility is derived at read time, so this is safe.
+        let cutoff = now_epoch.saturating_sub(180 * 86_400) as i64;
+        let res = sqlx::query(
+            "DELETE FROM engram_facts WHERE pinned_by != 'user' \
+             AND last_accessed < ? AND importance < 1.0",
+        )
+        .bind(cutoff)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Temm1eError::Memory(format!("engram_gc: {e}")))?;
+        Ok(res.rows_affected() as usize)
+    }
+
     // ── Tool reliability (v4.6.0) ─────────────────────────────────
 
     async fn record_tool_outcome(
@@ -1013,6 +1197,77 @@ fn lambda_type_to_str(lt: &LambdaMemoryType) -> &'static str {
 }
 
 #[derive(sqlx::FromRow)]
+struct EngramRow {
+    id: String,
+    content: String,
+    summary: String,
+    essence: String,
+    fact_type: String,
+    scope: String,
+    pinned_by: String,
+    subject_key: Option<String>,
+    importance: f32,
+    created_at: i64,
+    last_accessed: i64,
+    tags: String,
+    links: String,
+}
+
+fn engram_row_to_fact(row: EngramRow) -> EngramFact {
+    EngramFact {
+        id: row.id,
+        content: row.content,
+        summary: row.summary,
+        essence: row.essence,
+        fact_type: str_to_fact_type(&row.fact_type),
+        scope: MemoryScope::from_key(&row.scope),
+        pinned_by: str_to_pinned_by(&row.pinned_by),
+        subject_key: row.subject_key,
+        importance: row.importance,
+        created_at: row.created_at as u64,
+        last_accessed: row.last_accessed as u64,
+        tags: serde_json::from_str(&row.tags).unwrap_or_default(),
+        links: serde_json::from_str(&row.links).unwrap_or_default(),
+    }
+}
+
+fn fact_type_to_str(t: &FactType) -> &'static str {
+    match t {
+        FactType::Identity => "identity",
+        FactType::Preference => "preference",
+        FactType::Project => "project",
+        FactType::Constraint => "constraint",
+        FactType::Reference => "reference",
+    }
+}
+
+fn str_to_fact_type(s: &str) -> FactType {
+    match s {
+        "identity" => FactType::Identity,
+        "preference" => FactType::Preference,
+        "project" => FactType::Project,
+        "constraint" => FactType::Constraint,
+        _ => FactType::Reference,
+    }
+}
+
+fn pinned_by_to_str(p: &PinnedBy) -> &'static str {
+    match p {
+        PinnedBy::None => "none",
+        PinnedBy::Agent => "agent",
+        PinnedBy::User => "user",
+    }
+}
+
+fn str_to_pinned_by(s: &str) -> PinnedBy {
+    match s {
+        "agent" => PinnedBy::Agent,
+        "user" => PinnedBy::User,
+        _ => PinnedBy::None,
+    }
+}
+
+#[derive(sqlx::FromRow)]
 struct ToolReliabilityRow {
     tool_name: String,
     task_type: String,
@@ -1096,6 +1351,122 @@ mod tests {
         let mem = SqliteMemory::new("sqlite::memory:").await.unwrap();
         let fetched = mem.get("nope").await.unwrap();
         assert!(fetched.is_none());
+    }
+
+    fn mk_fact(
+        id: &str,
+        scope: MemoryScope,
+        subject: Option<&str>,
+        imp: f32,
+        pin: PinnedBy,
+    ) -> EngramFact {
+        EngramFact {
+            id: id.to_string(),
+            content: format!("content for {id} about gpu"),
+            summary: format!("summary {id}"),
+            essence: format!("ess {id}"),
+            fact_type: FactType::Preference,
+            scope,
+            pinned_by: pin,
+            subject_key: subject.map(String::from),
+            importance: imp,
+            created_at: 1000,
+            last_accessed: 1000,
+            tags: vec!["gpu".to_string()],
+            links: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn engram_roundtrip_and_scope_isolation() {
+        let mem = SqliteMemory::new("sqlite::memory:").await.unwrap();
+        mem.engram_store(mk_fact(
+            "g1",
+            MemoryScope::Global,
+            Some("pref:gpu"),
+            4.0,
+            PinnedBy::Agent,
+        ))
+        .await
+        .unwrap();
+        mem.engram_store(mk_fact(
+            "u1",
+            MemoryScope::User("alice".into()),
+            None,
+            5.0,
+            PinnedBy::User,
+        ))
+        .await
+        .unwrap();
+        mem.engram_store(mk_fact(
+            "c1",
+            MemoryScope::Chat("room1".into()),
+            None,
+            3.0,
+            PinnedBy::None,
+        ))
+        .await
+        .unwrap();
+        mem.engram_store(mk_fact(
+            "u2",
+            MemoryScope::User("bob".into()),
+            None,
+            5.0,
+            PinnedBy::User,
+        ))
+        .await
+        .unwrap();
+
+        // alice@room1 sees global + her own + this chat — NOT bob's user fact.
+        let listed = mem.engram_list("alice", "room1", 50).await.unwrap();
+        let ids: Vec<&str> = listed.iter().map(|f| f.id.as_str()).collect();
+        assert!(ids.contains(&"g1") && ids.contains(&"u1") && ids.contains(&"c1"));
+        assert!(!ids.contains(&"u2"), "scope leak: bob's fact reached alice");
+        assert_eq!(listed.first().unwrap().importance, 5.0, "importance DESC");
+
+        // by_subject within scope
+        let s = mem
+            .engram_by_subject("pref:gpu", "alice", "room1")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(s.id, "g1");
+
+        // fidelity roundtrip
+        let u1 = mem.engram_get("u1").await.unwrap().unwrap();
+        assert_eq!(u1.pinned_by, PinnedBy::User);
+        assert_eq!(u1.scope, MemoryScope::User("alice".into()));
+        assert_eq!(u1.fact_type, FactType::Preference);
+        assert_eq!(u1.tags, vec!["gpu".to_string()]);
+
+        // recall is scope-filtered: bob sees the global fact + his OWN (u2),
+        // but never alice's (u1) or another chat's (c1).
+        let r_bob = mem.engram_recall("gpu", "bob", "other", 50).await.unwrap();
+        let bids: Vec<&str> = r_bob.iter().map(|f| f.id.as_str()).collect();
+        assert!(bids.contains(&"g1"), "bob should see the global fact");
+        assert!(
+            !bids.contains(&"u1") && !bids.contains(&"c1"),
+            "scope leak in recall: bob saw alice's or room1's fact"
+        );
+
+        // forget
+        mem.engram_forget("g1").await.unwrap();
+        assert!(mem.engram_get("g1").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn engram_store_is_upsert() {
+        let mem = SqliteMemory::new("sqlite::memory:").await.unwrap();
+        mem.engram_store(mk_fact("x", MemoryScope::Global, None, 2.0, PinnedBy::Agent))
+            .await
+            .unwrap();
+        mem.engram_store(mk_fact("x", MemoryScope::Global, None, 4.5, PinnedBy::Agent))
+            .await
+            .unwrap();
+        let got = mem.engram_get("x").await.unwrap().unwrap();
+        assert_eq!(got.importance, 4.5, "second store replaces the first");
+        let all = mem.engram_list("anyone", "anywhere", 50).await.unwrap();
+        assert_eq!(all.iter().filter(|f| f.id == "x").count(), 1, "no dup");
     }
 
     #[tokio::test]
