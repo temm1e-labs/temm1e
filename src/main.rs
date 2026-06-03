@@ -3,6 +3,7 @@ use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+mod command;
 mod search_install;
 mod update_assets;
 
@@ -2041,6 +2042,17 @@ async fn main() -> Result<()> {
                     tracing::info!(pruned = gc_count, "Blueprint GC completed at startup");
                 }
 
+                // Seed built-in web blueprints (idempotent) so the recall path
+                // has content before the agent authors its own (issue #64).
+                let seeded_bp = temm1e_agent::blueprint::seed_builtin_blueprints(
+                    &*memory,
+                    temm1e_tools::prowl_blueprints::WEB_BLUEPRINTS,
+                )
+                .await;
+                if seeded_bp > 0 {
+                    tracing::info!(seeded = seeded_bp, "Seeded built-in blueprints at startup");
+                }
+
                 // Lambda memory dedup: merge near-duplicate entries before GC
                 let lambda_config = &config.memory.lambda;
                 if lambda_config.enabled {
@@ -2680,6 +2692,7 @@ async fn main() -> Result<()> {
                     )
                     .with_v2_optimizations(config.agent.v2_optimizations)
                     .with_self_audit_enabled(config.agent.self_audit_enabled)
+                    .with_blueprint_notice(config.agent.blueprint_notice)
                     .with_parallel_phases(config.agent.parallel_phases)
                     .with_hive_enabled(hive_enabled_early)
                     .with_shared_mode(shared_mode.clone())
@@ -2803,6 +2816,7 @@ async fn main() -> Result<()> {
                                     )
                                     .with_v2_optimizations(config.agent.v2_optimizations)
                                     .with_self_audit_enabled(config.agent.self_audit_enabled)
+                                    .with_blueprint_notice(config.agent.blueprint_notice)
                                     .with_parallel_phases(config.agent.parallel_phases)
                                     .with_shared_mode(shared_mode.clone())
                                     .with_shared_memory_strategy(shared_memory_strategy.clone())
@@ -3089,9 +3103,20 @@ async fn main() -> Result<()> {
 
                 let msg_tx_redispatch = msg_tx.clone();
                 task_handles.push(tokio::spawn(async move {
-                    while let Some(inbound) = msg_rx.recv().await {
+                    while let Some(mut inbound) = msg_rx.recv().await {
                         let chat_id = inbound.chat_id.clone();
                         let is_heartbeat_msg = inbound.channel == "heartbeat";
+
+                        // Normalize a leading slash-command: strip a Telegram-style
+                        // "@botname" suffix (e.g. "/help@MyBot" -> "/help") so command
+                        // matching is identical in DMs and group chats, on every channel.
+                        let normalized_cmd = inbound
+                            .text
+                            .as_deref()
+                            .and_then(crate::command::normalize_command_text);
+                        if let Some(normalized) = normalized_cmd {
+                            inbound.text = Some(normalized);
+                        }
 
                         // ── Perpetuum: record interaction + refresh temporal context ──
                         if !is_heartbeat_msg {
@@ -3230,6 +3255,28 @@ async fn main() -> Result<()> {
                                 if slot.is_busy.load(Ordering::Relaxed)
                                     && !slot.is_heartbeat.load(Ordering::Relaxed)
                                 {
+                                    // A known slash-command must run as a COMMAND even
+                                    // while a task is in flight. Without this, the Mission
+                                    // Control classifier below treats it as chat and
+                                    // forwards it to the LLM — the "/command sometimes
+                                    // runs, sometimes goes to Tem" bug. Queue it to the
+                                    // worker so its command ladder runs it when the task
+                                    // drains. (/stop, /status, /queue handled inline above.)
+                                    if inbound
+                                        .text
+                                        .as_deref()
+                                        .is_some_and(crate::command::is_known_command)
+                                    {
+                                        if let Err(e) = slot.tx.try_send(inbound) {
+                                            tracing::warn!(
+                                                chat_id = %chat_id,
+                                                error = %e,
+                                                "Could not queue command while busy"
+                                            );
+                                        }
+                                        continue;
+                                    }
+
                                     // DO NOT push to pending queue here — Mission Control
                                     // classifies first, then routes to pending ([AMEND])
                                     // or order queue ([QUEUE]).

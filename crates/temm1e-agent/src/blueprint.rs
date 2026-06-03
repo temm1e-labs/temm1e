@@ -265,9 +265,7 @@ pub fn build_authoring_prompt(history: &[ChatMessage], meta: &TaskExecutionMeta)
     let summary = summarize_history(history);
 
     format!(
-        r#"You have just completed a task. Decide whether it is worth capturing as a \
-Blueprint — a structured, replayable procedure document that a future agent can \
-follow to execute the same type of task with minimal trial-and-error.
+        r#"You have just completed a task. Decide whether it is worth capturing as a Blueprint — a structured, replayable procedure document that a future agent can follow to execute the same type of task with minimal trial-and-error.
 
 Task stats: {tool_calls} tool calls, {duration}s duration, tools: {tools}, outcome: {outcome}
 
@@ -275,13 +273,19 @@ Conversation summary:
 {summary}
 
 FIRST, decide: is this task worth a blueprint?
-- If the task was trivial, one-shot, or purely informational → respond with exactly: SKIP
-- If the task involved a meaningful multi-step procedure that would benefit from \
-  a replayable guide → write the blueprint below.
+- SKIP only if the task was pure chat, a single trivial lookup, or produced no reusable procedure. Respond with exactly: SKIP
+- Otherwise, if it involved 2+ tool calls or multi-step domain work that a future run could replay, write the blueprint below.
 
-If you decide to write the blueprint, use Markdown with YAML frontmatter. Follow this EXACT structure:
+Examples WORTH a blueprint:
+- Research: web_search -> web_fetch -> synthesize an answer
+- Scaffold a project: create files -> configure -> build -> verify
+- Debug: reproduce -> locate -> patch -> re-test
+Examples to SKIP:
+- A one-line factual answer or a greeting
+- A single file read with no follow-up
 
-```
+If you decide to write the blueprint, output the RAW document beginning directly with `---` (YAML frontmatter). Do NOT wrap it in a code fence. Follow this EXACT structure:
+
 ---
 id: "<kebab-case-descriptive-id>"
 name: "<Human-readable title>"
@@ -297,7 +301,6 @@ semantic_tags:
   - "<domain-tag2>"
   - "<domain-tag3>"
 ---
-```
 
 Then the body:
 
@@ -360,8 +363,7 @@ pub fn build_refinement_prompt(original: &Blueprint, meta: &TaskExecutionMeta) -
     };
 
     format!(
-        r#"You just executed a task using an existing Blueprint. Review the execution \
-and produce an UPDATED version of the blueprint.
+        r#"You just executed a task using an existing Blueprint. Review the execution and produce an UPDATED version of the blueprint.
 
 ORIGINAL BLUEPRINT (v{version}):
 ---
@@ -386,7 +388,7 @@ INSTRUCTIONS:
 3. If new failure modes were encountered, add them to the Failure Recovery table.
 4. Append a new entry to the Execution Log.
 5. Keep the same YAML frontmatter id, name, trigger_patterns, task_signature, semantic_tags.
-6. Output the COMPLETE updated blueprint (frontmatter + full body), not just the diff.
+6. Output the COMPLETE updated blueprint (frontmatter + full body), not just the diff. Output the RAW document beginning directly with `---`; do NOT wrap it in a code fence.
 
 The goal: the next execution should be even smoother than this one."#,
         version = original.version,
@@ -417,9 +419,31 @@ struct BlueprintFrontmatter {
     semantic_tags: Vec<String>,
 }
 
+/// Strip a single wrapping Markdown code fence if the entire string is wrapped
+/// in one (``` / ```yaml / ```markdown … ```). Unfenced input — and code fences
+/// that appear *inside* the body — are left untouched.
+fn strip_wrapping_code_fence(s: &str) -> &str {
+    let s = s.trim();
+    let Some(rest) = s.strip_prefix("```") else {
+        return s;
+    };
+    // Drop the remainder of the opening fence line (an optional language tag).
+    let rest = match rest.find('\n') {
+        Some(nl) => &rest[nl + 1..],
+        None => rest,
+    };
+    // Drop a trailing closing fence if present.
+    let rest = rest.trim_end();
+    rest.strip_suffix("```").unwrap_or(rest).trim()
+}
+
 /// Parse a Blueprint from its stored form (YAML frontmatter + Markdown body).
 pub fn parse_blueprint(raw: &str) -> Result<Blueprint, String> {
-    let trimmed = raw.trim();
+    // Tolerate models that wrap the whole document in a Markdown code fence
+    // (``` / ```yaml / ```markdown … ```). The authoring prompt asks for a raw
+    // document, but some models fence it anyway — strip a wrapping fence so a
+    // correctly-authored blueprint isn't rejected for a stray ``` (issue #64).
+    let trimmed = strip_wrapping_code_fence(raw.trim());
     if !trimmed.starts_with("---") {
         return Err("Blueprint content does not start with YAML frontmatter".into());
     }
@@ -785,6 +809,35 @@ pub fn to_memory_entry(
         session_id,
         entry_type: MemoryEntryType::Blueprint,
     }
+}
+
+/// Seed pre-authored blueprints into memory if not already present. Each item
+/// is `(id, YAML+Markdown content)` (e.g. `temm1e_tools::prowl_blueprints::WEB_BLUEPRINTS`).
+/// Idempotent: a blueprint is stored only if `blueprint:{id}` is absent, so this
+/// is safe to call on every startup. Returns the number newly seeded.
+///
+/// This gives the recall path content even before the agent authors its own
+/// blueprints — without it, the store starts empty and stays empty (issue #64).
+pub async fn seed_builtin_blueprints(memory: &dyn Memory, blueprints: &[(&str, &str)]) -> usize {
+    let mut seeded = 0usize;
+    for &(id, content) in blueprints {
+        let entry_id = format!("blueprint:{id}");
+        // Skip if already seeded (idempotent across restarts).
+        if matches!(memory.get(&entry_id).await, Ok(Some(_))) {
+            continue;
+        }
+        match parse_blueprint(content) {
+            Ok(bp) => match memory.store(to_memory_entry(&bp, None)).await {
+                Ok(()) => {
+                    seeded += 1;
+                    info!(id = %id, "Seeded built-in blueprint");
+                }
+                Err(e) => warn!(id = %id, error = %e, "Failed to store built-in blueprint"),
+            },
+            Err(e) => warn!(id = %id, error = %e, "Failed to parse built-in blueprint"),
+        }
+    }
+    seeded
 }
 
 // ---------------------------------------------------------------------------
@@ -1164,6 +1217,33 @@ mod tests {
             outcome,
             is_compound: compound,
         }
+    }
+
+    // ── parse_blueprint: fence tolerance (issue #64) ─────────────
+
+    const SAMPLE_FRONTMATTER: &str = "---\nid: \"bp-x\"\nname: \"X\"\ntrigger_patterns:\n  - \"a\"\ntask_signature: \"shell\"\nsemantic_tags:\n  - \"t\"\n---\n\n## Objective\nDo X.";
+
+    #[test]
+    fn parse_blueprint_accepts_raw_frontmatter() {
+        let bp = parse_blueprint(SAMPLE_FRONTMATTER).expect("raw frontmatter should parse");
+        assert_eq!(bp.id, "bp-x");
+        assert_eq!(bp.name, "X");
+    }
+
+    #[test]
+    fn parse_blueprint_strips_wrapping_code_fence() {
+        // Models sometimes wrap the document in a ```/```markdown fence despite
+        // the prompt asking for raw output. The parser must tolerate it (#64).
+        let fenced = format!("```markdown\n{SAMPLE_FRONTMATTER}\n```");
+        let bp = parse_blueprint(&fenced).expect("fenced frontmatter should parse");
+        assert_eq!(bp.id, "bp-x");
+        let bare_fence = format!("```\n{SAMPLE_FRONTMATTER}\n```");
+        assert!(parse_blueprint(&bare_fence).is_ok());
+    }
+
+    #[test]
+    fn parse_blueprint_rejects_non_frontmatter() {
+        assert!(parse_blueprint("just some prose, no frontmatter").is_err());
     }
 
     // ── should_create_blueprint ──────────────────────────────────

@@ -232,6 +232,10 @@ pub struct AgentRuntime {
     /// When false (default), blueprints are injected as context text.
     /// This flag does NOT affect tool-level parallelism in executor.rs.
     parallel_phases: bool,
+    /// Whether to announce a "blueprint saved" notice after a blueprint is
+    /// actually persisted. Default false (silent). When enabled, the notice is
+    /// sent only after a real store succeeds — never optimistically (issue #64).
+    blueprint_notice: bool,
     /// Shared personality mode (PLAY or WORK). When set, the current mode is
     /// injected into the system prompt on every request so the LLM adapts
     /// its voice accordingly. Updated at runtime by the mode_switch tool.
@@ -334,6 +338,7 @@ impl AgentRuntime {
             model_pricing,
             v2_optimizations: true,
             parallel_phases: false,
+            blueprint_notice: false,
             shared_mode: None,
             shared_memory_strategy: None,
             consciousness: None,
@@ -512,6 +517,7 @@ impl AgentRuntime {
             model_pricing,
             v2_optimizations: true,
             parallel_phases: false,
+            blueprint_notice: false,
             shared_mode: None,
             shared_memory_strategy: None,
             consciousness: None,
@@ -626,6 +632,15 @@ impl AgentRuntime {
     /// tool-level parallelism in executor.rs.
     pub fn with_parallel_phases(mut self, enabled: bool) -> Self {
         self.parallel_phases = enabled;
+        self
+    }
+
+    /// Enable/disable the post-save "blueprint saved" notice. When disabled
+    /// (the default), blueprints are saved silently. When enabled, the notice
+    /// is sent only after a blueprint is actually persisted (issue #64) — it is
+    /// never appended optimistically, so it cannot claim a save that didn't happen.
+    pub fn with_blueprint_notice(mut self, enabled: bool) -> Self {
+        self.blueprint_notice = enabled;
         self
     }
 
@@ -2379,7 +2394,11 @@ impl AgentRuntime {
                     let blueprint_was_loaded = active_blueprint.is_some();
 
                     if crate::blueprint::should_create_blueprint(&exec_meta, blueprint_was_loaded) {
-                        // Author a new blueprint in the background
+                        // Author a new blueprint in the background. The "saved"
+                        // notice (issue #64) is sent from INSIDE the task, only
+                        // after a real store succeeds — it is never appended here
+                        // optimistically, so it can no longer claim a save that
+                        // never happened. Gated on `blueprint_notice` (default off).
                         let prompt =
                             crate::blueprint::build_authoring_prompt(&session.history, &exec_meta);
                         let memory = Arc::clone(&self.memory);
@@ -2387,12 +2406,17 @@ impl AgentRuntime {
                         let model = self.model.clone();
                         let user_id = msg.user_id.clone();
                         let session_id = session.session_id.clone();
+                        let notice_enabled = self.blueprint_notice;
+                        let notice_tx = reply_tx.clone();
+                        let notice_chat_id = msg.chat_id.clone();
+                        let notice_reply_to = msg.id.clone();
 
                         tokio::spawn(async move {
                             match author_blueprint(provider.as_ref(), &model, &prompt, &user_id)
                                 .await
                             {
                                 Ok(bp) => {
+                                    let bp_name = bp.name.clone();
                                     let entry =
                                         crate::blueprint::to_memory_entry(&bp, Some(session_id));
                                     if let Err(e) = memory.store(entry).await {
@@ -2403,6 +2427,20 @@ impl AgentRuntime {
                                             name = %bp.name,
                                             "Blueprint authored and stored"
                                         );
+                                        // Truthful, post-hoc notice: only now that
+                                        // the blueprint is actually persisted.
+                                        if notice_enabled {
+                                            if let Some(tx) = notice_tx {
+                                                let _ = tx.send(OutboundMessage {
+                                                    chat_id: notice_chat_id,
+                                                    text: format!(
+                                                        "_Blueprint saved: {bp_name} — future runs will be faster._"
+                                                    ),
+                                                    reply_to: Some(notice_reply_to),
+                                                    parse_mode: None,
+                                                });
+                                            }
+                                        }
                                     }
                                 }
                                 Err(e) => {
@@ -2410,9 +2448,6 @@ impl AgentRuntime {
                                 }
                             }
                         });
-
-                        // Notify user that a new blueprint is being saved
-                        reply_text.push_str("\n\n_Saving a new blueprint for this workflow — future runs will be faster._");
                     } else if blueprint_was_loaded {
                         // Refine the existing blueprint in the background
                         if let Some(ref loaded_bp) = active_blueprint {
@@ -2436,6 +2471,11 @@ impl AgentRuntime {
                                 crate::blueprint::TaskExecutionOutcome::Partial => {}
                             }
                             updated_bp.updated = chrono::Utc::now();
+                            let notice_enabled = self.blueprint_notice;
+                            let notice_tx = reply_tx.clone();
+                            let notice_chat_id = msg.chat_id.clone();
+                            let notice_reply_to = msg.id.clone();
+                            let notice_name = updated_bp.name.clone();
 
                             tokio::spawn(async move {
                                 match refine_blueprint(
@@ -2462,6 +2502,19 @@ impl AgentRuntime {
                                                 version = updated_bp.version,
                                                 "Blueprint refined and stored"
                                             );
+                                            // Truthful, post-hoc notice.
+                                            if notice_enabled {
+                                                if let Some(tx) = notice_tx {
+                                                    let _ = tx.send(OutboundMessage {
+                                                        chat_id: notice_chat_id,
+                                                        text: format!(
+                                                            "_Blueprint updated: {notice_name} — refined from this run._"
+                                                        ),
+                                                        reply_to: Some(notice_reply_to),
+                                                        parse_mode: None,
+                                                    });
+                                                }
+                                            }
                                         }
                                     }
                                     Err(e) => {
@@ -2472,11 +2525,6 @@ impl AgentRuntime {
                                     }
                                 }
                             });
-
-                            // Notify user that the blueprint is being refined
-                            reply_text.push_str(
-                                "\n\n_Blueprint updated — workflow refined based on this run._",
-                            );
                         }
                     }
                 }

@@ -870,6 +870,13 @@ pub struct AgentConfig {
     /// uses the same active provider+model — no cheap-classifier fallback.
     #[serde(default)]
     pub self_audit_enabled: bool,
+    /// Whether the agent announces "blueprint saved" after a blueprint is
+    /// actually persisted (issue #64). Default false — saving is silent. When
+    /// enabled, the notice fires only after a real store succeeds; it is never
+    /// emitted optimistically, and is NOT controllable by asking the LLM (the
+    /// text is runtime-generated). Use this flag to toggle it globally.
+    #[serde(default)]
+    pub blueprint_notice: bool,
 }
 
 impl Default for AgentConfig {
@@ -888,6 +895,7 @@ impl Default for AgentConfig {
             v2_optimizations: true,
             parallel_phases: false,
             self_audit_enabled: false,
+            blueprint_notice: false,
         }
     }
 }
