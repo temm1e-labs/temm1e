@@ -63,18 +63,16 @@ impl DesktopTool {
          AIRTIGHT LOOP — every mutating action auto-captures a FRESH gridded screenshot so you can \
          VERIFY its effect: screenshot → find target on grid → click/type at grid coords → (tool \
          returns a new gridded screenshot) → confirm the expected change is visible → continue or \
-         correct. NEVER report an action as done unless the follow-up screenshot actually shows it \
-         happened. If the screenshot does not show the change, the action FAILED — say so and \
-         adjust; do not claim success you cannot see.";
+         correct. The tool ALSO measures how much the screen changed after each action and reports \
+         it: if it says 'NO visible change detected', the action had no effect (missed target / dead \
+         space / wrong coordinates) — retry with adjusted coordinates, do NOT claim success. NEVER \
+         report an action as done unless BOTH the screenshot shows the change AND the change signal \
+         confirms it; do not claim success you cannot see.";
 
-    /// Capture the screen, composite the coordinate grid, stash it as the tool's
-    /// `last_image` (the runtime feeds that back to the model as vision), and return
-    /// a short note describing the capture for the tool-result text. Shared by the
-    /// `screenshot` action and every mutating action so the model always gets fresh,
-    /// gridded visual evidence to verify against — this is the "capture-to-validate"
-    /// half of the airtight loop.
-    fn capture_gridded(&self) -> Result<String, Temm1eError> {
-        let shot = self.controller.capture()?;
+    /// Overlay the coordinate grid onto a captured screenshot, stash it as the
+    /// tool's `last_image` (the runtime feeds that back to the model as vision),
+    /// and return a short note describing it for the tool-result text.
+    fn store_gridded(&self, shot: &temm1e_gaze::desktop_controller::Screenshot) -> String {
         let step = grid_step_for(shot.width);
         let gridded = match temm1e_gaze::overlay::overlay_coordinate_grid(
             &shot.png_data,
@@ -84,7 +82,7 @@ impl DesktopTool {
             Ok(g) => g,
             Err(e) => {
                 tracing::warn!(error = %e, "Grid overlay failed; falling back to raw screenshot");
-                shot.png_data
+                shot.png_data.clone()
             }
         };
 
@@ -97,11 +95,61 @@ impl DesktopTool {
             });
         }
 
-        Ok(format!(
+        format!(
             "{}x{} logical (scale {}); a {}px labelled coordinate grid is overlaid — read X off \
              the top axis and Y off the left axis (LOGICAL pixels, exactly what click/type use).",
             shot.width, shot.height, shot.scale_factor, step
-        ))
+        )
+    }
+
+    /// Capture a fresh screenshot and grid it (for the `screenshot` action).
+    fn capture_gridded(&self) -> Result<String, Temm1eError> {
+        let shot = self.controller.capture()?;
+        Ok(self.store_gridded(&shot))
+    }
+
+    /// Run a mutating action inside the airtight verify loop: capture a pre-frame,
+    /// perform `act`, settle, capture a post-frame (gridded + stored as last_image),
+    /// diff the two, and fold an OBJECTIVE change report into the result. `roi_center`
+    /// is the LOGICAL action point that focuses the diff (None = whole screen).
+    ///
+    /// The change report is the load-bearing honesty signal: if nothing moved after
+    /// the action, the result says so loudly so the model cannot truthfully claim
+    /// success it did not cause. If `act` fails, its error propagates unchanged — the
+    /// low-level primitives never fabricate success, and neither does this.
+    fn act_and_verify(
+        &self,
+        label: String,
+        roi_center: Option<(i32, i32)>,
+        settle_ms: u64,
+        act: impl FnOnce() -> Result<(), Temm1eError>,
+    ) -> Result<ToolOutput, Temm1eError> {
+        let pre = self.controller.capture()?;
+        act()?;
+        std::thread::sleep(std::time::Duration::from_millis(settle_ms));
+        let post = self.controller.capture()?;
+
+        // Region of interest, in PHYSICAL pixels, around the action point.
+        let region =
+            roi_center.map(|(lx, ly)| roi_physical(lx, ly, post.scale_factor, ROI_HALF_LOGICAL));
+
+        // Fail-open: a diff error must never block a legitimately-performed action.
+        let report = temm1e_gaze::compare_frames(&pre.png_data, &post.png_data, region).unwrap_or(
+            temm1e_gaze::ChangeReport {
+                global_ratio: 0.0,
+                region_ratio: 0.0,
+                changed: true,
+            },
+        );
+
+        let grid_note = self.store_gridded(&post);
+        Ok(ToolOutput {
+            content: format!(
+                "{label}. {}\nFresh screenshot captured: {grid_note}",
+                report.describe(region.is_some())
+            ),
+            is_error: false,
+        })
     }
 }
 
@@ -188,48 +236,31 @@ impl Tool for DesktopTool {
             "click" => {
                 let x = get_coord(&input, "x")?;
                 let y = get_coord(&input, "y")?;
-                self.controller.click(x, y)?;
-                // Brief settle so the UI can react before we re-capture.
-                std::thread::sleep(std::time::Duration::from_millis(350));
-                let note = self.capture_gridded()?;
-                Ok(ToolOutput {
-                    content: format!(
-                        "Clicked at ({x}, {y}). Fresh post-action screenshot captured: {note} \
-                         VERIFY the intended change is visible before proceeding — if it is not, \
-                         the click missed its target; do not claim success."
-                    ),
-                    is_error: false,
+                self.act_and_verify(format!("Clicked at ({x}, {y})"), Some((x, y)), 350, || {
+                    self.controller.click(x, y)
                 })
             }
 
             "double_click" => {
                 let x = get_coord(&input, "x")?;
                 let y = get_coord(&input, "y")?;
-                self.controller.double_click(x, y)?;
-                std::thread::sleep(std::time::Duration::from_millis(350));
-                let note = self.capture_gridded()?;
-                Ok(ToolOutput {
-                    content: format!(
-                        "Double-clicked at ({x}, {y}). Fresh screenshot captured: {note} Verify \
-                         the result before proceeding."
-                    ),
-                    is_error: false,
-                })
+                self.act_and_verify(
+                    format!("Double-clicked at ({x}, {y})"),
+                    Some((x, y)),
+                    350,
+                    || self.controller.double_click(x, y),
+                )
             }
 
             "right_click" => {
                 let x = get_coord(&input, "x")?;
                 let y = get_coord(&input, "y")?;
-                self.controller.right_click(x, y)?;
-                std::thread::sleep(std::time::Duration::from_millis(350));
-                let note = self.capture_gridded()?;
-                Ok(ToolOutput {
-                    content: format!(
-                        "Right-clicked at ({x}, {y}). Fresh screenshot captured: {note} Verify the \
-                         context menu / result is visible."
-                    ),
-                    is_error: false,
-                })
+                self.act_and_verify(
+                    format!("Right-clicked at ({x}, {y})"),
+                    Some((x, y)),
+                    350,
+                    || self.controller.right_click(x, y),
+                )
             }
 
             "type" => {
@@ -240,16 +271,9 @@ impl Tool for DesktopTool {
                     .ok_or_else(|| {
                         Temm1eError::Tool("'type' action requires 'text' parameter".into())
                     })?;
-                self.controller.type_text(text)?;
-                std::thread::sleep(std::time::Duration::from_millis(250));
-                let note = self.capture_gridded()?;
-                Ok(ToolOutput {
-                    content: format!(
-                        "Typed {} characters. Fresh screenshot captured: {note} Verify the text \
-                         actually appears in the intended field before continuing.",
-                        text.len()
-                    ),
-                    is_error: false,
+                let n = text.chars().count();
+                self.act_and_verify(format!("Typed {n} characters"), None, 250, || {
+                    self.controller.type_text(text)
                 })
             }
 
@@ -263,15 +287,8 @@ impl Tool for DesktopTool {
                             "'key' action requires 'text' parameter (e.g. 'cmd+c', 'enter')".into(),
                         )
                     })?;
-                self.controller.key_combo(combo)?;
-                std::thread::sleep(std::time::Duration::from_millis(250));
-                let note = self.capture_gridded()?;
-                Ok(ToolOutput {
-                    content: format!(
-                        "Pressed key combo: {combo}. Fresh screenshot captured: {note} Verify the \
-                         expected result (e.g. message sent, dialog closed) is visible."
-                    ),
-                    is_error: false,
+                self.act_and_verify(format!("Pressed key combo: {combo}"), None, 250, || {
+                    self.controller.key_combo(combo)
                 })
             }
 
@@ -288,15 +305,12 @@ impl Tool for DesktopTool {
                     .get("dy")
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0) as i32;
-                self.controller.scroll(x, y, dx, dy)?;
-                std::thread::sleep(std::time::Duration::from_millis(250));
-                let note = self.capture_gridded()?;
-                Ok(ToolOutput {
-                    content: format!(
-                        "Scrolled at ({x}, {y}) dx={dx} dy={dy}. Fresh screenshot captured: {note}"
-                    ),
-                    is_error: false,
-                })
+                self.act_and_verify(
+                    format!("Scrolled at ({x}, {y}) dx={dx} dy={dy}"),
+                    Some((x, y)),
+                    300,
+                    || self.controller.scroll(x, y, dx, dy),
+                )
             }
 
             "drag" => {
@@ -304,15 +318,12 @@ impl Tool for DesktopTool {
                 let y1 = get_coord(&input, "y1")?;
                 let x2 = get_coord(&input, "x2")?;
                 let y2 = get_coord(&input, "y2")?;
-                self.controller.drag(x1, y1, x2, y2)?;
-                std::thread::sleep(std::time::Duration::from_millis(350));
-                let note = self.capture_gridded()?;
-                Ok(ToolOutput {
-                    content: format!(
-                        "Dragged from ({x1},{y1}) to ({x2},{y2}). Fresh screenshot captured: {note}"
-                    ),
-                    is_error: false,
-                })
+                self.act_and_verify(
+                    format!("Dragged from ({x1},{y1}) to ({x2},{y2})"),
+                    Some((x2, y2)),
+                    350,
+                    || self.controller.drag(x1, y1, x2, y2),
+                )
             }
 
             "zoom_region" => {
@@ -387,6 +398,12 @@ fn get_coord(input: &ToolInput, name: &str) -> Result<i32, Temm1eError> {
         .ok_or_else(|| Temm1eError::Tool(format!("Missing required parameter: '{}'", name)))
 }
 
+/// Half-width (in LOGICAL pixels) of the square region-of-interest centred on an
+/// action point, used to focus post-action change detection near where the click/
+/// drag landed. A 180px box catches the button/menu that should react without being
+/// swamped by unrelated screen motion (cursor blink, clock).
+const ROI_HALF_LOGICAL: i32 = 90;
+
 /// Choose a coordinate-grid spacing (in LOGICAL pixels) that yields a readable
 /// number of gridlines for the given logical screen width — finer on small
 /// screens, coarser on large ones so labels never crowd.
@@ -395,5 +412,49 @@ fn grid_step_for(logical_w: u32) -> u32 {
         0..=1500 => 100,
         1501..=2600 => 150,
         _ => 200,
+    }
+}
+
+/// Compute the PHYSICAL-pixel ROI rect `(x, y, w, h)` centred on a LOGICAL action
+/// point, clamped at the top-left origin. `scale` maps logical→physical (the
+/// screenshot is physical, but the model works in logical coordinates).
+fn roi_physical(lx: i32, ly: i32, scale: f32, half_logical: i32) -> (u32, u32, u32, u32) {
+    let s = if scale > 0.0 { scale } else { 1.0 };
+    let half = (half_logical as f32 * s).max(1.0) as i32;
+    let cx = (lx as f32 * s) as i32;
+    let cy = (ly as f32 * s) as i32;
+    let x0 = (cx - half).max(0) as u32;
+    let y0 = (cy - half).max(0) as u32;
+    let side = (half * 2).max(1) as u32;
+    (x0, y0, side, side)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn grid_step_scales_with_width() {
+        assert_eq!(grid_step_for(1366), 100);
+        assert_eq!(grid_step_for(1920), 150);
+        assert_eq!(grid_step_for(3840), 200);
+    }
+
+    #[test]
+    fn roi_physical_at_1x_centers_on_point() {
+        // half=90 logical → 180px box around (500, 400) at scale 1.0.
+        assert_eq!(roi_physical(500, 400, 1.0, 90), (410, 310, 180, 180));
+    }
+
+    #[test]
+    fn roi_physical_scales_to_physical_on_hidpi() {
+        // 2x: logical (500,400) → physical center (1000,800); half 90→180.
+        assert_eq!(roi_physical(500, 400, 2.0, 90), (820, 620, 360, 360));
+    }
+
+    #[test]
+    fn roi_physical_clamps_at_origin() {
+        let (x, y, _, _) = roi_physical(10, 10, 1.0, 90);
+        assert_eq!((x, y), (0, 0)); // 10-90 < 0 → clamped to 0
     }
 }

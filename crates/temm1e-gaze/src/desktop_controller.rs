@@ -207,11 +207,29 @@ impl DesktopController {
             .map_err(|e| Temm1eError::Tool(format!("Failed to initialize input simulation: {}", e)))
     }
 
+    /// Convert a LOGICAL coordinate into what the enigo backend consumes on this OS.
+    ///
+    /// On Linux, enigo drives X11 via XTEST, whose coordinate space is the PHYSICAL
+    /// framebuffer — so a logical coordinate must be scaled by the DPI factor (a
+    /// no-op at scale 1.0). macOS (Core Graphics points) and Windows (DPI-unaware
+    /// SendInput) already accept logical coordinates and pass through unchanged. The
+    /// ydotool/Wayland path never calls this: it consumes logical layout coordinates
+    /// directly, so its callers pass logical values straight through.
+    fn enigo_coords(&self, x_logical: i32, y_logical: i32) -> (i32, i32) {
+        if cfg!(target_os = "linux") {
+            let scale = self.scale_factor().unwrap_or(1.0);
+            scale_point(x_logical, y_logical, scale)
+        } else {
+            (x_logical, y_logical)
+        }
+    }
+
     /// Move mouse to logical coordinates and click.
     pub fn click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_click(x, y);
         }
+        let (x, y) = self.enigo_coords(x, y);
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -230,6 +248,7 @@ impl DesktopController {
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_double_click(x, y);
         }
+        let (x, y) = self.enigo_coords(x, y);
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -251,6 +270,7 @@ impl DesktopController {
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_right_click(x, y);
         }
+        let (x, y) = self.enigo_coords(x, y);
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -313,6 +333,7 @@ impl DesktopController {
                     .into(),
             ));
         }
+        let (x, y) = self.enigo_coords(x, y);
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -339,6 +360,8 @@ impl DesktopController {
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_drag(x1, y1, x2, y2);
         }
+        let (x1, y1) = self.enigo_coords(x1, y1);
+        let (x2, y2) = self.enigo_coords(x2, y2);
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -357,6 +380,19 @@ impl DesktopController {
         tracing::debug!(x1, y1, x2, y2, "Desktop drag");
         Ok(())
     }
+}
+
+/// Scale a LOGICAL point to PHYSICAL pixels (nearest integer), for backends whose
+/// coordinate space is the physical framebuffer (enigo/X11). Identity at scale 1.0
+/// or non-positive scale, so it never perturbs the common unscaled case.
+fn scale_point(x_logical: i32, y_logical: i32, scale: f32) -> (i32, i32) {
+    if scale <= 0.0 || (scale - 1.0).abs() < f32::EPSILON {
+        return (x_logical, y_logical);
+    }
+    (
+        (x_logical as f32 * scale).round() as i32,
+        (y_logical as f32 * scale).round() as i32,
+    )
 }
 
 #[cfg(test)]
@@ -430,5 +466,18 @@ mod tests {
         let ctrl = DesktopController::new(0).expect("Primary monitor");
         let s = ctrl.scale_factor().expect("Scale factor");
         assert!(s >= 1.0, "Scale factor should be >= 1.0");
+    }
+
+    #[test]
+    fn scale_point_is_identity_at_1x_and_scales_on_hidpi() {
+        assert_eq!(scale_point(100, 200, 1.0), (100, 200), "1.0 is a no-op");
+        assert_eq!(scale_point(0, 0, 2.0), (0, 0));
+        assert_eq!(scale_point(100, 200, 2.0), (200, 400), "2x → physical");
+        assert_eq!(scale_point(100, 200, 1.5), (150, 300), "fractional scale");
+        assert_eq!(
+            scale_point(50, 50, 0.0),
+            (50, 50),
+            "non-positive scale guarded"
+        );
     }
 }

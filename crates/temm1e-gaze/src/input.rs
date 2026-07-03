@@ -43,11 +43,39 @@ impl InputRoute {
         match self {
             InputRoute::Enigo => "input simulation available (enigo)".to_string(),
             InputRoute::Ydotool => {
-                "input simulation available (ydotool/uinput — Wayland)".to_string()
+                if ydotoold_socket_present() {
+                    "input simulation available (ydotool/uinput — Wayland)".to_string()
+                } else {
+                    "input via ydotool/uinput (Wayland) — but NO ydotoold socket detected, the \
+                     daemon may not be running; if clicks/keys fail, start it with `sudo ydotoold` \
+                     (or `systemctl --user start ydotool`)"
+                        .to_string()
+                }
             }
             InputRoute::Unavailable(msg) => format!("input simulation UNAVAILABLE — {msg}"),
         }
     }
+}
+
+/// Best-effort check for a live `ydotoold` daemon socket. `ydotool` talks to
+/// `ydotoold` over a unix socket; if none exists the daemon is almost certainly
+/// not running and input will fail. Used ONLY to enrich the status note — input is
+/// still attempted and errors honestly at action time, so this never fabricates
+/// availability, it only warns earlier. (The original incident had `ydotoold`
+/// crashed while the tool still reported "available".)
+pub fn ydotoold_socket_present() -> bool {
+    if let Some(sock) = std::env::var_os("YDOTOOL_SOCKET") {
+        return std::path::Path::new(&sock).exists();
+    }
+    if let Some(runtime_dir) = std::env::var_os("XDG_RUNTIME_DIR") {
+        if std::path::Path::new(&runtime_dir)
+            .join(".ydotool_socket")
+            .exists()
+        {
+            return true;
+        }
+    }
+    std::path::Path::new("/tmp/.ydotool_socket").exists()
 }
 
 /// Runtime environment facts used to choose an [`InputRoute`].

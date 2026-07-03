@@ -18,8 +18,10 @@
 //! - **Windows** — works via enigo's SendInput backend.
 
 pub mod desktop_controller;
+pub mod diff;
 pub mod input;
 pub mod overlay;
 pub mod platform;
 
 pub use desktop_controller::DesktopController;
+pub use diff::{compare_frames, ChangeReport};
