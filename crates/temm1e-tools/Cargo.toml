@@ -8,7 +8,7 @@ description = "Tool integrations for TEMM1E agents"
 
 [features]
 browser = ["dep:chromiumoxide", "dep:futures", "dep:base64", "dep:htmd"]
-desktop-control = ["dep:temm1e-gaze"]
+desktop-control = ["dep:temm1e-gaze", "dep:base64"]
 
 [dependencies]
 temm1e-core.workspace = true

@@ -44,7 +44,7 @@ impl DesktopTool {
          type text, press key combinations, scroll, and drag. Works at the OS level \
          on any application (not just the browser).\n\n\
          Actions:\n\
-         - screenshot: Capture the entire screen\n\
+         - screenshot: Capture the entire screen (with coordinate grid)\n\
          - click: Click at (x, y) coordinates\n\
          - double_click: Double-click at (x, y)\n\
          - right_click: Right-click at (x, y)\n\
@@ -52,10 +52,57 @@ impl DesktopTool {
          - key: Press a key combination (e.g. 'cmd+c', 'ctrl+shift+a', 'enter')\n\
          - scroll: Scroll at (x, y) with dx/dy amounts\n\
          - drag: Drag from (x1,y1) to (x2,y2)\n\
-         - zoom_region: Crop a region from the last screenshot for detailed analysis\n\n\
-         Coordinates are in logical pixels (not physical). On Retina displays, \
-         the screen resolution is halved (e.g. 1470x956 logical for a 2940x1912 physical display).\n\n\
-         Vision workflow: screenshot → analyze image → click at coordinates → screenshot → verify.";
+         - zoom_region: Crop+magnify a screen region for detailed analysis\n\n\
+         COORDINATE GRID (Set-of-Mark): every screenshot this tool returns has a magenta \
+         coordinate grid composited on top — grid lines at fixed intervals, with the LOGICAL \
+         x-values labelled along the TOP edge, y-values down the LEFT edge, and 'x,y' anchor \
+         labels at intersections. Read your target's coordinates directly off this grid instead \
+         of guessing raw pixels. All coordinates are LOGICAL pixels (not physical); on Retina/HiDPI \
+         the logical resolution is the physical divided by the scale factor (e.g. 1470x956 logical \
+         for a 2940x1912 physical display).\n\n\
+         AIRTIGHT LOOP — every mutating action auto-captures a FRESH gridded screenshot so you can \
+         VERIFY its effect: screenshot → find target on grid → click/type at grid coords → (tool \
+         returns a new gridded screenshot) → confirm the expected change is visible → continue or \
+         correct. NEVER report an action as done unless the follow-up screenshot actually shows it \
+         happened. If the screenshot does not show the change, the action FAILED — say so and \
+         adjust; do not claim success you cannot see.";
+
+    /// Capture the screen, composite the coordinate grid, stash it as the tool's
+    /// `last_image` (the runtime feeds that back to the model as vision), and return
+    /// a short note describing the capture for the tool-result text. Shared by the
+    /// `screenshot` action and every mutating action so the model always gets fresh,
+    /// gridded visual evidence to verify against — this is the "capture-to-validate"
+    /// half of the airtight loop.
+    fn capture_gridded(&self) -> Result<String, Temm1eError> {
+        let shot = self.controller.capture()?;
+        let step = grid_step_for(shot.width);
+        let gridded = match temm1e_gaze::overlay::overlay_coordinate_grid(
+            &shot.png_data,
+            shot.scale_factor,
+            step,
+        ) {
+            Ok(g) => g,
+            Err(e) => {
+                tracing::warn!(error = %e, "Grid overlay failed; falling back to raw screenshot");
+                shot.png_data
+            }
+        };
+
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&gridded);
+        if let Ok(mut img) = self.last_image.lock() {
+            *img = Some(ToolOutputImage {
+                media_type: "image/png".to_string(),
+                data: b64,
+            });
+        }
+
+        Ok(format!(
+            "{}x{} logical (scale {}); a {}px labelled coordinate grid is overlaid — read X off \
+             the top axis and Y off the left axis (LOGICAL pixels, exactly what click/type use).",
+            shot.width, shot.height, shot.scale_factor, step
+        ))
+    }
 }
 
 #[async_trait]
@@ -128,29 +175,11 @@ impl Tool for DesktopTool {
 
         match action {
             "screenshot" => {
-                let screenshot = self.controller.capture()?;
-
-                // Store as base64 for vision pipeline
-                use base64::Engine;
-                let b64 = base64::engine::general_purpose::STANDARD.encode(&screenshot.png_data);
-                if let Ok(mut img) = self.last_image.lock() {
-                    *img = Some(ToolOutputImage {
-                        media_type: "image/png".to_string(),
-                        data: b64,
-                    });
-                }
-
+                let note = self.capture_gridded()?;
                 Ok(ToolOutput {
                     content: format!(
-                        "Desktop screenshot captured: {}x{} logical ({}x{} physical, scale={}). \
-                         {} bytes. The image is now visible for analysis. \
-                         Use click with x,y coordinates to interact with elements you see.",
-                        screenshot.width,
-                        screenshot.height,
-                        screenshot.physical_width,
-                        screenshot.physical_height,
-                        screenshot.scale_factor,
-                        screenshot.png_data.len()
+                        "Desktop screenshot captured: {note} Locate your target on the grid, then \
+                         use click/type/key with those LOGICAL coordinates."
                     ),
                     is_error: false,
                 })
@@ -160,21 +189,14 @@ impl Tool for DesktopTool {
                 let x = get_coord(&input, "x")?;
                 let y = get_coord(&input, "y")?;
                 self.controller.click(x, y)?;
-                // Brief sync sleep for UI to settle (enigo is sync anyway)
-                std::thread::sleep(std::time::Duration::from_millis(300));
-                let screenshot = self.controller.capture()?;
-                use base64::Engine;
-                let b64 = base64::engine::general_purpose::STANDARD.encode(&screenshot.png_data);
-                if let Ok(mut img) = self.last_image.lock() {
-                    *img = Some(ToolOutputImage {
-                        media_type: "image/png".to_string(),
-                        data: b64,
-                    });
-                }
+                // Brief settle so the UI can react before we re-capture.
+                std::thread::sleep(std::time::Duration::from_millis(350));
+                let note = self.capture_gridded()?;
                 Ok(ToolOutput {
                     content: format!(
-                        "Clicked at ({}, {}). Post-click screenshot captured for verification.",
-                        x, y
+                        "Clicked at ({x}, {y}). Fresh post-action screenshot captured: {note} \
+                         VERIFY the intended change is visible before proceeding — if it is not, \
+                         the click missed its target; do not claim success."
                     ),
                     is_error: false,
                 })
@@ -184,8 +206,13 @@ impl Tool for DesktopTool {
                 let x = get_coord(&input, "x")?;
                 let y = get_coord(&input, "y")?;
                 self.controller.double_click(x, y)?;
+                std::thread::sleep(std::time::Duration::from_millis(350));
+                let note = self.capture_gridded()?;
                 Ok(ToolOutput {
-                    content: format!("Double-clicked at ({}, {})", x, y),
+                    content: format!(
+                        "Double-clicked at ({x}, {y}). Fresh screenshot captured: {note} Verify \
+                         the result before proceeding."
+                    ),
                     is_error: false,
                 })
             }
@@ -194,8 +221,13 @@ impl Tool for DesktopTool {
                 let x = get_coord(&input, "x")?;
                 let y = get_coord(&input, "y")?;
                 self.controller.right_click(x, y)?;
+                std::thread::sleep(std::time::Duration::from_millis(350));
+                let note = self.capture_gridded()?;
                 Ok(ToolOutput {
-                    content: format!("Right-clicked at ({}, {})", x, y),
+                    content: format!(
+                        "Right-clicked at ({x}, {y}). Fresh screenshot captured: {note} Verify the \
+                         context menu / result is visible."
+                    ),
                     is_error: false,
                 })
             }
@@ -209,8 +241,14 @@ impl Tool for DesktopTool {
                         Temm1eError::Tool("'type' action requires 'text' parameter".into())
                     })?;
                 self.controller.type_text(text)?;
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                let note = self.capture_gridded()?;
                 Ok(ToolOutput {
-                    content: format!("Typed {} characters", text.len()),
+                    content: format!(
+                        "Typed {} characters. Fresh screenshot captured: {note} Verify the text \
+                         actually appears in the intended field before continuing.",
+                        text.len()
+                    ),
                     is_error: false,
                 })
             }
@@ -226,8 +264,13 @@ impl Tool for DesktopTool {
                         )
                     })?;
                 self.controller.key_combo(combo)?;
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                let note = self.capture_gridded()?;
                 Ok(ToolOutput {
-                    content: format!("Pressed key combo: {}", combo),
+                    content: format!(
+                        "Pressed key combo: {combo}. Fresh screenshot captured: {note} Verify the \
+                         expected result (e.g. message sent, dialog closed) is visible."
+                    ),
                     is_error: false,
                 })
             }
@@ -246,8 +289,12 @@ impl Tool for DesktopTool {
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0) as i32;
                 self.controller.scroll(x, y, dx, dy)?;
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                let note = self.capture_gridded()?;
                 Ok(ToolOutput {
-                    content: format!("Scrolled at ({}, {}) dx={} dy={}", x, y, dx, dy),
+                    content: format!(
+                        "Scrolled at ({x}, {y}) dx={dx} dy={dy}. Fresh screenshot captured: {note}"
+                    ),
                     is_error: false,
                 })
             }
@@ -258,8 +305,12 @@ impl Tool for DesktopTool {
                 let x2 = get_coord(&input, "x2")?;
                 let y2 = get_coord(&input, "y2")?;
                 self.controller.drag(x1, y1, x2, y2)?;
+                std::thread::sleep(std::time::Duration::from_millis(350));
+                let note = self.capture_gridded()?;
                 Ok(ToolOutput {
-                    content: format!("Dragged from ({},{}) to ({},{})", x1, y1, x2, y2),
+                    content: format!(
+                        "Dragged from ({x1},{y1}) to ({x2},{y2}). Fresh screenshot captured: {note}"
+                    ),
                     is_error: false,
                 })
             }
@@ -270,9 +321,9 @@ impl Tool for DesktopTool {
                 let x2 = get_coord(&input, "x2")? as u32;
                 let y2 = get_coord(&input, "y2")? as u32;
 
-                // Capture current screen and crop the region
+                // Capture current screen and crop the region.
                 let screenshot = self.controller.capture()?;
-                // Scale coordinates from logical to physical for cropping
+                // Scale coordinates from logical to physical for cropping.
                 let s = screenshot.scale_factor;
                 let px1 = (x1 as f32 * s) as u32;
                 let py1 = (y1 as f32 * s) as u32;
@@ -283,8 +334,20 @@ impl Tool for DesktopTool {
                     .controller
                     .crop_region(&screenshot, px1, py1, px2, py2)?;
 
+                // Overlay a finer grid whose labels stay in FULL-screen logical
+                // coordinates (origin = crop's top-left), so clicks computed off the
+                // zoom still target the real screen position.
+                let crop_w = x2.saturating_sub(x1);
+                let step = if crop_w <= 400 { 50 } else { 100 };
+                let gridded = match temm1e_gaze::overlay::overlay_coordinate_grid_with_origin(
+                    &cropped, s, step, x1, y1,
+                ) {
+                    Ok(g) => g,
+                    Err(_) => cropped,
+                };
+
                 use base64::Engine;
-                let b64 = base64::engine::general_purpose::STANDARD.encode(&cropped);
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&gridded);
                 if let Ok(mut img) = self.last_image.lock() {
                     *img = Some(ToolOutputImage {
                         media_type: "image/png".to_string(),
@@ -294,13 +357,9 @@ impl Tool for DesktopTool {
 
                 Ok(ToolOutput {
                     content: format!(
-                        "Zoomed into desktop region ({},{})->({},{}) ({} bytes). \
-                         Use click with coordinates from the FULL screen (not this zoomed view).",
-                        x1,
-                        y1,
-                        x2,
-                        y2,
-                        cropped.len()
+                        "Zoomed into region ({x1},{y1})->({x2},{y2}) with a {step}px grid whose \
+                         labels are FULL-screen LOGICAL coordinates. Click using those coordinates \
+                         (not positions within this magnified view)."
                     ),
                     is_error: false,
                 })
@@ -326,4 +385,15 @@ fn get_coord(input: &ToolInput, name: &str) -> Result<i32, Temm1eError> {
         .and_then(|v| v.as_f64())
         .map(|v| v as i32)
         .ok_or_else(|| Temm1eError::Tool(format!("Missing required parameter: '{}'", name)))
+}
+
+/// Choose a coordinate-grid spacing (in LOGICAL pixels) that yields a readable
+/// number of gridlines for the given logical screen width — finer on small
+/// screens, coarser on large ones so labels never crowd.
+fn grid_step_for(logical_w: u32) -> u32 {
+    match logical_w {
+        0..=1500 => 100,
+        1501..=2600 => 150,
+        _ => 200,
+    }
 }
