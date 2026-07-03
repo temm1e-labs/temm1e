@@ -69,7 +69,7 @@ crates/
   temm1e-skills      -- Skill registry and execution
   temm1e-hive        -- Many Tems: swarm intelligence, pack coordination, scent field
   temm1e-distill     -- Eigen-Tune: self-tuning distillation engine (runtime-gated by [eigentune] enabled=true; local serving requires the second opt-in enable_local_routing=true; see tems_lab/eigen/LOCAL_ROUTING_SAFETY.md for the seven-gate safety chain)
-  temm1e-gaze        -- Tem Gaze: desktop vision control (xcap + enigo), SoM overlay
+  temm1e-gaze        -- Tem Gaze: desktop vision control (xcap capture; enigo on X11/macOS/Windows, libei/RemoteDesktop portal on Wayland for exact input), grid Set-of-Mark + airtight verify loop
   temm1e-perpetuum   -- Perpetuum: perpetual time-aware entity, scheduling, monitors, volition
   temm1e-anima       -- Tem Anima: emotional intelligence, user profiling, personality system
   temm1e-cores       -- TemDOS: specialist sub-agent cores (architecture, code-review, test, debug, web, desktop, research, creative)
