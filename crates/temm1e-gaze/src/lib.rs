@@ -20,7 +20,7 @@
 pub mod desktop_controller;
 pub mod diff;
 pub mod input;
-#[cfg(feature = "wayland-libei")]
+#[cfg(target_os = "linux")]
 pub mod libei;
 pub mod overlay;
 pub mod platform;

@@ -1,8 +1,7 @@
 //! Keyboard proof: click into a text field to focus it, then type a string — both
 //! through the integrated `DesktopController` → libei path, in ONE portal session.
 //!
-//!   cargo run -p temm1e-gaze --example libei_type_test --features wayland-libei \
-//!       -- <out.png> "<text>" <focus_x> <focus_y>
+//!   cargo run -p temm1e-gaze --example libei_type_test -- <out.png> "<text>" <focus_x> <focus_y>
 
 use std::time::Duration;
 use temm1e_gaze::DesktopController;

@@ -38,10 +38,10 @@ pub struct DesktopController {
     /// FIRST input use (one permission prompt), then reused for the process
     /// lifetime. Preferred over ydotool on Wayland because it positions the pointer
     /// EXACTLY (ydotool's absolute motion is distorted by pointer acceleration).
-    #[cfg(feature = "wayland-libei")]
+    #[cfg(target_os = "linux")]
     libei: std::sync::OnceLock<Option<crate::libei::LibeiController>>,
     /// Whether to attempt libei at all (true only on Wayland).
-    #[cfg(feature = "wayland-libei")]
+    #[cfg(target_os = "linux")]
     prefer_libei: bool,
 }
 
@@ -93,17 +93,17 @@ impl DesktopController {
             }
         }
 
-        #[cfg(feature = "wayland-libei")]
+        #[cfg(target_os = "linux")]
         let prefer_libei = backend.attempt_libei(InputEnv::detect().is_wayland());
-        #[cfg(not(feature = "wayland-libei"))]
+        #[cfg(not(target_os = "linux"))]
         let _ = backend;
 
         Ok(Self {
             monitor_index,
             route,
-            #[cfg(feature = "wayland-libei")]
+            #[cfg(target_os = "linux")]
             libei: std::sync::OnceLock::new(),
-            #[cfg(feature = "wayland-libei")]
+            #[cfg(target_os = "linux")]
             prefer_libei,
         })
     }
@@ -112,7 +112,7 @@ impl DesktopController {
     /// Wayland host and the portal is available. The first call blocks on the
     /// permission prompt; failures cache as `None` so we fall back to ydotool/enigo
     /// and never re-prompt.
-    #[cfg(feature = "wayland-libei")]
+    #[cfg(target_os = "linux")]
     fn libei(&self) -> Option<&crate::libei::LibeiController> {
         if !self.prefer_libei {
             return None;
@@ -281,7 +281,7 @@ impl DesktopController {
 
     /// Move mouse to logical coordinates and click.
     pub fn click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
-        #[cfg(feature = "wayland-libei")]
+        #[cfg(target_os = "linux")]
         if let Some(libei) = self.libei() {
             return libei.click(x, y);
         }
@@ -304,7 +304,7 @@ impl DesktopController {
 
     /// Double-click at logical coordinates.
     pub fn double_click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
-        #[cfg(feature = "wayland-libei")]
+        #[cfg(target_os = "linux")]
         if let Some(libei) = self.libei() {
             return libei.double_click(x, y);
         }
@@ -330,7 +330,7 @@ impl DesktopController {
 
     /// Right-click at logical coordinates.
     pub fn right_click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
-        #[cfg(feature = "wayland-libei")]
+        #[cfg(target_os = "linux")]
         if let Some(libei) = self.libei() {
             return libei.right_click(x, y);
         }
@@ -353,7 +353,7 @@ impl DesktopController {
 
     /// Type a text string.
     pub fn type_text(&self, text: &str) -> Result<(), Temm1eError> {
-        #[cfg(feature = "wayland-libei")]
+        #[cfg(target_os = "linux")]
         if let Some(libei) = self.libei() {
             return libei.type_text(text);
         }
@@ -372,7 +372,7 @@ impl DesktopController {
 
     /// Press a key combination (e.g., "cmd+c", "ctrl+shift+a", "enter", "tab").
     pub fn key_combo(&self, combo: &str) -> Result<(), Temm1eError> {
-        #[cfg(feature = "wayland-libei")]
+        #[cfg(target_os = "linux")]
         if let Some(libei) = self.libei() {
             return libei.key_combo(combo);
         }
@@ -432,7 +432,7 @@ impl DesktopController {
 
     /// Drag from (x1, y1) to (x2, y2).
     pub fn drag(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> Result<(), Temm1eError> {
-        #[cfg(feature = "wayland-libei")]
+        #[cfg(target_os = "linux")]
         if let Some(libei) = self.libei() {
             return libei.drag(x1, y1, x2, y2);
         }

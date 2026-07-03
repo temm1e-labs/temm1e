@@ -2,8 +2,9 @@
 //! clicks through the real input path, with a SINGLE permission prompt (the portal
 //! session is established once and reused).
 //!
-//!   cargo run -p temm1e-gaze --example libei_ctrl_test --features wayland-libei \
-//!       -- <out.png> <x1> <y1> <x2> <y2> ...
+//!   cargo run -p temm1e-gaze --example libei_ctrl_test -- <out.png> <x1> <y1> <x2> <y2> ...
+//!
+//! On Linux this drives libei automatically (it's built in); elsewhere it uses enigo.
 
 use temm1e_gaze::DesktopController;
 
