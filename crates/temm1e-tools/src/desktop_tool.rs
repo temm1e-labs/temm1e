@@ -10,6 +10,8 @@ use temm1e_gaze::DesktopController;
 /// Desktop control tool — full computer use via screen capture + input simulation.
 pub struct DesktopTool {
     controller: Arc<DesktopController>,
+    /// Full tool description incl. the runtime input-backend status.
+    description: String,
     last_image: std::sync::Mutex<Option<ToolOutputImage>>,
 }
 
@@ -17,32 +19,28 @@ impl DesktopTool {
     /// Create a new desktop tool for the given monitor.
     pub fn new(monitor_index: usize) -> Result<Self, Temm1eError> {
         let controller = DesktopController::new(monitor_index)?;
-        let input_note = if controller.input_available() {
-            "input simulation available"
-        } else {
-            "input simulation UNAVAILABLE (grant Accessibility permission on macOS)"
-        };
+        let status_note = controller.input_status_note();
         tracing::info!(
             monitor = monitor_index,
-            input = input_note,
+            input = %status_note,
             "Desktop tool initialized"
+        );
+        let description = format!(
+            "{}\n\nInput backend status on this host: {}",
+            Self::BASE_DESCRIPTION,
+            status_note
         );
 
         Ok(Self {
             controller: Arc::new(controller),
+            description,
             last_image: std::sync::Mutex::new(None),
         })
     }
-}
 
-#[async_trait]
-impl Tool for DesktopTool {
-    fn name(&self) -> &str {
-        "desktop"
-    }
-
-    fn description(&self) -> &str {
-        "Control the computer desktop — capture screenshots, click at coordinates, \
+    /// Base description; `description()` appends the runtime input-backend status so
+    /// the model knows up front whether desktop input actually works on this host.
+    const BASE_DESCRIPTION: &'static str = "Control the computer desktop — capture screenshots, click at coordinates, \
          type text, press key combinations, scroll, and drag. Works at the OS level \
          on any application (not just the browser).\n\n\
          Actions:\n\
@@ -57,7 +55,17 @@ impl Tool for DesktopTool {
          - zoom_region: Crop a region from the last screenshot for detailed analysis\n\n\
          Coordinates are in logical pixels (not physical). On Retina displays, \
          the screen resolution is halved (e.g. 1470x956 logical for a 2940x1912 physical display).\n\n\
-         Vision workflow: screenshot → analyze image → click at coordinates → screenshot → verify."
+         Vision workflow: screenshot → analyze image → click at coordinates → screenshot → verify.";
+}
+
+#[async_trait]
+impl Tool for DesktopTool {
+    fn name(&self) -> &str {
+        "desktop"
+    }
+
+    fn description(&self) -> &str {
+        self.description.as_str()
     }
 
     fn parameters_schema(&self) -> serde_json::Value {

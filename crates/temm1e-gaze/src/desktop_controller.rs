@@ -1,5 +1,6 @@
 //! Desktop screen controller — capture screenshots and simulate input at the OS level.
 
+use crate::input::{InputEnv, InputRoute};
 use crate::platform;
 use enigo::{Axis, Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
 use image::ImageFormat;
@@ -31,8 +32,8 @@ pub struct Screenshot {
 /// with macOS Core Graphics pointers. The initialization overhead is negligible.
 pub struct DesktopController {
     monitor_index: usize,
-    /// Whether enigo initialization succeeded (false = permission denied on macOS).
-    input_available: bool,
+    /// Chosen input backend for this host (enigo / ydotool / unavailable).
+    route: InputRoute,
 }
 
 impl DesktopController {
@@ -56,34 +57,36 @@ impl DesktopController {
             )));
         }
 
-        // Probe enigo to check if input simulation is available
+        // Probe enigo, then choose an input backend. On Linux/Wayland enigo's XTEST
+        // backend is silently ignored by the compositor, so a successful probe there
+        // does NOT mean input works — `resolve_route` accounts for that.
         let settings = Settings::default();
-        let input_available = match Enigo::new(&settings) {
-            Ok(_) => {
-                tracing::info!("Desktop input simulation available");
-                true
+        let enigo_ok = Enigo::new(&settings).is_ok();
+        let route = crate::input::resolve_route(enigo_ok, &InputEnv::detect());
+        match &route {
+            InputRoute::Unavailable(reason) => {
+                tracing::warn!(reason = %reason, "Desktop input simulation unavailable");
             }
-            Err(e) => {
-                tracing::warn!(
-                    "Desktop input simulation unavailable: {}. \
-                     On macOS, grant Accessibility permission in \
-                     System Settings → Privacy & Security → Accessibility.",
-                    e
-                );
-                false
+            ready => {
+                tracing::info!(status = %ready.status_note(), "Desktop input ready");
             }
-        };
+        }
 
         Ok(Self {
             monitor_index,
-            input_available,
+            route,
         })
     }
 
     /// Whether input simulation (click, type, key) is available.
-    /// False on macOS without Accessibility permission.
+    /// False on Wayland without a working backend, or macOS without Accessibility.
     pub fn input_available(&self) -> bool {
-        self.input_available
+        self.route.is_available()
+    }
+
+    /// Human-readable status of the chosen input backend (for the tool description/logs).
+    pub fn input_status_note(&self) -> String {
+        self.route.status_note()
     }
 
     /// Capture the current screen as a PNG screenshot.
@@ -188,16 +191,17 @@ impl DesktopController {
     // --- Input simulation methods ---
     // All require Accessibility permission on macOS.
 
-    /// Create a fresh Enigo instance for input simulation.
-    /// Returns a clear error if Accessibility permission is missing.
-    fn new_enigo(&self) -> Result<Enigo, Temm1eError> {
-        if !self.input_available {
-            return Err(Temm1eError::Tool(
-                "Input simulation unavailable. On macOS, grant Accessibility permission \
-                 in System Settings → Privacy & Security → Accessibility for this application."
-                    .into(),
-            ));
+    /// Guard for input methods: returns the active route, or an error if input is
+    /// unavailable — so callers never fabricate success.
+    fn input_route(&self) -> Result<&InputRoute, Temm1eError> {
+        match &self.route {
+            InputRoute::Unavailable(msg) => Err(Temm1eError::Tool(msg.clone())),
+            route => Ok(route),
         }
+    }
+
+    /// Create a fresh Enigo instance for input simulation (Enigo route only).
+    fn new_enigo(&self) -> Result<Enigo, Temm1eError> {
         let settings = Settings::default();
         Enigo::new(&settings)
             .map_err(|e| Temm1eError::Tool(format!("Failed to initialize input simulation: {}", e)))
@@ -205,6 +209,9 @@ impl DesktopController {
 
     /// Move mouse to logical coordinates and click.
     pub fn click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
+        if let InputRoute::Ydotool = self.input_route()? {
+            return crate::input::yd_click(x, y);
+        }
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -220,6 +227,9 @@ impl DesktopController {
 
     /// Double-click at logical coordinates.
     pub fn double_click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
+        if let InputRoute::Ydotool = self.input_route()? {
+            return crate::input::yd_double_click(x, y);
+        }
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -238,6 +248,9 @@ impl DesktopController {
 
     /// Right-click at logical coordinates.
     pub fn right_click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
+        if let InputRoute::Ydotool = self.input_route()? {
+            return crate::input::yd_right_click(x, y);
+        }
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -253,6 +266,9 @@ impl DesktopController {
 
     /// Type a text string.
     pub fn type_text(&self, text: &str) -> Result<(), Temm1eError> {
+        if let InputRoute::Ydotool = self.input_route()? {
+            return crate::input::yd_type(text);
+        }
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -265,6 +281,9 @@ impl DesktopController {
 
     /// Press a key combination (e.g., "cmd+c", "ctrl+shift+a", "enter", "tab").
     pub fn key_combo(&self, combo: &str) -> Result<(), Temm1eError> {
+        if let InputRoute::Ydotool = self.input_route()? {
+            return crate::input::yd_key(combo);
+        }
         let mut enigo = self.new_enigo()?;
 
         let keys = platform::parse_key_combo(combo)?;
@@ -287,6 +306,13 @@ impl DesktopController {
 
     /// Scroll at the current mouse position.
     pub fn scroll(&self, x: i32, y: i32, dx: i32, dy: i32) -> Result<(), Temm1eError> {
+        if let InputRoute::Ydotool = self.input_route()? {
+            return Err(Temm1eError::Tool(
+                "scroll is not yet supported by the ydotool (Wayland) backend; \
+                 use the browser tool for scrollable web content."
+                    .into(),
+            ));
+        }
         let mut enigo = self.new_enigo()?;
 
         enigo
@@ -310,6 +336,9 @@ impl DesktopController {
 
     /// Drag from (x1, y1) to (x2, y2).
     pub fn drag(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> Result<(), Temm1eError> {
+        if let InputRoute::Ydotool = self.input_route()? {
+            return crate::input::yd_drag(x1, y1, x2, y2);
+        }
         let mut enigo = self.new_enigo()?;
 
         enigo
