@@ -1,0 +1,40 @@
+# TEMM1E autonomous DESKTOP-CONTROL agent — systemd USER service.
+#
+# This is distinct from deploy/temm1e.service (the headless messaging daemon that
+# runs as a system service under multi-user.target). Desktop control needs a live
+# GRAPHICAL session (DISPLAY / WAYLAND_DISPLAY), so it runs as a *user* service bound
+# to graphical-session.target.
+#
+# Install (as the agent's Linux user):
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/temm1e-desktop.service ~/.config/systemd/user/temm1e-desktop.service
+#   # edit ExecStart / Environment below, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now temm1e-desktop.service
+#
+# Combined with auto-login on a headed VPS, this brings temm1e up at boot inside the
+# desktop with no human in the loop. See docs/DEPLOY_AUTONOMOUS_DESKTOP.md.
+
+[Unit]
+Description=TEMM1E autonomous desktop-control agent
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# Path to your built binary (cargo build --release --bin temm1e, then install it).
+ExecStart=%h/.local/bin/temm1e start
+Restart=on-failure
+RestartSec=5
+
+# INPUT BACKEND — the important knob for unattended hosts (TEMM1E_INPUT_BACKEND):
+#   * X11 session  → leave UNSET. `auto` selects enigo/XTEST: exact + NO prompt. (Recommended.)
+#   * Wayland VPS  → uncomment below. `ydotool` never shows the RemoteDesktop portal
+#                    dialog (which would block forever with no human to answer). Requires
+#                    ydotoold running with /dev/uinput access (see the runbook).
+#   * Wayland, attended personal desktop → leave unset; `auto` uses libei (exact, one
+#                    approval per launch).
+# Environment=TEMM1E_INPUT_BACKEND=ydotool
+
+[Install]
+WantedBy=graphical-session.target

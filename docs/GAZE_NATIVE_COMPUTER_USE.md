@@ -97,15 +97,32 @@ the entire justification for the libei backend.
 
 ## Roadmap (open work)
 
-1. **libei / RemoteDesktop input backend for Wayland (#70)** — the one hard platform. `InputRoute::Libei`
-   preferred over ydotool on Wayland; exact logical coordinates, no acceleration, portal-brokered
-   permission. Rust: `reis` crate (ei/eis protocol) or enigo's libei feature. Infra confirmed
-   present on target machines (`libei 1.2.1` + `org.freedesktop.portal.RemoteDesktop`).
+1. **libei / RemoteDesktop input backend for Wayland (#70)** — ✅ **DONE (PR #71).** `LibeiController`
+   via ashpd's direct-portal `notify_pointer_motion_absolute` (no reis/EIS needed); exact logical
+   coordinates, no acceleration; one permission prompt per process, then reused. Proven on real
+   GNOME Wayland (click hit calc "5"; typed "TEMM1E gaze libei 789"). Preferred over ydotool on
+   Wayland unless `TEMM1E_INPUT_BACKEND` overrides (see Autonomy below).
 2. **macOS Accessibility + Windows packaging** — permission grant flow and signed distribution;
    UX, not hard problems.
 3. **Vision layer polish** — optional diff-centroid servo (localize where a click *actually* landed
-   and re-aim) as a backend-agnostic accuracy aid; element/accessibility-tree targeting where a
-   native a11y API exists.
+   and re-aim) as a backend-agnostic accuracy aid — also the promptless-Wayland click-precision fix;
+   element/accessibility-tree targeting where a native a11y API exists.
+
+## Autonomy & deployment (attended vs unattended)
+
+Wayland gates synthetic input behind a portal consent dialog, so the exact-but-interactive libei
+backend prompts **once per process**. Fine for an attended personal desktop; but a truly
+unattended host (a headed cloud VPS) has no one to approve it. The backend is therefore selectable
+via `TEMM1E_INPUT_BACKEND` (`auto` | `enigo` | `ydotool` | `libei`, read by
+`InputBackendPref::from_env()`):
+
+- **X11 host** (incl. an X11 VPS) — `auto` → enigo/XTEST: exact **and** promptless. No config. Recommended for a VPS.
+- **Unattended Wayland** — `ydotool`: promptless (one-time `/dev/uinput` setup), keyboard exact, clicks imprecise.
+- **Attended Wayland** — `auto`/`libei`: exact, one approval per launch.
+
+`enigo`/`ydotool` never attempt libei, so an unattended host never blocks on the dialog. Full
+boot-to-running-agent setup (auto-login + autostart) is in `docs/DEPLOY_AUTONOMOUS_DESKTOP.md`,
+with units in `deploy/temm1e-desktop.{service,desktop}`.
 
 ## Honest limits — input is necessary, not the whole evasion story
 

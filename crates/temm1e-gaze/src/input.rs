@@ -110,6 +110,54 @@ impl InputEnv {
     }
 }
 
+/// Which desktop input backend to prefer. Set via the `TEMM1E_INPUT_BACKEND`
+/// environment variable (`auto` | `enigo` | `ydotool` | `libei`).
+///
+/// - `Auto` (default) — right for INTERACTIVE use: libei on Wayland (exact, but a
+///   one-time portal permission prompt), enigo on X11/macOS/Windows.
+/// - `Ydotool` — for UNATTENDED Wayland (e.g. a cloud VPS with no one to answer the
+///   portal dialog): needs a one-time `/dev/uinput` setup but NEVER prompts.
+/// - `Enigo` — force enigo (X11 / macOS / Windows).
+/// - `Libei` — force the Wayland RemoteDesktop portal even off Wayland detection.
+///
+/// On an X11 host, `Auto` already selects enigo/XTEST (exact + promptless), so an
+/// X11 VPS needs no setting at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InputBackendPref {
+    #[default]
+    Auto,
+    Enigo,
+    Ydotool,
+    Libei,
+}
+
+impl InputBackendPref {
+    /// Read the preference from `TEMM1E_INPUT_BACKEND`; unknown/empty → `Auto`.
+    pub fn from_env() -> Self {
+        match std::env::var("TEMM1E_INPUT_BACKEND")
+            .ok()
+            .map(|s| s.trim().to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("enigo") => Self::Enigo,
+            Some("ydotool") => Self::Ydotool,
+            Some("libei") => Self::Libei,
+            _ => Self::Auto,
+        }
+    }
+
+    /// Whether the libei/RemoteDesktop-portal backend should be attempted. It shows
+    /// a one-time permission prompt and blocks until answered, so `Enigo`/`Ydotool`
+    /// return false — unattended hosts must never hang on that dialog.
+    pub fn attempt_libei(self, is_wayland: bool) -> bool {
+        match self {
+            Self::Libei => true,
+            Self::Auto => is_wayland,
+            Self::Enigo | Self::Ydotool => false,
+        }
+    }
+}
+
 /// Choose the input route from the environment and whether enigo initialized.
 ///
 /// Pure function (no I/O) so the full decision matrix is unit-testable regardless of
@@ -504,5 +552,18 @@ mod tests {
         assert!(InputRoute::Unavailable("x".into())
             .status_note()
             .contains("UNAVAILABLE"));
+    }
+
+    #[test]
+    fn backend_pref_gates_libei_prompt() {
+        // Auto only attempts libei on Wayland (interactive, exact).
+        assert!(InputBackendPref::Auto.attempt_libei(true));
+        assert!(!InputBackendPref::Auto.attempt_libei(false));
+        // Ydotool/Enigo NEVER attempt libei — unattended hosts must not block on
+        // the portal prompt, even on Wayland.
+        assert!(!InputBackendPref::Ydotool.attempt_libei(true));
+        assert!(!InputBackendPref::Enigo.attempt_libei(true));
+        // Explicit libei forces it.
+        assert!(InputBackendPref::Libei.attempt_libei(false));
     }
 }

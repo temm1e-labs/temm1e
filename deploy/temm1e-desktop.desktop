@@ -1,0 +1,15 @@
+[Desktop Entry]
+# TEMM1E autonomous desktop-control agent — XDG autostart entry (simpler alternative
+# to the systemd user service). Install as the agent user:
+#   cp deploy/temm1e-desktop.desktop ~/.config/autostart/temm1e-desktop.desktop
+#   # edit Exec below to your binary path; it then launches with every desktop login.
+# Combine with auto-login for a boot-to-running-agent headed VPS.
+Type=Application
+Name=TEMM1E desktop agent
+Comment=Autonomous vision-driven desktop control
+# On X11: no env needed (auto → enigo/XTEST, exact + promptless).
+# On unattended Wayland: force the promptless backend, e.g.
+#   Exec=env TEMM1E_INPUT_BACKEND=ydotool /home/USER/.local/bin/temm1e start
+Exec=/home/USER/.local/bin/temm1e start
+Terminal=false
+X-GNOME-Autostart-enabled=true

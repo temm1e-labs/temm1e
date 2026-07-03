@@ -1,6 +1,6 @@
 //! Desktop screen controller — capture screenshots and simulate input at the OS level.
 
-use crate::input::{InputEnv, InputRoute};
+use crate::input::{InputBackendPref, InputEnv, InputRoute};
 use crate::platform;
 use enigo::{Axis, Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
 use image::ImageFormat;
@@ -46,12 +46,24 @@ pub struct DesktopController {
 }
 
 impl DesktopController {
-    /// Create a new DesktopController for the given monitor index.
+    /// Create a new DesktopController for the given monitor index, choosing the
+    /// input backend from the `TEMM1E_INPUT_BACKEND` env var (see [`InputBackendPref`]).
+    /// For UNATTENDED Wayland hosts (e.g. a cloud VPS), set it to `ydotool` so the
+    /// libei portal prompt — which blocks waiting for a human — is never attempted.
     ///
     /// Screen capture is always available. Input simulation may fail on macOS
     /// if Accessibility permission has not been granted — in that case,
     /// `input_available()` returns false and input methods return clear errors.
     pub fn new(monitor_index: usize) -> Result<Self, Temm1eError> {
+        Self::with_backend(monitor_index, InputBackendPref::from_env())
+    }
+
+    /// Like [`new`](Self::new), but with an explicit backend preference (bypassing
+    /// the `TEMM1E_INPUT_BACKEND` env var).
+    pub fn with_backend(
+        monitor_index: usize,
+        backend: InputBackendPref,
+    ) -> Result<Self, Temm1eError> {
         // Verify the monitor exists
         let monitors = xcap::Monitor::all()
             .map_err(|e| Temm1eError::Tool(format!("Failed to enumerate monitors: {}", e)))?;
@@ -82,7 +94,9 @@ impl DesktopController {
         }
 
         #[cfg(feature = "wayland-libei")]
-        let prefer_libei = InputEnv::detect().is_wayland();
+        let prefer_libei = backend.attempt_libei(InputEnv::detect().is_wayland());
+        #[cfg(not(feature = "wayland-libei"))]
+        let _ = backend;
 
         Ok(Self {
             monitor_index,

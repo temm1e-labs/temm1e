@@ -27,3 +27,4 @@ pub mod platform;
 
 pub use desktop_controller::DesktopController;
 pub use diff::{compare_frames, ChangeReport};
+pub use input::InputBackendPref;
