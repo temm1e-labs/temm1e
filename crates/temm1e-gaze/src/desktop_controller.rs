@@ -34,6 +34,15 @@ pub struct DesktopController {
     monitor_index: usize,
     /// Chosen input backend for this host (enigo / ydotool / unavailable).
     route: InputRoute,
+    /// Native Wayland input via the RemoteDesktop portal. Lazily established on the
+    /// FIRST input use (one permission prompt), then reused for the process
+    /// lifetime. Preferred over ydotool on Wayland because it positions the pointer
+    /// EXACTLY (ydotool's absolute motion is distorted by pointer acceleration).
+    #[cfg(feature = "wayland-libei")]
+    libei: std::sync::OnceLock<Option<crate::libei::LibeiController>>,
+    /// Whether to attempt libei at all (true only on Wayland).
+    #[cfg(feature = "wayland-libei")]
+    prefer_libei: bool,
 }
 
 impl DesktopController {
@@ -72,10 +81,42 @@ impl DesktopController {
             }
         }
 
+        #[cfg(feature = "wayland-libei")]
+        let prefer_libei = InputEnv::detect().is_wayland();
+
         Ok(Self {
             monitor_index,
             route,
+            #[cfg(feature = "wayland-libei")]
+            libei: std::sync::OnceLock::new(),
+            #[cfg(feature = "wayland-libei")]
+            prefer_libei,
         })
+    }
+
+    /// Lazily establish (once) and return the libei portal controller, if this is a
+    /// Wayland host and the portal is available. The first call blocks on the
+    /// permission prompt; failures cache as `None` so we fall back to ydotool/enigo
+    /// and never re-prompt.
+    #[cfg(feature = "wayland-libei")]
+    fn libei(&self) -> Option<&crate::libei::LibeiController> {
+        if !self.prefer_libei {
+            return None;
+        }
+        self.libei
+            .get_or_init(|| match crate::libei::LibeiController::new() {
+                Ok(controller) => {
+                    tracing::info!(
+                        "Desktop input via libei (RemoteDesktop portal) — exact positioning"
+                    );
+                    Some(controller)
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "libei unavailable; falling back to ydotool/enigo");
+                    None
+                }
+            })
+            .as_ref()
     }
 
     /// Whether input simulation (click, type, key) is available.
@@ -226,6 +267,10 @@ impl DesktopController {
 
     /// Move mouse to logical coordinates and click.
     pub fn click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
+        #[cfg(feature = "wayland-libei")]
+        if let Some(libei) = self.libei() {
+            return libei.click(x, y);
+        }
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_click(x, y);
         }
@@ -245,6 +290,10 @@ impl DesktopController {
 
     /// Double-click at logical coordinates.
     pub fn double_click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
+        #[cfg(feature = "wayland-libei")]
+        if let Some(libei) = self.libei() {
+            return libei.double_click(x, y);
+        }
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_double_click(x, y);
         }
@@ -267,6 +316,10 @@ impl DesktopController {
 
     /// Right-click at logical coordinates.
     pub fn right_click(&self, x: i32, y: i32) -> Result<(), Temm1eError> {
+        #[cfg(feature = "wayland-libei")]
+        if let Some(libei) = self.libei() {
+            return libei.right_click(x, y);
+        }
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_right_click(x, y);
         }
@@ -286,6 +339,10 @@ impl DesktopController {
 
     /// Type a text string.
     pub fn type_text(&self, text: &str) -> Result<(), Temm1eError> {
+        #[cfg(feature = "wayland-libei")]
+        if let Some(libei) = self.libei() {
+            return libei.type_text(text);
+        }
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_type(text);
         }
@@ -301,6 +358,10 @@ impl DesktopController {
 
     /// Press a key combination (e.g., "cmd+c", "ctrl+shift+a", "enter", "tab").
     pub fn key_combo(&self, combo: &str) -> Result<(), Temm1eError> {
+        #[cfg(feature = "wayland-libei")]
+        if let Some(libei) = self.libei() {
+            return libei.key_combo(combo);
+        }
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_key(combo);
         }
@@ -357,6 +418,10 @@ impl DesktopController {
 
     /// Drag from (x1, y1) to (x2, y2).
     pub fn drag(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> Result<(), Temm1eError> {
+        #[cfg(feature = "wayland-libei")]
+        if let Some(libei) = self.libei() {
+            return libei.drag(x1, y1, x2, y2);
+        }
         if let InputRoute::Ydotool = self.input_route()? {
             return crate::input::yd_drag(x1, y1, x2, y2);
         }

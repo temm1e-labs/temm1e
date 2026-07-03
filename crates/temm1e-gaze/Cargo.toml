@@ -10,7 +10,7 @@ description = "Tem Gaze — vision-primary desktop control for TEMM1E"
 temm1e-core.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["macros", "net", "rt", "rt-multi-thread", "sync", "time"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
 base64.workspace = true
@@ -19,6 +19,21 @@ base64.workspace = true
 enigo = { version = "0.3", features = ["serde"] }
 xcap = "0.8"
 image = { version = "0.25", default-features = false, features = ["png"] }
+ashpd = { version = "0.12.3", default-features = false, features = ["tokio"], optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }
+
+[features]
+# Native Wayland input via the XDG RemoteDesktop portal: exact absolute pointer
+# positioning with NO acceleration (unlike the ydotool fallback). Pulls ashpd + a
+# tokio runtime. See docs/GAZE_NATIVE_COMPUTER_USE.md and issue #70.
+wayland-libei = ["dep:ashpd", "dep:tokio"]
+
+[[example]]
+name = "libei_probe"
+required-features = ["wayland-libei"]
+
+[[example]]
+name = "libei_ctrl_test"
+required-features = ["wayland-libei"]
