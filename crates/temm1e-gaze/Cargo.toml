@@ -37,3 +37,7 @@ required-features = ["wayland-libei"]
 [[example]]
 name = "libei_ctrl_test"
 required-features = ["wayland-libei"]
+
+[[example]]
+name = "libei_type_test"
+required-features = ["wayland-libei"]
