@@ -34,10 +34,11 @@ pub struct DesktopController {
     monitor_index: usize,
     /// Chosen input backend for this host (enigo / ydotool / unavailable).
     route: InputRoute,
-    /// Native Wayland input via the RemoteDesktop portal. Lazily established on the
-    /// FIRST input use (one permission prompt), then reused for the process
-    /// lifetime. Preferred over ydotool on Wayland because it positions the pointer
-    /// EXACTLY (ydotool's absolute motion is distorted by pointer acceleration).
+    /// Native Wayland input via the RemoteDesktop portal. Established ONCE — eagerly
+    /// at startup via `warm_input()`, otherwise on first input use — then reused for
+    /// the whole process (one permission prompt per run). Preferred over ydotool on
+    /// Wayland because it positions the pointer EXACTLY (ydotool's absolute motion is
+    /// distorted by pointer acceleration).
     #[cfg(target_os = "linux")]
     libei: std::sync::OnceLock<Option<crate::libei::LibeiController>>,
     /// Whether to attempt libei at all (true only on Wayland).
@@ -131,6 +132,25 @@ impl DesktopController {
                 }
             })
             .as_ref()
+    }
+
+    /// Eagerly establish the input session so it is ready BEFORE the first action —
+    /// front-loads startup for unattended / VPS operation (temm1e boots with its
+    /// hands already on the keyboard). On Wayland this warms the libei portal session
+    /// (and, if attended, surfaces its one permission prompt at startup rather than
+    /// mid-task); on X11/ydotool there is no session to establish, so it's a no-op.
+    /// Blocks while establishing, so call it from a background thread.
+    pub fn warm_input(&self) {
+        #[cfg(target_os = "linux")]
+        if self.prefer_libei {
+            if self.libei().is_some() {
+                tracing::info!("Desktop input warmed at startup — libei portal session ready");
+            } else {
+                tracing::warn!(
+                    "Desktop input warm-up: libei unavailable; will use the fallback route"
+                );
+            }
+        }
     }
 
     /// Whether input simulation (click, type, key) is available.

@@ -18,7 +18,7 @@ pub struct DesktopTool {
 impl DesktopTool {
     /// Create a new desktop tool for the given monitor.
     pub fn new(monitor_index: usize) -> Result<Self, Temm1eError> {
-        let controller = DesktopController::new(monitor_index)?;
+        let controller = Arc::new(DesktopController::new(monitor_index)?);
         let status_note = controller.input_status_note();
         tracing::info!(
             monitor = monitor_index,
@@ -31,8 +31,18 @@ impl DesktopTool {
             status_note
         );
 
+        // Front-load the input session at startup, in the background, so temm1e boots
+        // with its hands already ready — it can act the instant it needs to, without a
+        // first-action stall (or, on attended Wayland, a mid-task permission prompt).
+        // Non-blocking: the rest of temm1e keeps starting while this establishes. No-op
+        // on X11/ydotool (stateless); on Wayland it warms the libei portal session.
+        {
+            let controller = Arc::clone(&controller);
+            std::thread::spawn(move || controller.warm_input());
+        }
+
         Ok(Self {
-            controller: Arc::new(controller),
+            controller,
             description,
             last_image: std::sync::Mutex::new(None),
         })
