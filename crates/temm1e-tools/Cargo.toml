@@ -39,3 +39,9 @@ temm1e-gaze = { path = "../temm1e-gaze", optional = true }
 tempfile = "3"
 tokio = { workspace = true, features = ["full", "test-util"] }
 temm1e-test-utils.workspace = true
+
+# Async-context self-test for the desktop tool (needs a display). Only builds when
+# desktop-control is enabled, so `cargo check` without the feature skips it.
+[[example]]
+name = "desktop_async_selftest"
+required-features = ["desktop-control"]

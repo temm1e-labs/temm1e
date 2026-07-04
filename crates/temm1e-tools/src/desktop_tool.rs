@@ -2,17 +2,28 @@
 //! at the OS level. This is Tem Gaze's desktop computer use implementation.
 
 use async_trait::async_trait;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use temm1e_core::types::error::Temm1eError;
 use temm1e_core::{Tool, ToolContext, ToolDeclarations, ToolInput, ToolOutput, ToolOutputImage};
 use temm1e_gaze::DesktopController;
 
+/// The blocking half of the desktop tool: everything that touches the OS (screen
+/// capture + input injection + the verify-loop diff). This MUST run off the async
+/// runtime's worker threads — `xcap`'s Wayland ScreenCast capture drives an internal
+/// tokio `block_on`, which panics ("Cannot start a runtime from within a runtime")
+/// when invoked on a thread that's already driving async tasks. `execute` therefore
+/// hands the whole action to `tokio::task::spawn_blocking`, where the runtime's
+/// "entered" guard is clear and the nested `block_on` is legal.
+struct DesktopWorker {
+    controller: Arc<DesktopController>,
+    last_image: Mutex<Option<ToolOutputImage>>,
+}
+
 /// Desktop control tool — full computer use via screen capture + input simulation.
 pub struct DesktopTool {
-    controller: Arc<DesktopController>,
+    worker: Arc<DesktopWorker>,
     /// Full tool description incl. the runtime input-backend status.
     description: String,
-    last_image: std::sync::Mutex<Option<ToolOutputImage>>,
 }
 
 impl DesktopTool {
@@ -42,9 +53,11 @@ impl DesktopTool {
         }
 
         Ok(Self {
-            controller,
+            worker: Arc::new(DesktopWorker {
+                controller,
+                last_image: Mutex::new(None),
+            }),
             description,
-            last_image: std::sync::Mutex::new(None),
         })
     }
 
@@ -78,7 +91,9 @@ impl DesktopTool {
          space / wrong coordinates) — retry with adjusted coordinates, do NOT claim success. NEVER \
          report an action as done unless BOTH the screenshot shows the change AND the change signal \
          confirms it; do not claim success you cannot see.";
+}
 
+impl DesktopWorker {
     /// Overlay the coordinate grid onto a captured screenshot, stash it as the
     /// tool's `last_image` (the runtime feeds that back to the model as vision),
     /// and return a short note describing it for the tool-result text.
@@ -225,6 +240,31 @@ impl Tool for DesktopTool {
         input: ToolInput,
         _ctx: &ToolContext,
     ) -> Result<ToolOutput, Temm1eError> {
+        // Desktop I/O is blocking and, on Wayland, xcap's ScreenCast capture drives a
+        // NESTED tokio runtime (`block_on`) — both reasons this must never run on an
+        // async worker thread. `spawn_blocking` moves the whole action to a blocking-
+        // pool thread, where the runtime's "entered" guard is clear (so the nested
+        // block_on is legal) and no worker is stalled by the OS round-trips.
+        let worker = Arc::clone(&self.worker);
+        tokio::task::spawn_blocking(move || worker.run(input))
+            .await
+            .map_err(|e| Temm1eError::Tool(format!("desktop action task panicked: {e}")))?
+    }
+
+    fn take_last_image(&self) -> Option<ToolOutputImage> {
+        self.worker
+            .last_image
+            .lock()
+            .ok()
+            .and_then(|mut img| img.take())
+    }
+}
+
+impl DesktopWorker {
+    /// Execute one desktop action. Synchronous and blocking by design — the async
+    /// [`Tool::execute`] shell dispatches here via `spawn_blocking` so the OS calls
+    /// (and xcap's nested capture runtime) never touch an async worker thread.
+    fn run(&self, input: ToolInput) -> Result<ToolOutput, Temm1eError> {
         let action = input
             .arguments
             .get("action")
@@ -392,10 +432,6 @@ impl Tool for DesktopTool {
                 other
             ))),
         }
-    }
-
-    fn take_last_image(&self) -> Option<ToolOutputImage> {
-        self.last_image.lock().ok().and_then(|mut img| img.take())
     }
 }
 
