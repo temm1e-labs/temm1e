@@ -1474,11 +1474,11 @@ Requires Rust 1.82+ and Chrome/Chromium (for the browser tool).
 
 <p align="center">
 
-<a href="https://www.star-history.com/?repos=nagisanzenin%2Ftemm1e&type=date&legend=top-left">
+<a href="https://star-history.dera.page/#temm1e-labs/temm1e&type=date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=nagisanzenin/temm1e&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=nagisanzenin/temm1e&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=nagisanzenin/temm1e&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/image?repos=temm1e-labs/temm1e&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/image?repos=temm1e-labs/temm1e&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/image?repos=temm1e-labs/temm1e&type=date&legend=top-left" />
  </picture>
 </a>
 
