@@ -9015,18 +9015,18 @@ mod tests {
     #[test]
     fn explicit_zai_key() {
         let result =
-            detect_api_key("zai:24f7a8ebaa2f4cb1866b82b0670a5e6c.rPGt3alOjwddy4l1").unwrap();
+            detect_api_key("zai:0123456789abcdef0123456789abcdef.ExampleFakeKey01").unwrap();
         assert_eq!(result.provider, "zai");
         assert_eq!(
             result.api_key,
-            "24f7a8ebaa2f4cb1866b82b0670a5e6c.rPGt3alOjwddy4l1"
+            "0123456789abcdef0123456789abcdef.ExampleFakeKey01"
         );
     }
 
     #[test]
     fn explicit_zhipu_key() {
         let result =
-            detect_api_key("zhipu:24f7a8ebaa2f4cb1866b82b0670a5e6c.rPGt3alOjwddy4l1").unwrap();
+            detect_api_key("zhipu:0123456789abcdef0123456789abcdef.ExampleFakeKey01").unwrap();
         assert_eq!(result.provider, "zai");
     }
 
